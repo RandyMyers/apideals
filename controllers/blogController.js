@@ -214,10 +214,15 @@ exports.createBlog = async (req, res) => {
 // @access  Public
 exports.getAllBlogs = async (req, res) => {
   try {
-    const blogs = await Blog.find().populate('author', 'username email'); // Populates author info
-    console.log(blogs);
+    // Only return published blogs for public endpoint
+    const blogs = await Blog.find({ isPublished: true })
+      .populate('author', 'username email')
+      .sort({ createdAt: -1 }); // Sort by newest first
+    
+    console.log(`Found ${blogs.length} published blogs`);
     res.status(200).json(blogs);
   } catch (error) {
+    console.error('Error fetching blogs:', error);
     res.status(500).json({ message: 'Failed to fetch blogs', error: error.message });
   }
 };

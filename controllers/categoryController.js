@@ -1,4 +1,4 @@
-const Category = require('../models/Category'); // Import the Category model
+const Category = require('../models/category'); // Import the Category model
 const Store = require('../models/store');
 const mongoose = require('mongoose');
 const cloudinary = require('cloudinary').v2;

@@ -214,12 +214,17 @@ exports.createBlog = async (req, res) => {
 // @access  Public
 exports.getAllBlogs = async (req, res) => {
   try {
-    // Only return published blogs for public endpoint
-    const blogs = await Blog.find({ isPublished: true })
+    // Build query - by default only show published blogs
+    // Allow ?includeUnpublished=true for admin/testing purposes
+    const includeUnpublished = req.query.includeUnpublished === 'true';
+    const query = includeUnpublished ? {} : { isPublished: true };
+    
+    const blogs = await Blog.find(query)
       .populate('author', 'username email')
       .sort({ createdAt: -1 }); // Sort by newest first
     
-    console.log(`Found ${blogs.length} published blogs`);
+    const blogType = includeUnpublished ? 'blogs (including unpublished)' : 'published blogs';
+    console.log(`Found ${blogs.length} ${blogType}`);
     res.status(200).json(blogs);
   } catch (error) {
     console.error('Error fetching blogs:', error);

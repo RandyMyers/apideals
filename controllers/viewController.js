@@ -30,6 +30,13 @@ exports.createView = async (req, res) => {
             entityModel = 'Category';
         }
 
+        // Validate that at least one entity ID is provided
+        if (!entityId || !entityType) {
+            return res.status(400).json({
+                message: 'At least one entity ID (storeId, couponId, dealId, or categoryId) is required',
+            });
+        }
+
         // Create a new View entry
         const view = new View({
             visitorId: visitorId || null,

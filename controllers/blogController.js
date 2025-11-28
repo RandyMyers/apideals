@@ -491,3 +491,25 @@ exports.likeBlog = async (req, res) => {
     res.status(500).json({ message: 'Failed to like blog', error: error.message });
   }
 };
+
+// @desc    Publish a blog post by ID
+// @route   PATCH /api/v1/blog/publish/:id
+// @access  Private (Admin)
+exports.publishBlog = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found' });
+    }
+
+    blog.isPublished = true;
+    await blog.save();
+
+    res.status(200).json({ 
+      message: 'Blog published successfully',
+      blog: blog 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to publish blog', error: error.message });
+  }
+};

@@ -25,4 +25,7 @@ router.post('/comments/:id',blogController.addComment);
 // Like a blog post - Private Route
 router.post('/like/:id',blogController.likeBlog);
 
+// Publish a blog post - Private Route (Admin)
+router.patch('/publish/:id', authMiddleware, adminMiddleware, blogController.publishBlog);
+
 module.exports = router;

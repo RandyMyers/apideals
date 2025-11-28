@@ -116,6 +116,18 @@ const blogSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // Translation fields for tags (object with arrays per language)
+    tagsTranslations: {
+      type: Map,
+      of: [String],
+      default: {},
+    },
+    // Translation fields for tags (object with arrays per language)
+    tagsTranslations: {
+      type: Map,
+      of: [String],
+      default: {},
+    },
     featuredImage: {
       type: String,
       required: false,

@@ -240,6 +240,16 @@ const sampleBlogs = [
       da: ['kuponer', 'rabatkoder', 'spare penge', 'online shopping', 'tilbud'],
       sv: ['kuponger', 'rabattkoder', 'spara pengar', 'online shopping', 'erbjudanden']
     },
+    tagsTranslations: {
+      ga: ['airgead a shábháil', 'cúpóin', 'leideanna siopadóireachta', 'cóid lascaine'],
+      de: ['Geld sparen', 'Gutscheine', 'Einkaufstipps', 'Rabattcodes'],
+      es: ['ahorrar dinero', 'cupones', 'consejos de compras', 'códigos de descuento'],
+      it: ['risparmiare', 'coupon', 'consigli di shopping', 'codici sconto'],
+      no: ['spare penger', 'kuponger', 'shoppingtips', 'rabattkoder'],
+      fi: ['säästää rahaa', 'kupongit', 'ostovinkit', 'alennuskoodit'],
+      da: ['spare penge', 'kuponer', 'shoppingtips', 'rabatkoder'],
+      sv: ['spara pengar', 'kuponger', 'shoppingtips', 'rabattkoder']
+    },
     ogTitleTranslations: {
       ga: '10 Bealaí is Fearr chun Airgead a Shábháil le Cúpóin Ar Líne',
       de: '10 beste Möglichkeiten, mit Online-Gutscheinen Geld zu sparen',
@@ -487,6 +497,16 @@ const sampleBlogs = [
       fi: ['Black Friday', 'Black Friday -tarjoukset', 'Black Friday 2024', 'ostotarjoukset'],
       da: ['Black Friday', 'Black Friday-tilbud', 'Black Friday 2024', 'shoppingtilbud'],
       sv: ['Black Friday', 'Black Friday-erbjudanden', 'Black Friday 2024', 'shoppingerbjudanden']
+    },
+    tagsTranslations: {
+      ga: ['Black Friday', 'siopadóireacht', 'margaí', 'airgead a shábháil', 'lascainí'],
+      de: ['Black Friday', 'Einkaufen', 'Angebote', 'Geld sparen', 'Rabatte'],
+      es: ['Black Friday', 'compras', 'ofertas', 'ahorrar dinero', 'descuentos'],
+      it: ['Black Friday', 'shopping', 'offerte', 'risparmiare', 'sconti'],
+      no: ['Black Friday', 'shopping', 'tilbud', 'spare penger', 'rabatter'],
+      fi: ['Black Friday', 'ostokset', 'tarjoukset', 'säästää rahaa', 'alennukset'],
+      da: ['Black Friday', 'shopping', 'tilbud', 'spare penge', 'rabatter'],
+      sv: ['Black Friday', 'shopping', 'erbjudanden', 'spara pengar', 'rabatter']
     },
     ogTitleTranslations: {
       ga: 'Conas na Margaí Black Friday is Fearr a Aimsigh in 2024',

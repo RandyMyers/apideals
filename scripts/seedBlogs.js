@@ -750,6 +750,16 @@ const sampleBlogs = [
       da: ['rejsetilbud', 'rejserabatkoder', 'hotelrabatter', 'flytilbud'],
       sv: ['reseerbjudanden', 'reserabattkoder', 'hotellrabatter', 'flygerbjudanden']
     },
+    tagsTranslations: {
+      ga: ['taisteal', 'margaí', 'cóid lascaine', 'laethanta saoire', 'airgead a shábháil'],
+      de: ['Reisen', 'Angebote', 'Rabattcodes', 'Urlaub', 'Geld sparen'],
+      es: ['viajes', 'ofertas', 'códigos de descuento', 'vacaciones', 'ahorrar dinero'],
+      it: ['viaggi', 'offerte', 'codici sconto', 'vacanze', 'risparmiare'],
+      no: ['reise', 'tilbud', 'rabattkoder', 'ferie', 'spare penger'],
+      fi: ['matkustus', 'tarjoukset', 'alennuskoodit', 'loma', 'säästää rahaa'],
+      da: ['rejse', 'tilbud', 'rabatkoder', 'ferie', 'spare penge'],
+      sv: ['resa', 'erbjudanden', 'rabattkoder', 'semester', 'spara pengar']
+    },
     ogTitleTranslations: {
       ga: 'Top 5 Margaí Taistil agus Cóid Lascaine do 2024',
       de: 'Top 5 Reiseangebote und Rabattcodes für 2024',

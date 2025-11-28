@@ -223,9 +223,12 @@ exports.getAllBlogs = async (req, res) => {
       .populate('author', 'username email')
       .sort({ createdAt: -1 }); // Sort by newest first
     
+    // Convert Map fields to objects for all blogs
+    const blogsWithObjects = blogs.map(blog => convertMapFieldsToObjects(blog));
+    
     const blogType = includeUnpublished ? 'blogs (including unpublished)' : 'published blogs';
     console.log(`Found ${blogs.length} ${blogType}`);
-    res.status(200).json(blogs);
+    res.status(200).json(blogsWithObjects);
   } catch (error) {
     console.error('Error fetching blogs:', error);
     res.status(500).json({ message: 'Failed to fetch blogs', error: error.message });
@@ -241,10 +244,28 @@ exports.getBlogById = async (req, res) => {
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });
     }
-    res.status(200).json(blog);
+    const blogObj = convertMapFieldsToObjects(blog);
+    res.status(200).json(blogObj);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch blog', error: error.message });
   }
+};
+
+// Helper function to convert Map fields to objects for JSON serialization
+const convertMapFieldsToObjects = (blog) => {
+  const blogObj = blog.toObject ? blog.toObject() : blog;
+  
+  // Convert keywordsTranslations Map to object
+  if (blogObj.keywordsTranslations instanceof Map) {
+    blogObj.keywordsTranslations = Object.fromEntries(blogObj.keywordsTranslations);
+  }
+  
+  // Convert tagsTranslations Map to object
+  if (blogObj.tagsTranslations instanceof Map) {
+    blogObj.tagsTranslations = Object.fromEntries(blogObj.tagsTranslations);
+  }
+  
+  return blogObj;
 };
 
 // @desc    Get a single blog post by slug
@@ -256,7 +277,8 @@ exports.getBlogBySlug = async (req, res) => {
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });
     }
-    res.status(200).json(blog);
+    const blogObj = convertMapFieldsToObjects(blog);
+    res.status(200).json(blogObj);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch blog', error: error.message });
   }

@@ -13,6 +13,9 @@ router.get('/all', blogController.getAllBlogs);
 // Get a single blog post by ID - Public Route
 router.get('/get/:id', blogController.getBlogById);
 
+// Get a single blog post by slug - Public Route (for React app)
+router.get('/slug/:slug', blogController.getBlogBySlug);
+
 // Update a blog post by ID - Private Route
 router.patch('/update/:id', authMiddleware, adminMiddleware, blogController.updateBlog);
 

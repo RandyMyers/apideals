@@ -2,9 +2,33 @@ const express = require('express');
 const router = express.Router();
 const interactionController = require('../controllers/interactionController'); // Adjust the path as needed
 const authMiddleware = require('../middleware/authMiddleware'); // Import auth middleware
+const jwt = require('jsonwebtoken');
+const User = require('../models/user');
 
-// 1. Create a new interaction
-router.post('/create', interactionController.createInteraction);
+// Optional auth middleware - doesn't fail if no token
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.header('Authorization');
+  const token = authHeader?.replace('Bearer ', '');
+  
+  if (token && token !== 'null' && token !== 'undefined') {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.id);
+      if (user) {
+        req.user = user;
+        if (!req.user.id && req.user._id) {
+          req.user.id = req.user._id.toString();
+        }
+      }
+    } catch (err) {
+      // Silently fail - user is anonymous
+    }
+  }
+  next();
+};
+
+// 1. Create a new interaction (optional auth - works for both logged-in and anonymous users)
+router.post('/create', optionalAuth, interactionController.createInteraction);
 
 // 2. Get all interactions
 router.get('/all', interactionController.getAllInteractions);

@@ -47,6 +47,9 @@ router.get('/followed/deals/:userId', userController.getFollowedDeals);
 // Get user's store subscriptions
 router.get('/:userId/store-subscriptions', authMiddleware, userController.getUserStoreSubscriptions);
 
+// Get all users' activities (Admin only) - Must be before /:userId/activity to avoid route conflict
+router.get('/admin/activities', authMiddleware, adminMiddleware(['superAdmin']), userController.getAllUsersActivities);
+
 // Get user's activity log
 router.get('/:userId/activity', authMiddleware, userController.getUserActivity);
 

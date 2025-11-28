@@ -301,11 +301,19 @@ exports.addCredits = async (req, res) => {
 exports.followCoupon = async (req, res) => {
     try {
         const { userId, couponId } = req.body;
+        const Interaction = require('../models/interaction');
+        const Coupon = require('../models/coupon');
 
         // Check if user exists
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if coupon exists
+        const coupon = await Coupon.findById(couponId);
+        if (!coupon) {
+            return res.status(404).json({ message: 'Coupon not found' });
         }
 
         // Check if coupon is already followed
@@ -325,6 +333,23 @@ exports.followCoupon = async (req, res) => {
 
         await user.save();
 
+        // Track as interaction
+        try {
+            const interaction = new Interaction({
+                userId,
+                interactionType: 'follow',
+                entityType: 'coupon',
+                entityId: couponId,
+                entityModel: 'Coupon',
+                couponId,
+                storeId: coupon.storeId || null,
+            });
+            await interaction.save();
+        } catch (interactionError) {
+            console.error('Error tracking follow interaction:', interactionError);
+            // Non-blocking - don't fail the follow if interaction tracking fails
+        }
+
         res.status(200).json({ 
             message: 'Coupon followed successfully',
             followedCoupons: user.FollowedCoupons 
@@ -339,6 +364,7 @@ exports.followCoupon = async (req, res) => {
 exports.unfollowCoupon = async (req, res) => {
     try {
         const { userId, couponId } = req.body;
+        const Interaction = require('../models/interaction');
 
         // Check if user exists
         const user = await User.findById(userId);
@@ -352,6 +378,22 @@ exports.unfollowCoupon = async (req, res) => {
         );
 
         await user.save();
+
+        // Track as interaction
+        try {
+            const interaction = new Interaction({
+                userId,
+                interactionType: 'unfollow',
+                entityType: 'coupon',
+                entityId: couponId,
+                entityModel: 'Coupon',
+                couponId,
+            });
+            await interaction.save();
+        } catch (interactionError) {
+            console.error('Error tracking unfollow interaction:', interactionError);
+            // Non-blocking
+        }
 
         res.status(200).json({ 
             message: 'Coupon unfollowed successfully',
@@ -367,11 +409,19 @@ exports.unfollowCoupon = async (req, res) => {
 exports.followDeal = async (req, res) => {
     try {
         const { userId, dealId } = req.body;
+        const Interaction = require('../models/interaction');
+        const Deal = require('../models/deal');
 
         // Check if user exists
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if deal exists
+        const deal = await Deal.findById(dealId);
+        if (!deal) {
+            return res.status(404).json({ message: 'Deal not found' });
         }
 
         // Check if deal is already followed
@@ -391,6 +441,23 @@ exports.followDeal = async (req, res) => {
 
         await user.save();
 
+        // Track as interaction
+        try {
+            const interaction = new Interaction({
+                userId,
+                interactionType: 'follow',
+                entityType: 'deal',
+                entityId: dealId,
+                entityModel: 'Deal',
+                dealId,
+                storeId: deal.store || deal.storeId || null,
+            });
+            await interaction.save();
+        } catch (interactionError) {
+            console.error('Error tracking follow interaction:', interactionError);
+            // Non-blocking - don't fail the follow if interaction tracking fails
+        }
+
         res.status(200).json({ 
             message: 'Deal followed successfully',
             followedDeals: user.FollowedDeals 
@@ -405,6 +472,7 @@ exports.followDeal = async (req, res) => {
 exports.unfollowDeal = async (req, res) => {
     try {
         const { userId, dealId } = req.body;
+        const Interaction = require('../models/interaction');
 
         // Check if user exists
         const user = await User.findById(userId);
@@ -418,6 +486,22 @@ exports.unfollowDeal = async (req, res) => {
         );
 
         await user.save();
+
+        // Track as interaction
+        try {
+            const interaction = new Interaction({
+                userId,
+                interactionType: 'unfollow',
+                entityType: 'deal',
+                entityId: dealId,
+                entityModel: 'Deal',
+                dealId,
+            });
+            await interaction.save();
+        } catch (interactionError) {
+            console.error('Error tracking unfollow interaction:', interactionError);
+            // Non-blocking
+        }
 
         res.status(200).json({ 
             message: 'Deal unfollowed successfully',
@@ -852,63 +936,141 @@ exports.getUserActivity = async (req, res) => {
         const View = require('../models/view');
         const Interaction = require('../models/interaction');
         const CouponUsage = require('../models/couponUsage');
+        const Visitor = require('../models/visitor');
 
         // Build date filter
         const dateFilter = {};
         if (startDate || endDate) {
-            dateFilter.createdAt = {};
-            if (startDate) dateFilter.createdAt.$gte = new Date(startDate);
-            if (endDate) dateFilter.createdAt.$lte = new Date(endDate);
+            dateFilter.$or = [
+                { createdAt: {} },
+                { viewedAt: {} },
+                { interactionAt: {} },
+                { usedAt: {} }
+            ];
+            if (startDate) {
+                dateFilter.$or.forEach(filter => {
+                    if (filter.createdAt) filter.createdAt.$gte = new Date(startDate);
+                    if (filter.viewedAt) filter.viewedAt.$gte = new Date(startDate);
+                    if (filter.interactionAt) filter.interactionAt.$gte = new Date(startDate);
+                    if (filter.usedAt) filter.usedAt.$gte = new Date(startDate);
+                });
+            }
+            if (endDate) {
+                dateFilter.$or.forEach(filter => {
+                    if (filter.createdAt) filter.createdAt.$lte = new Date(endDate);
+                    if (filter.viewedAt) filter.viewedAt.$lte = new Date(endDate);
+                    if (filter.interactionAt) filter.interactionAt.$lte = new Date(endDate);
+                    if (filter.usedAt) filter.usedAt.$lte = new Date(endDate);
+                });
+            }
         }
 
         let activities = [];
 
-        // Get views
+        // Get views - query by userId directly OR by visitorId (if visitor has userId)
         if (!type || type === 'view') {
-            const viewFilter = { userId, ...dateFilter };
+            // Find visitors linked to this user
+            const visitors = await Visitor.find({ userId }).select('_id').lean();
+            const visitorIds = visitors.map(v => v._id);
+            
+            const viewFilter = {
+                $or: [
+                    { userId: userId },
+                    ...(visitorIds.length > 0 ? [{ visitorId: { $in: visitorIds } }] : [])
+                ]
+            };
+            
+            // Apply date filter if provided
+            if (startDate || endDate) {
+                viewFilter.viewedAt = {};
+                if (startDate) viewFilter.viewedAt.$gte = new Date(startDate);
+                if (endDate) viewFilter.viewedAt.$lte = new Date(endDate);
+            }
+
             const views = await View.find(viewFilter)
                 .populate('entityId', 'title name code imageUrl')
                 .populate('storeId', 'name logo')
-                .sort({ createdAt: -1 })
+                .populate('couponId', 'title code imageUrl')
+                .populate('dealId', 'title name imageUrl')
+                .sort({ viewedAt: -1 })
                 .skip(type === 'view' ? skip : 0)
                 .limit(type === 'view' ? parseInt(limit) : 10)
                 .lean();
 
-            activities.push(...views.map(v => ({
-                type: 'view',
-                entityType: v.entityType,
-                entityId: v.entityId,
-                storeId: v.storeId,
-                createdAt: v.createdAt,
-                data: v
-            })));
+            activities.push(...views.map(v => {
+                // Determine entity info
+                const entity = v.entityId || v.couponId || v.dealId || v.storeId;
+                const entityType = v.entityType || (v.couponId ? 'coupon' : v.dealId ? 'deal' : v.storeId ? 'store' : 'category');
+                
+                return {
+                    type: 'view',
+                    entityType,
+                    entityId: entity,
+                    storeId: v.storeId,
+                    createdAt: v.viewedAt || v.createdAt,
+                    data: v
+                };
+            }));
         }
 
         // Get interactions (follows, shares)
         if (!type || type === 'interaction') {
-            const interactionFilter = { userId, ...dateFilter };
+            // Find visitors linked to this user
+            const visitors = await Visitor.find({ userId }).select('_id').lean();
+            const visitorIds = visitors.map(v => v._id);
+            
+            const interactionFilter = {
+                $or: [
+                    { userId: userId },
+                    ...(visitorIds.length > 0 ? [{ visitorId: { $in: visitorIds } }] : [])
+                ]
+            };
+            
+            // Apply date filter if provided
+            if (startDate || endDate) {
+                interactionFilter.interactionAt = {};
+                if (startDate) interactionFilter.interactionAt.$gte = new Date(startDate);
+                if (endDate) interactionFilter.interactionAt.$lte = new Date(endDate);
+            }
+
             const interactions = await Interaction.find(interactionFilter)
                 .populate('entityId', 'title name code imageUrl')
                 .populate('storeId', 'name logo')
-                .sort({ createdAt: -1 })
+                .populate('couponId', 'title code imageUrl')
+                .populate('dealId', 'title name imageUrl')
+                .sort({ interactionAt: -1 })
                 .skip(type === 'interaction' ? skip : 0)
                 .limit(type === 'interaction' ? parseInt(limit) : 10)
                 .lean();
 
-            activities.push(...interactions.map(i => ({
-                type: 'interaction',
-                interactionType: i.interactionType,
-                entityType: i.entityType,
-                entityId: i.entityId,
-                storeId: i.storeId,
-                createdAt: i.createdAt,
-                data: i
-            })));
+            activities.push(...interactions.map(i => {
+                // Determine entity info
+                const entity = i.entityId || i.couponId || i.dealId || i.storeId;
+                const entityType = i.entityType || (i.couponId ? 'coupon' : i.dealId ? 'deal' : i.storeId ? 'store' : 'category');
+                
+                return {
+                    type: 'interaction',
+                    interactionType: i.interactionType || i.type,
+                    entityType,
+                    entityId: entity,
+                    storeId: i.storeId,
+                    createdAt: i.interactionAt || i.createdAt,
+                    data: i
+                };
+            }));
         }
 
         // Get coupon/deal usage
         if (!type || type === 'usage') {
-            const usageFilter = { userId, worked: true, ...dateFilter };
+            const usageFilter = { userId, worked: true };
+            
+            // Apply date filter if provided
+            if (startDate || endDate) {
+                usageFilter.usedAt = {};
+                if (startDate) usageFilter.usedAt.$gte = new Date(startDate);
+                if (endDate) usageFilter.usedAt.$lte = new Date(endDate);
+            }
+            
             const usages = await CouponUsage.find(usageFilter)
                 .populate('entityId', 'title name code imageUrl')
                 .populate('storeId', 'name logo')
@@ -950,6 +1112,144 @@ exports.getUserActivity = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching user activity',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get all users' activities (Admin only)
+ * GET /api/v1/users/admin/activities
+ */
+exports.getAllUsersActivities = async (req, res) => {
+    try {
+        const { page = 1, limit = 50, userId, type, startDate, endDate } = req.query;
+        const skip = (page - 1) * limit;
+        
+        const View = require('../models/view');
+        const Interaction = require('../models/interaction');
+        const CouponUsage = require('../models/couponUsage');
+
+        // Build filters
+        const userFilter = userId ? { userId } : {};
+        
+        let activities = [];
+
+        // Get views
+        if (!type || type === 'view') {
+            const viewFilter = { ...userFilter };
+            if (startDate || endDate) {
+                viewFilter.viewedAt = {};
+                if (startDate) viewFilter.viewedAt.$gte = new Date(startDate);
+                if (endDate) viewFilter.viewedAt.$lte = new Date(endDate);
+            }
+
+            const views = await View.find(viewFilter)
+                .populate('userId', 'username email')
+                .populate('entityId', 'title name code imageUrl')
+                .populate('storeId', 'name logo')
+                .populate('couponId', 'title code imageUrl')
+                .populate('dealId', 'title name imageUrl')
+                .sort({ viewedAt: -1 })
+                .skip(type === 'view' ? skip : 0)
+                .limit(type === 'view' ? parseInt(limit) : 10)
+                .lean();
+
+            activities.push(...views.map(v => ({
+                type: 'view',
+                userId: v.userId,
+                entityType: v.entityType || (v.couponId ? 'coupon' : v.dealId ? 'deal' : v.storeId ? 'store' : 'category'),
+                entityId: v.entityId || v.couponId || v.dealId || v.storeId,
+                storeId: v.storeId,
+                createdAt: v.viewedAt || v.createdAt,
+                data: v
+            })));
+        }
+
+        // Get interactions
+        if (!type || type === 'interaction') {
+            const interactionFilter = { ...userFilter };
+            if (startDate || endDate) {
+                interactionFilter.interactionAt = {};
+                if (startDate) interactionFilter.interactionAt.$gte = new Date(startDate);
+                if (endDate) interactionFilter.interactionAt.$lte = new Date(endDate);
+            }
+
+            const interactions = await Interaction.find(interactionFilter)
+                .populate('userId', 'username email')
+                .populate('entityId', 'title name code imageUrl')
+                .populate('storeId', 'name logo')
+                .populate('couponId', 'title code imageUrl')
+                .populate('dealId', 'title name imageUrl')
+                .sort({ interactionAt: -1 })
+                .skip(type === 'interaction' ? skip : 0)
+                .limit(type === 'interaction' ? parseInt(limit) : 10)
+                .lean();
+
+            activities.push(...interactions.map(i => ({
+                type: 'interaction',
+                userId: i.userId,
+                interactionType: i.interactionType || i.type,
+                entityType: i.entityType || (i.couponId ? 'coupon' : i.dealId ? 'deal' : i.storeId ? 'store' : 'category'),
+                entityId: i.entityId || i.couponId || i.dealId || i.storeId,
+                storeId: i.storeId,
+                createdAt: i.interactionAt || i.createdAt,
+                data: i
+            })));
+        }
+
+        // Get coupon/deal usage
+        if (!type || type === 'usage') {
+            const usageFilter = { ...userFilter, worked: true };
+            if (startDate || endDate) {
+                usageFilter.usedAt = {};
+                if (startDate) usageFilter.usedAt.$gte = new Date(startDate);
+                if (endDate) usageFilter.usedAt.$lte = new Date(endDate);
+            }
+
+            const usages = await CouponUsage.find(usageFilter)
+                .populate('userId', 'username email')
+                .populate('entityId', 'title name code imageUrl')
+                .populate('storeId', 'name logo')
+                .sort({ usedAt: -1 })
+                .skip(type === 'usage' ? skip : 0)
+                .limit(type === 'usage' ? parseInt(limit) : 10)
+                .lean();
+
+            activities.push(...usages.map(u => ({
+                type: 'usage',
+                userId: u.userId,
+                entityType: u.entityType,
+                entityId: u.entityId,
+                storeId: u.storeId,
+                savingsAmount: u.savingsAmount,
+                createdAt: u.usedAt,
+                data: u
+            })));
+        }
+
+        // Sort all activities by date
+        activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // Paginate
+        const paginatedActivities = activities.slice(skip, skip + parseInt(limit));
+        const total = activities.length;
+
+        res.json({
+            success: true,
+            data: paginatedActivities,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching all users activities:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching all users activities',
             error: error.message
         });
     }

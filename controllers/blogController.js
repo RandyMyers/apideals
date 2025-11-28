@@ -247,6 +247,21 @@ exports.getBlogById = async (req, res) => {
   }
 };
 
+// @desc    Get a single blog post by slug
+// @route   GET /api/blog/slug/:slug
+// @access  Public
+exports.getBlogBySlug = async (req, res) => {
+  try {
+    const blog = await Blog.findOne({ slug: req.params.slug }).populate('author', 'username email');
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found' });
+    }
+    res.status(200).json(blog);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch blog', error: error.message });
+  }
+};
+
 // @desc    Update a blog post by ID
 // @route   PUT /api/blogs/:id
 // @access  Private

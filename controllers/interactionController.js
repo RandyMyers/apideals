@@ -3,16 +3,49 @@ const Interaction = require('../models/interaction'); // Path to your Interactio
 // 1. Create a new interaction entry
 exports.createInteraction = async (req, res) => {
     try {
-        const { visitorId, type, storeId, couponId, dealId, categoryId } = req.body;
+        const { visitorId, userId, interactionType, type, entityType, entityId, entityModel, storeId, couponId, dealId, categoryId } = req.body;
+
+        // Get userId from authenticated user if available
+        const authenticatedUserId = req.user?.id || userId || null;
+
+        // Determine entity type and ID
+        let finalEntityType = entityType || null;
+        let finalEntityId = entityId || null;
+        let finalEntityModel = entityModel || null;
+
+        if (!finalEntityType || !finalEntityId) {
+            if (storeId) {
+                finalEntityType = 'store';
+                finalEntityId = storeId;
+                finalEntityModel = 'Store';
+            } else if (couponId) {
+                finalEntityType = 'coupon';
+                finalEntityId = couponId;
+                finalEntityModel = 'Coupon';
+            } else if (dealId) {
+                finalEntityType = 'deal';
+                finalEntityId = dealId;
+                finalEntityModel = 'Deal';
+            } else if (categoryId) {
+                finalEntityType = 'category';
+                finalEntityId = categoryId;
+                finalEntityModel = 'Category';
+            }
+        }
 
         // Create a new Interaction
         const interaction = new Interaction({
-            visitorId,
-            type,
-            storeId,
-            couponId,
-            dealId,
-            categoryId,
+            visitorId: visitorId || null,
+            userId: authenticatedUserId,
+            interactionType: interactionType || type || 'click',
+            entityType: finalEntityType,
+            entityId: finalEntityId,
+            entityModel: finalEntityModel,
+            type: type || interactionType, // Legacy field
+            storeId, // Keep for backward compatibility
+            couponId, // Keep for backward compatibility
+            dealId, // Keep for backward compatibility
+            categoryId, // Keep for backward compatibility
         });
 
         // Save the interaction to the database
@@ -26,7 +59,7 @@ exports.createInteraction = async (req, res) => {
         console.error('Error creating interaction:', error);
         res.status(500).json({
             message: 'Error creating interaction',
-            error,
+            error: error.message,
         });
     }
 };

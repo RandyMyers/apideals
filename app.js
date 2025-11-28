@@ -215,6 +215,12 @@ app.use('/api/v1/notifications', require('./routes/notificationRoutes')); // Not
 app.use('/api/v1/notification-templates', require('./routes/notificationTemplateRoutes')); // Notification Template Management (admin only)
 app.use('/api/v1/share', shareRoutes); // Share routes
 app.use('/api/v1/coupon-usage', couponUsageRoutes); // Coupon Usage routes
+app.use('/api/v1', require('./routes/urlRedirectRoutes')); // URL Redirect routes (admin endpoints)
+
+// URL Redirect Middleware - Check for redirects before serving React app
+// This must be AFTER API routes but BEFORE the React app catch-all
+const redirectMiddleware = require('./middleware/redirectMiddleware');
+app.use(redirectMiddleware);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

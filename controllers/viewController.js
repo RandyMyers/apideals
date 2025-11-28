@@ -2,15 +2,45 @@ const View = require('../models/view');
 
 exports.createView = async (req, res) => {
     try {
-        const { visitorId, storeId, couponId, dealId, categoryId } = req.body;
+        const { visitorId, userId, storeId, couponId, dealId, categoryId } = req.body;
+
+        // Get userId from authenticated user if available
+        const authenticatedUserId = req.user?.id || userId || null;
+
+        // Determine entity type and ID
+        let entityType = null;
+        let entityId = null;
+        let entityModel = null;
+
+        if (storeId) {
+            entityType = 'store';
+            entityId = storeId;
+            entityModel = 'Store';
+        } else if (couponId) {
+            entityType = 'coupon';
+            entityId = couponId;
+            entityModel = 'Coupon';
+        } else if (dealId) {
+            entityType = 'deal';
+            entityId = dealId;
+            entityModel = 'Deal';
+        } else if (categoryId) {
+            entityType = 'category';
+            entityId = categoryId;
+            entityModel = 'Category';
+        }
 
         // Create a new View entry
         const view = new View({
-            visitorId,
-            storeId,
-            couponId,
-            dealId,
-            categoryId,
+            visitorId: visitorId || null,
+            userId: authenticatedUserId, // Use authenticated user ID if available
+            entityType,
+            entityId,
+            entityModel,
+            storeId, // Keep for backward compatibility
+            couponId, // Keep for backward compatibility
+            dealId, // Keep for backward compatibility
+            categoryId, // Keep for backward compatibility
         });
 
         // Save to the database
@@ -24,7 +54,7 @@ exports.createView = async (req, res) => {
         console.error('Error logging view:', error);
         res.status(500).json({
             message: 'Error logging view',
-            error,
+            error: error.message,
         });
     }
 };

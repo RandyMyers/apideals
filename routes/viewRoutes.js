@@ -1,9 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const viewController = require('../controllers/viewController');
+const jwt = require('jsonwebtoken');
+const User = require('../models/user');
 
-// Route to log a new view
-router.post('/create', viewController.createView);
+// Optional auth middleware - doesn't fail if no token
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.header('Authorization');
+  const token = authHeader?.replace('Bearer ', '');
+  
+  if (token && token !== 'null' && token !== 'undefined') {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.id);
+      if (user) {
+        req.user = user;
+        if (!req.user.id && req.user._id) {
+          req.user.id = req.user._id.toString();
+        }
+      }
+    } catch (err) {
+      // Silently fail - user is anonymous
+    }
+  }
+  next();
+};
+
+// Route to log a new view (optional auth - works for both logged-in and anonymous users)
+router.post('/create', optionalAuth, viewController.createView);
 
 // Route to get all views
 router.get('/all', viewController.getAllViews);

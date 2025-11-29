@@ -97,6 +97,14 @@ exports.getUserUsageHistory = async (req, res) => {
     const { userId } = req.params;
     const requestingUserId = req.user.id;
 
+    // Validate userId format early to avoid ObjectId cast errors
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid userId format for savings statistics',
+      });
+    }
+
     // Check if user is requesting their own history or is admin
     if (userId !== requestingUserId && req.user.userType !== 'superAdmin') {
       return res.status(403).json({
@@ -187,8 +195,6 @@ exports.getUserSavingsStatistics = async (req, res) => {
     const usageStats = await CouponUsage.getUsageStats(mongoose.Types.ObjectId(userId));
 
     // Get savings by category - separate queries for coupons and deals
-    const Category = require('../models/category');
-
     // Get coupon usage with categories
     const couponUsage = await CouponUsage.find({
       userId: mongoose.Types.ObjectId(userId),
@@ -268,10 +274,10 @@ exports.getUserSavingsStatistics = async (req, res) => {
       { $limit: 10 }
     ]);
 
-    // Calculate yearly estimate (based on current month * 12)
+    // Calculate yearly estimate (simple: based on current month * 12)
     const yearlyEstimate = currentMonthSavings > 0
       ? currentMonthSavings * 12
-      : (totalSavings / Math.max(1, (now - new Date(userId.createdAt || now)) / (1000 * 60 * 60 * 24 * 30))) * 12;
+      : totalSavings;
 
     // Calculate trend
     const trend = lastMonthSavings > 0
@@ -297,10 +303,10 @@ exports.getUserSavingsStatistics = async (req, res) => {
           dealSavings: usageStats.dealSavings
         },
         topCategories: categorySavings.map(cat => ({
-          categoryId: cat._id,
+          categoryId: cat.categoryId,
           categoryName: cat.categoryName || 'Uncategorized',
           totalSavings: cat.totalSavings,
-          count: cat.count
+          count: cat.count,
         })),
         topStores: storeSavings.map(store => ({
           storeId: store.storeId,

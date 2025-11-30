@@ -34,7 +34,17 @@ exports.connectStore = async (req, res) => {
       });
     }
 
-    const { url, consumerKey, consumerSecret, syncDirection, webhookSecret, categoryId, name, description } = req.body;
+    const {
+      url,
+      consumerKey,
+      consumerSecret,
+      syncDirection,
+      webhookSecret,
+      categoryId,
+      name,
+      description,
+      storeIndicators: storeIndicatorsRaw,
+    } = req.body;
 
     // Validate required fields
     if (!url || !consumerKey || !consumerSecret) {
@@ -97,6 +107,21 @@ exports.connectStore = async (req, res) => {
       });
     }
 
+    // Parse storeIndicators (optional JSON string or array)
+    let storeIndicators = [];
+    if (Array.isArray(storeIndicatorsRaw)) {
+      storeIndicators = storeIndicatorsRaw;
+    } else if (typeof storeIndicatorsRaw === 'string') {
+      try {
+        const parsed = JSON.parse(storeIndicatorsRaw);
+        if (Array.isArray(parsed)) {
+          storeIndicators = parsed.filter(ind => ind && ind.key && ind.label);
+        }
+      } catch (e) {
+        logger.warn('Could not parse storeIndicators JSON from Woo connect', { error: e.message });
+      }
+    }
+
     // Check if store with same name or URL already exists for this user
     const existingStore = await Store.findOne({ 
       $or: [
@@ -126,6 +151,7 @@ exports.connectStore = async (req, res) => {
       logo: logoUrl || undefined,
       storeType: 'woocommerce',
       userId,
+      storeIndicators,
     });
     
     await store.save();

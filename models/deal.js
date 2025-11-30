@@ -72,6 +72,34 @@ const DealSchema = new Schema({
       return this.dealType === 'free_shipping'; // Only required if dealType is 'free_shipping'
     },
   },
+
+  // Pricing information (optional) for analytics and savings calculations
+  originalPrice: {
+    type: Number,
+    required: false, // Reference/list price before discount
+  },
+  discountedPrice: {
+    type: Number,
+    required: false, // Actual deal price (e.g., 386 in the Expedia example)
+  },
+  currency: {
+    type: String,
+    required: false, // e.g., 'USD'
+    trim: true,
+  },
+  priceUnit: {
+    type: String,
+    required: false, // e.g., 'per_night', 'per_stay'
+    trim: true,
+  },
+  savingsAmount: {
+    type: Number,
+    required: false, // Calculated: originalPrice - discountedPrice
+  },
+  savingsPercentage: {
+    type: Number,
+    required: false, // Calculated: (savingsAmount / originalPrice) * 100
+  },
   startDate: {
     type: Date,
     required: true, // The date the deal becomes valid
@@ -113,6 +141,33 @@ const DealSchema = new Schema({
     required: true, // Each deal must belong to a category
   },
 
+  // Entity scope (optional) - describes what this deal specifically applies to
+  entityScope: {
+    type: String,
+    enum: ['global', 'entity'],
+    default: 'global',
+  },
+  entityType: {
+    type: String,
+    required: false, // Dynamic key matching storeIndicators[].key
+    trim: true,
+  },
+  entityName: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  entityLocation: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  entityTags: {
+    type: [String],
+    required: false,
+    default: [],
+  },
+
   // Location targeting - countries where deal is available
   availableCountries: {
     type: [String], // Array of country names or 'WORLDWIDE'
@@ -122,6 +177,80 @@ const DealSchema = new Schema({
     type: Boolean,
     default: true, // If true, available to all countries
   },
+
+  // Image gallery support (for detail pages)
+  imageGallery: [{
+    url: {
+      type: String,
+      required: true,
+    },
+    alt: {
+      type: String,
+      required: false,
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+  }],
+
+  // Rich content fields for detail pages
+  longDescription: {
+    type: String,
+    required: false, // Extended description for detail page
+  },
+  highlights: [{
+    type: String,
+    trim: true,
+  }], // Array of bullet points (e.g., "Free shipping", "24/7 support")
+  features: [{
+    type: String,
+    trim: true,
+  }], // Product/deal features
+  specifications: {
+    type: Map,
+    of: String, // Flexible key-value pairs for different store types
+  },
+
+  // SEO fields
+  seoTitle: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  seoDescription: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  seoKeywords: [{
+    type: String,
+    trim: true,
+  }],
+  canonicalUrl: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  ogImage: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+
+  // Additional metadata
+  tags: [{
+    type: String,
+    trim: true,
+  }], // For categorization and search
+  relatedDealIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Deal',
+  }],
+  relatedCouponIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Coupon',
+  }],
 
   createdAt: {
     type: Date,
@@ -133,9 +262,18 @@ const DealSchema = new Schema({
   },
 });
 
-// Automatically update the updatedAt field on save
+// Automatically update the updatedAt field on save and calculate savings
 DealSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
+  
+  // Calculate savings if price fields are provided
+  if (this.originalPrice && this.discountedPrice && 
+      typeof this.originalPrice === 'number' && typeof this.discountedPrice === 'number' &&
+      this.originalPrice > 0 && this.discountedPrice > 0) {
+    this.savingsAmount = this.originalPrice - this.discountedPrice;
+    this.savingsPercentage = parseFloat(((this.savingsAmount / this.originalPrice) * 100).toFixed(2));
+  }
+  
   next();
 });
 

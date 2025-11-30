@@ -44,6 +44,27 @@ const StoreSchema = new Schema({
     ref: 'Deal', // Reference to Deal model
   }],
 
+  // Store-specific indicators / types for affiliate-style entities
+  // e.g. for Expedia: [{ key: 'hotel', label: 'Hotels' }, { key: 'flight', label: 'Flights' }]
+  storeIndicators: [
+    {
+      key: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      label: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      icon: {
+        type: String,
+        required: false, // Optional UI hint (e.g. 'hotel', 'plane')
+      },
+    },
+  ],
+
   // Subscription details (to track user subscription plan)
   subscription: {
     type: mongoose.Schema.Types.ObjectId,

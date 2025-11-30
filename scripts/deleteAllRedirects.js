@@ -55,3 +55,4 @@ async function deleteAllRedirects() {
 // Run the script
 deleteAllRedirects();
 
+

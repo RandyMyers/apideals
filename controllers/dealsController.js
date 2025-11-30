@@ -9,14 +9,84 @@ const notificationService = require('../services/notificationService');
 // Create a new deal
 exports.createDeal = async (req, res) => {
   try {
-    const { userId, storeId, imageUrl, categoryId, subscriptionId, ...dealData } = req.body;
+    // Allow body to use either admin-friendly field names (store, category)
+    // or API-native ones (storeId, categoryId). Also support optional auth user.
+    let { userId, storeId, imageUrl, categoryId, subscriptionId, ...dealData } = req.body;
 
     console.log(req.body);
+
+    // Map alternative field names from body (e.g. admin UI sends `store` and `category`)
+    if (!storeId && dealData.store) {
+      storeId = dealData.store;
+      delete dealData.store;
+    }
+    if (!categoryId && dealData.category) {
+      categoryId = dealData.category;
+      delete dealData.category;
+    }
+
+    // Fallback userId from auth middleware if available
+    if (!userId && req.user) {
+      userId = req.user._id ? req.user._id.toString() : req.user.id;
+    }
 
     // Ensure required fields are provided
     if (!userId || !storeId || !categoryId) {
       return res.status(400).json({ message: 'UserId, StoreId, and Category are required.' });
     }
+
+    // Validate dealType and discount fields
+    if (dealData.dealType === 'discount') {
+      // Clean empty strings to undefined for optional fields
+      if (dealData.discountType === '' || !dealData.discountType) {
+        return res.status(400).json({ message: 'Discount Type is required when Deal Type is "discount".' });
+      }
+      if (!dealData.discountValue || dealData.discountValue === '') {
+        return res.status(400).json({ message: 'Discount Value is required when Deal Type is "discount".' });
+      }
+      // Ensure discountType is valid enum value
+      if (!['percentage', 'fixed'].includes(dealData.discountType)) {
+        return res.status(400).json({ message: 'Discount Type must be either "percentage" or "fixed".' });
+      }
+      // Convert discountValue to number
+      dealData.discountValue = Number(dealData.discountValue);
+      if (isNaN(dealData.discountValue) || dealData.discountValue <= 0) {
+        return res.status(400).json({ message: 'Discount Value must be a positive number.' });
+      }
+    } else {
+      // Remove discount fields if not a discount deal
+      delete dealData.discountType;
+      delete dealData.discountValue;
+    }
+
+    // Validate dates
+    if (dealData.startDate && dealData.endDate) {
+      const startDate = new Date(dealData.startDate);
+      const endDate = new Date(dealData.endDate);
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid date format for startDate or endDate.' });
+      }
+      if (endDate < startDate) {
+        return res.status(400).json({ message: 'End date must be after start date.' });
+      }
+    }
+
+    // Calculate savings if price fields are provided
+    if (dealData.originalPrice && dealData.discountedPrice) {
+      const original = Number(dealData.originalPrice);
+      const discounted = Number(dealData.discountedPrice);
+      if (!isNaN(original) && !isNaN(discounted) && original > 0 && discounted > 0) {
+        dealData.savingsAmount = original - discounted;
+        dealData.savingsPercentage = ((dealData.savingsAmount / original) * 100).toFixed(2);
+      }
+    }
+
+    // Clean empty strings from optional fields
+    Object.keys(dealData).forEach(key => {
+      if (dealData[key] === '') {
+        delete dealData[key];
+      }
+    });
 
     // Fetch the user details
     const user = await User.findById(userId);
@@ -26,6 +96,7 @@ exports.createDeal = async (req, res) => {
 
     const { userType } = user;
 
+    // Process main image
     if (!imageUrl) {
       if (req.files && req.files.image) {
         const image = req.files.image;
@@ -42,14 +113,105 @@ exports.createDeal = async (req, res) => {
       }
     }
 
+    // Process image gallery
+    let imageGallery = [];
+    if (req.files) {
+      const galleryFiles = Object.keys(req.files)
+        .filter(key => key.startsWith('galleryImage_'))
+        .sort((a, b) => {
+          const idxA = parseInt(a.split('_')[1]);
+          const idxB = parseInt(b.split('_')[1]);
+          return idxA - idxB;
+        })
+        .map(key => req.files[key]);
+
+      if (galleryFiles.length > 0) {
+        for (let i = 0; i < galleryFiles.length; i++) {
+          const file = galleryFiles[i];
+          try {
+            const uploadResult = await cloudinary.uploader.upload(file.tempFilePath, {
+              folder: 'deals/gallery',
+            });
+            imageGallery.push({
+              url: uploadResult.secure_url,
+              alt: dealData.name || dealData.title || `Deal image ${i + 1}`,
+              order: i,
+            });
+          } catch (galleryError) {
+            console.error(`Error uploading gallery image ${i}:`, galleryError);
+            // Continue with other images even if one fails
+          }
+        }
+      }
+    }
+
+    // Process array fields (highlights, features, tags, seoKeywords)
+    let highlights = [];
+    if (dealData.highlights) {
+      try {
+        highlights = typeof dealData.highlights === 'string' 
+          ? JSON.parse(dealData.highlights)
+          : (Array.isArray(dealData.highlights) ? dealData.highlights : []);
+      } catch (e) {
+        console.warn('Could not parse highlights, using empty array');
+      }
+    }
+
+    let features = [];
+    if (dealData.features) {
+      try {
+        features = typeof dealData.features === 'string' 
+          ? JSON.parse(dealData.features)
+          : (Array.isArray(dealData.features) ? dealData.features : []);
+      } catch (e) {
+        console.warn('Could not parse features, using empty array');
+      }
+    }
+
+    let tags = [];
+    if (dealData.tags) {
+      try {
+        tags = typeof dealData.tags === 'string' 
+          ? JSON.parse(dealData.tags)
+          : (Array.isArray(dealData.tags) ? dealData.tags : []);
+      } catch (e) {
+        console.warn('Could not parse tags, using empty array');
+      }
+    }
+
+    let seoKeywords = [];
+    if (dealData.seoKeywords) {
+      try {
+        seoKeywords = typeof dealData.seoKeywords === 'string' 
+          ? JSON.parse(dealData.seoKeywords)
+          : (Array.isArray(dealData.seoKeywords) ? dealData.seoKeywords : []);
+      } catch (e) {
+        console.warn('Could not parse seoKeywords, using empty array');
+      }
+    }
+
     // Allow superAdmin and couponManager to bypass subscription limits
     if (userType === 'superAdmin' || userType === 'couponManager') {
-      const { availableCountries, isWorldwide, ...restDealData } = dealData;
+      const { 
+        availableCountries, 
+        isWorldwide, 
+        highlights: highlightsRaw,
+        features: featuresRaw,
+        tags: tagsRaw,
+        seoKeywords: seoKeywordsRaw,
+        ...restDealData 
+      } = dealData;
+      
       const newDeal = new Deal({ 
         store: storeId, 
         categoryId, 
         imageUrl,
         subscriptionId,
+        imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
+        highlights: highlights.length > 0 ? highlights : undefined,
+        features: features.length > 0 ? features : undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
         availableCountries: availableCountries || ['WORLDWIDE'],
         isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
         ...restDealData,
@@ -103,12 +265,26 @@ exports.createDeal = async (req, res) => {
     }
 
     // Create a new deal
-    const { availableCountries, isWorldwide, ...restDealData } = dealData;
+    const { 
+      availableCountries, 
+      isWorldwide, 
+      highlights: highlightsRaw,
+      features: featuresRaw,
+      tags: tagsRaw,
+      seoKeywords: seoKeywordsRaw,
+      ...restDealData 
+    } = dealData;
+    
     const newDeal = new Deal({ 
       store: storeId, 
       categoryId, 
       imageUrl,
       subscriptionId,
+      imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
+      highlights: highlights.length > 0 ? highlights : undefined,
+      features: features.length > 0 ? features : undefined,
+      tags: tags.length > 0 ? tags : undefined,
+      seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
       availableCountries: availableCountries || ['WORLDWIDE'],
       isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
       ...restDealData,
@@ -236,7 +412,15 @@ exports.getDealById = async (req, res) => {
   const { id } = req.params;
   const { country } = req.query; // Visitor country for location filtering
   try {
-    const deal = await Deal.findById(id).lean();
+    const deal = await Deal.findById(id)
+      .populate('store', 'name website logo rating followers')
+      .populate('categoryId', 'name slug')
+      .populate('affiliate', 'name')
+      .populate('userId', 'username')
+      .populate('relatedDealIds', 'name imageUrl discountValue discountType startDate endDate store')
+      .populate('relatedCouponIds', 'code discountValue discountType startDate endDate store')
+      .lean();
+    
     if (!deal) {
       return res.status(404).json({ message: 'Deal not found' });
     }
@@ -247,6 +431,15 @@ exports.getDealById = async (req, res) => {
         message: 'This deal is not available in your location',
         availableCountries: deal.availableCountries
       });
+    }
+
+    // If imageGallery is empty but imageUrl exists, create gallery from single image
+    if ((!deal.imageGallery || deal.imageGallery.length === 0) && deal.imageUrl) {
+      deal.imageGallery = [{
+        url: deal.imageUrl,
+        alt: deal.name || deal.title || 'Deal image',
+        order: 0,
+      }];
     }
 
     res.status(200).json(deal);

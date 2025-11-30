@@ -22,6 +22,9 @@ exports.createStore = async (req, res) => {
             secretKey,
             categoryId, // Category ID for the store
             storeType, // Store type: 'woocommerce', 'shopify', 'none'
+            availableCountries: availableCountriesRaw,
+            isWorldwide: isWorldwideRaw,
+            storeIndicators: storeIndicatorsRaw,
         } = req.body;
 
         console.log(req.body);
@@ -50,6 +53,34 @@ exports.createStore = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        // Normalize location targeting from request body
+        let availableCountries = Array.isArray(availableCountriesRaw)
+          ? availableCountriesRaw
+          : (typeof availableCountriesRaw === 'string' && availableCountriesRaw
+              ? [availableCountriesRaw]
+              : undefined);
+        if (!availableCountries || availableCountries.length === 0) {
+          availableCountries = ['WORLDWIDE'];
+        }
+        const isWorldwide = isWorldwideRaw !== undefined
+          ? (isWorldwideRaw === true || isWorldwideRaw === 'true')
+          : (availableCountries.includes('WORLDWIDE') || availableCountries.length === 0);
+
+        // Parse storeIndicators (optional JSON string or array)
+        let storeIndicators = [];
+        if (Array.isArray(storeIndicatorsRaw)) {
+          storeIndicators = storeIndicatorsRaw;
+        } else if (typeof storeIndicatorsRaw === 'string') {
+          try {
+            const parsed = JSON.parse(storeIndicatorsRaw);
+            if (Array.isArray(parsed)) {
+              storeIndicators = parsed.filter(ind => ind && ind.key && ind.label);
+            }
+          } catch (e) {
+            console.warn('Could not parse storeIndicators JSON:', e.message);
+          }
+        }
+
         // Admin scenario: Skip subscription checks for admin users
         if (user.userType === 'superAdmin' || user.userType === 'couponManager') {
             // Create store without subscription limit enforcement
@@ -65,8 +96,9 @@ exports.createStore = async (req, res) => {
                 categoryId,
                 storeType: storeType || 'none',
                 subscription: null, // No subscription linked for admin-created stores
-                availableCountries: availableCountries || ['WORLDWIDE'],
-                isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
+                availableCountries,
+                isWorldwide,
+                storeIndicators,
             });
 
             await adminStore.save();
@@ -127,8 +159,9 @@ exports.createStore = async (req, res) => {
             secretKey,
             categoryId,
             storeType: storeType || 'none',
-            availableCountries: availableCountries || ['WORLDWIDE'],
-            isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
+            availableCountries,
+            isWorldwide,
+            storeIndicators,
         });
 
         await store.save();
@@ -171,9 +204,18 @@ exports.createStore = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating store:', error);
+
+        // Handle duplicate key errors (MongoDB unique index violations on store name)
+        if (error.code === 11000 && error.keyPattern && error.keyPattern.name) {
+            return res.status(409).json({
+                message: 'A store with this name already exists. Please choose a different store name.',
+                field: 'name',
+            });
+        }
+
         res.status(500).json({
             message: 'Error creating store',
-            error,
+            error: error.message || error,
         });
     }
 };
@@ -195,10 +237,14 @@ exports.getAllStores = async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const query = {};
         
-        // Filter by active status
-        if (isActive !== 'false' && isActive !== false) {
+        // Filter by active status (default to showing all stores if not specified)
+        // Only filter by isActive if explicitly set to true
+        if (isActive === 'true' || isActive === true) {
             query.isActive = true;
+        } else if (isActive === 'false' || isActive === false) {
+            query.isActive = false;
         }
+        // If isActive is not specified, don't filter by it (show all stores)
         
         // Filter by category
         if (category) {

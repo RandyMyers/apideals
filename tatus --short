@@ -1,0 +1,29 @@
+warning: in the working copy of 'controllers/couponController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/couponUsageController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/dealsController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/storeController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/viewController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/woocommerceController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/coupon.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/deal.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/interaction.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/store.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/view.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/blogRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/couponRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/urlRedirectRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/viewRoutes.js', LF will be replaced by CRLF the next time Git touches it
+controllers/couponController.js
+controllers/dealsController.js
+controllers/storeController.js
+controllers/urlRedirectController.js
+controllers/woocommerceController.js
+middleware/redirectMiddleware.js
+models/coupon.js
+models/deal.js
+models/store.js
+models/urlRedirect.js
+routes/couponRoutes.js
+scripts/deleteAllRedirects.js
+scripts/deleteBlogs.js
+scripts/importRedirects.js

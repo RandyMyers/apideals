@@ -127,6 +127,32 @@ const CouponSchema = new Schema({
     ref: 'Category', // Reference to a category (our app's category)
     required: true,
   },
+  // Entity scope (optional) - describes what this coupon specifically applies to
+  entityScope: {
+    type: String,
+    enum: ['global', 'entity'],
+    default: 'global',
+  },
+  entityType: {
+    type: String,
+    required: false, // Dynamic key matching storeIndicators[].key
+    trim: true,
+  },
+  entityName: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  entityLocation: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  entityTags: {
+    type: [String],
+    required: false,
+    default: [],
+  },
   // WooCommerce external ID for tracking
   wooCommerceId: {
     type: Number,
@@ -143,6 +169,100 @@ const CouponSchema = new Schema({
     default: true, // If true, available to all countries
   },
 
+  // Price fields (for savings calculation and display)
+  originalPrice: {
+    type: Number,
+    required: false,
+  },
+  discountedPrice: {
+    type: Number,
+    required: false,
+  },
+  currency: {
+    type: String,
+    default: 'USD',
+    required: false,
+    trim: true,
+  },
+  savingsAmount: {
+    type: Number,
+    required: false, // Calculated: originalPrice - discountedPrice
+  },
+  savingsPercentage: {
+    type: Number,
+    required: false, // Calculated: (savingsAmount / originalPrice) * 100
+  },
+
+  // Image gallery support (for detail pages)
+  imageGallery: [{
+    url: {
+      type: String,
+      required: true,
+    },
+    alt: {
+      type: String,
+      required: false,
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+  }],
+
+  // Rich content fields for detail pages
+  longDescription: {
+    type: String,
+    required: false, // Extended description for detail page
+  },
+  highlights: [{
+    type: String,
+    trim: true,
+  }], // Array of bullet points
+  termsAndConditions: {
+    type: String,
+    required: false, // Full T&C text
+  },
+
+  // SEO fields
+  seoTitle: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  seoDescription: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  seoKeywords: [{
+    type: String,
+    trim: true,
+  }],
+  canonicalUrl: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+  ogImage: {
+    type: String,
+    required: false,
+    trim: true,
+  },
+
+  // Related items
+  relatedCouponIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Coupon',
+  }],
+  relatedDealIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Deal',
+  }],
+  tags: [{
+    type: String,
+    trim: true,
+  }],
+
   createdAt: {
     type: Date,
     default: Date.now,
@@ -153,9 +273,18 @@ const CouponSchema = new Schema({
   },
 });
 
-// Automatically update the updatedAt field on save
+// Automatically update the updatedAt field on save and calculate savings
 CouponSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
+  
+  // Calculate savings if price fields are provided
+  if (this.originalPrice && this.discountedPrice && 
+      typeof this.originalPrice === 'number' && typeof this.discountedPrice === 'number' &&
+      this.originalPrice > 0 && this.discountedPrice > 0) {
+    this.savingsAmount = this.originalPrice - this.discountedPrice;
+    this.savingsPercentage = parseFloat(((this.savingsAmount / this.originalPrice) * 100).toFixed(2));
+  }
+  
   next();
 });
 

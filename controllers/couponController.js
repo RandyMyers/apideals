@@ -34,6 +34,7 @@ exports.createCoupon = async (req, res) => {
     const { userType } = user;
 
     
+    // Process main image
     if (!imageUrl) {
       if (req.files && req.files.image) {
         const image = req.files.image;
@@ -50,15 +51,93 @@ exports.createCoupon = async (req, res) => {
       }
     }
 
+    // Process image gallery
+    let imageGallery = [];
+    if (req.files) {
+      const galleryFiles = Object.keys(req.files)
+        .filter(key => key.startsWith('galleryImage_'))
+        .sort((a, b) => {
+          const idxA = parseInt(a.split('_')[1]);
+          const idxB = parseInt(b.split('_')[1]);
+          return idxA - idxB;
+        })
+        .map(key => req.files[key]);
+
+      if (galleryFiles.length > 0) {
+        for (let i = 0; i < galleryFiles.length; i++) {
+          const file = galleryFiles[i];
+          try {
+            const uploadResult = await cloudinary.uploader.upload(file.tempFilePath, {
+              folder: 'coupons/gallery',
+            });
+            imageGallery.push({
+              url: uploadResult.secure_url,
+              alt: otherCouponData.title || otherCouponData.code || `Coupon image ${i + 1}`,
+              order: i,
+            });
+          } catch (galleryError) {
+            console.error(`Error uploading gallery image ${i}:`, galleryError);
+            // Continue with other images even if one fails
+          }
+        }
+      }
+    }
+
+    // Process array fields (highlights, tags, seoKeywords)
+    let highlights = [];
+    if (otherCouponData.highlights) {
+      try {
+        highlights = typeof otherCouponData.highlights === 'string' 
+          ? JSON.parse(otherCouponData.highlights)
+          : (Array.isArray(otherCouponData.highlights) ? otherCouponData.highlights : []);
+      } catch (e) {
+        console.warn('Could not parse highlights, using empty array');
+      }
+    }
+
+    let tags = [];
+    if (otherCouponData.tags) {
+      try {
+        tags = typeof otherCouponData.tags === 'string' 
+          ? JSON.parse(otherCouponData.tags)
+          : (Array.isArray(otherCouponData.tags) ? otherCouponData.tags : []);
+      } catch (e) {
+        console.warn('Could not parse tags, using empty array');
+      }
+    }
+
+    let seoKeywords = [];
+    if (otherCouponData.seoKeywords) {
+      try {
+        seoKeywords = typeof otherCouponData.seoKeywords === 'string' 
+          ? JSON.parse(otherCouponData.seoKeywords)
+          : (Array.isArray(otherCouponData.seoKeywords) ? otherCouponData.seoKeywords : []);
+      } catch (e) {
+        console.warn('Could not parse seoKeywords, using empty array');
+      }
+    }
+
     // Allow superAdmin and couponManager to bypass subscription limits
     if (userType === 'superAdmin' || userType === 'couponManager') {
-      const { availableCountries, isWorldwide, ...couponData } = otherCouponData;
+      const { 
+        availableCountries, 
+        isWorldwide, 
+        highlights: highlightsRaw,
+        tags: tagsRaw,
+        seoKeywords: seoKeywordsRaw,
+        ...couponData 
+      } = otherCouponData;
+      
       const newCoupon = new Coupon({ 
         storeId, 
         categoryId, 
         subscriptionId, 
         imageUrl, 
         productId,
+        imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
+        highlights: highlights.length > 0 ? highlights : undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
         availableCountries: availableCountries || ['WORLDWIDE'],
         isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
         ...couponData 
@@ -113,13 +192,25 @@ exports.createCoupon = async (req, res) => {
     }
 
     // Create a new coupon
-    const { availableCountries, isWorldwide, ...couponData } = otherCouponData;
+    const { 
+      availableCountries, 
+      isWorldwide, 
+      highlights: highlightsRaw,
+      tags: tagsRaw,
+      seoKeywords: seoKeywordsRaw,
+      ...couponData 
+    } = otherCouponData;
+    
     const newCoupon = new Coupon({ 
       storeId, 
       categoryId, 
       subscriptionId, 
       imageUrl, 
       productId,
+      imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
+      highlights: highlights.length > 0 ? highlights : undefined,
+      tags: tags.length > 0 ? tags : undefined,
+      seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
       availableCountries: availableCountries || ['WORLDWIDE'],
       isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
       ...couponData 
@@ -242,15 +333,53 @@ exports.getAllCoupons = async (req, res) => {
 exports.getCouponById = async (req, res) => {
   const { id } = req.params;
   const { country } = req.query; // Visitor country for location filtering
+  
+  // Validate MongoDB ObjectId format
+  if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+    return res.status(400).json({ message: 'Invalid coupon ID format' });
+  }
+
   try {
     const coupon = await Coupon.findById(id)
-      .populate('affiliateId', 'name')
-      .populate('storeId', 'name location')
-      .populate('category', 'name')
+      .populate({
+        path: 'affiliateId',
+        select: 'name',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'storeId',
+        select: 'name website logo rating followers',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'categoryId',
+        select: 'name slug',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'userId',
+        select: 'username',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'relatedCouponIds',
+        select: 'code discountValue discountType startDate endDate storeId',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'relatedDealIds',
+        select: 'name imageUrl discountValue discountType startDate endDate store',
+        strictPopulate: false
+      })
       .lean();
 
     if (!coupon) {
       return res.status(404).json({ message: 'Coupon not found' });
+    }
+
+    // Map storeId to store for frontend compatibility
+    if (coupon.storeId) {
+      coupon.store = coupon.storeId;
     }
 
     // Check if coupon is available in visitor's country
@@ -261,9 +390,23 @@ exports.getCouponById = async (req, res) => {
       });
     }
 
+    // If imageGallery is empty but imageUrl exists, create gallery from single image
+    if ((!coupon.imageGallery || coupon.imageGallery.length === 0) && coupon.imageUrl) {
+      coupon.imageGallery = [{
+        url: coupon.imageUrl,
+        alt: coupon.title || coupon.code || 'Coupon image',
+        order: 0,
+      }];
+    }
+
     res.status(200).json(coupon);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching coupon', error: error.message });
+    console.error('Error fetching coupon by ID:', error);
+    res.status(500).json({ 
+      message: 'Error fetching coupon', 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

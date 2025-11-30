@@ -417,8 +417,26 @@ exports.getDealById = async (req, res) => {
       .populate('categoryId', 'name slug')
       .populate('affiliate', 'name')
       .populate('userId', 'username')
-      .populate('relatedDealIds', 'name imageUrl discountValue discountType startDate endDate store')
-      .populate('relatedCouponIds', 'code discountValue discountType startDate endDate store')
+      .populate({
+        path: 'relatedDealIds',
+        select: 'name imageUrl discountValue discountType startDate endDate title',
+        populate: {
+          path: 'store',
+          select: 'name logo',
+          strictPopulate: false
+        },
+        strictPopulate: false
+      })
+      .populate({
+        path: 'relatedCouponIds',
+        select: 'code discountValue discountType startDate endDate imageUrl title',
+        populate: {
+          path: 'storeId',
+          select: 'name logo',
+          strictPopulate: false
+        },
+        strictPopulate: false
+      })
       .lean();
     
     if (!deal) {

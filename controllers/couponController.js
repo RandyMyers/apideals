@@ -363,12 +363,22 @@ exports.getCouponById = async (req, res) => {
       })
       .populate({
         path: 'relatedCouponIds',
-        select: 'code discountValue discountType startDate endDate storeId',
+        select: 'code discountValue discountType startDate endDate imageUrl title',
+        populate: {
+          path: 'storeId',
+          select: 'name logo',
+          strictPopulate: false
+        },
         strictPopulate: false
       })
       .populate({
         path: 'relatedDealIds',
-        select: 'name imageUrl discountValue discountType startDate endDate store',
+        select: 'name imageUrl discountValue discountType startDate endDate title',
+        populate: {
+          path: 'store',
+          select: 'name logo',
+          strictPopulate: false
+        },
         strictPopulate: false
       })
       .lean();

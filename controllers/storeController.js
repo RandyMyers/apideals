@@ -285,13 +285,24 @@ exports.getAllStores = async (req, res) => {
                 break;
         }
         
-        let stores = await Store.find(query)
-            .populate('userId', 'name email')
-            .populate('categoryId', 'name')
-            .sort(sortOption)
-            .skip(skip)
-            .limit(parseInt(limit))
-            .lean(); // Use lean() for better performance and to filter in memory
+        // For admin requests, if limit is very large (>= 1000), return all stores without pagination
+        const isAdminRequest = parseInt(limit) >= 1000;
+        let stores;
+        if (isAdminRequest) {
+            stores = await Store.find(query)
+                .populate('userId', 'name email')
+                .populate('categoryId', 'name')
+                .sort(sortOption)
+                .lean();
+        } else {
+            stores = await Store.find(query)
+                .populate('userId', 'name email')
+                .populate('categoryId', 'name')
+                .sort(sortOption)
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean();
+        }
         
         // Filter by location if country is provided
         if (country) {

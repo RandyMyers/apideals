@@ -433,10 +433,42 @@ exports.listWcCoupons = async (req, res) => {
     const { storeId } = req.params;
     const { page = 1, per_page = 50, search = '' } = req.query;
     const store = await Store.findById(storeId);
-    if (!store) return res.status(404).json({ message: 'Store not found' });
+    if (!store) {
+      return res.status(404).json({ message: 'Store not found' });
+    }
+    
+    // Validate store has API credentials
+    if (!store.apiKey || !store.secretKey) {
+      return res.status(400).json({ 
+        message: 'Store is missing API credentials. Please update the store with valid API keys.' 
+      });
+    }
+    
     const client = buildClient(store);
     const resp = await client.get('coupons', { per_page: Number(per_page), page: Number(page), search });
-    const coupons = (resp.data || []).map(c => ({
+    
+    // Handle different response formats from WooCommerce API
+    let couponsData = [];
+    if (Array.isArray(resp.data)) {
+      couponsData = resp.data;
+    } else if (resp.data && Array.isArray(resp.data.data)) {
+      couponsData = resp.data.data;
+    } else if (resp.data && typeof resp.data === 'object') {
+      // If it's an object, try to extract array from common properties
+      couponsData = resp.data.coupons || resp.data.items || [];
+    }
+    
+    // Log for debugging if no coupons found
+    if (!Array.isArray(couponsData) || couponsData.length === 0) {
+      logger.warn('WooCommerce coupons response format unexpected', {
+        storeId,
+        respDataType: typeof resp.data,
+        isArray: Array.isArray(resp.data),
+        respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null
+      });
+    }
+    
+    const coupons = couponsData.map(c => ({
       id: c.id,
       code: c.code,
       amount: c.amount,
@@ -449,8 +481,27 @@ exports.listWcCoupons = async (req, res) => {
     }));
     res.json({ coupons });
   } catch (error) {
-    logger.error('List WC coupons error', { error: error.message });
-    res.status(500).json({ message: 'Failed to list Woo coupons' });
+    logger.error('List WC coupons error', { 
+      storeId: req.params.storeId, 
+      error: error.message,
+      stack: error.stack,
+      response: error.response?.data 
+    });
+    
+    // Provide more detailed error message
+    let errorMessage = 'Failed to list Woo coupons';
+    if (error.response?.status === 401) {
+      errorMessage = 'Invalid API credentials. Please check your Consumer Key and Consumer Secret.';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'WooCommerce store not found or API endpoint not available.';
+    } else if (error.message) {
+      errorMessage = `Failed to list Woo coupons: ${error.message}`;
+    }
+    
+    res.status(error.response?.status || 500).json({ 
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -460,10 +511,42 @@ exports.listWcProducts = async (req, res) => {
     const { storeId } = req.params;
     const { page = 1, per_page = 50, search = '', on_sale = 'true' } = req.query;
     const store = await Store.findById(storeId);
-    if (!store) return res.status(404).json({ message: 'Store not found' });
+    if (!store) {
+      return res.status(404).json({ message: 'Store not found' });
+    }
+    
+    // Validate store has API credentials
+    if (!store.apiKey || !store.secretKey) {
+      return res.status(400).json({ 
+        message: 'Store is missing API credentials. Please update the store with valid API keys.' 
+      });
+    }
+    
     const client = buildClient(store);
     const resp = await client.get('products', { per_page: Number(per_page), page: Number(page), search, on_sale });
-    const products = (resp.data || []).map(p => ({
+    
+    // Handle different response formats from WooCommerce API
+    let productsData = [];
+    if (Array.isArray(resp.data)) {
+      productsData = resp.data;
+    } else if (resp.data && Array.isArray(resp.data.data)) {
+      productsData = resp.data.data;
+    } else if (resp.data && typeof resp.data === 'object') {
+      // If it's an object, try to extract array from common properties
+      productsData = resp.data.products || resp.data.items || [];
+    }
+    
+    // Log for debugging if no products found
+    if (!Array.isArray(productsData) || productsData.length === 0) {
+      logger.warn('WooCommerce products response format unexpected', {
+        storeId,
+        respDataType: typeof resp.data,
+        isArray: Array.isArray(resp.data),
+        respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null
+      });
+    }
+    
+    const products = productsData.map(p => ({
       id: p.id,
       name: p.name,
       permalink: p.permalink,
@@ -483,8 +566,27 @@ exports.listWcProducts = async (req, res) => {
     }));
     res.json({ products });
   } catch (error) {
-    logger.error('List WC products error', { error: error.message });
-    res.status(500).json({ message: 'Failed to list Woo products' });
+    logger.error('List WC products error', { 
+      storeId: req.params.storeId, 
+      error: error.message,
+      stack: error.stack,
+      response: error.response?.data 
+    });
+    
+    // Provide more detailed error message
+    let errorMessage = 'Failed to list Woo products';
+    if (error.response?.status === 401) {
+      errorMessage = 'Invalid API credentials. Please check your Consumer Key and Consumer Secret.';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'WooCommerce store not found or API endpoint not available.';
+    } else if (error.message) {
+      errorMessage = `Failed to list Woo products: ${error.message}`;
+    }
+    
+    res.status(error.response?.status || 500).json({ 
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -536,10 +638,71 @@ exports.syncSelectedCoupons = async (req, res) => {
         
         // Fetch product details if coupon is product-specific
         let productDetails = null;
+        let productFullDetails = null;
         if (c.product_ids && Array.isArray(c.product_ids) && c.product_ids.length > 0) {
           const primaryProductId = c.product_ids[0];
           productDetails = await fetchProductDetails(client, primaryProductId);
+          // Fetch full product details for images, prices, etc.
+          try {
+            const productResp = await client.get(`products/${primaryProductId}`);
+            productFullDetails = productResp.data;
+          } catch (error) {
+            logger.warn('Could not fetch full product details for coupon', { productId: primaryProductId });
+          }
         }
+        
+        // Get custom data from request body if provided
+        const couponCustomData = req.body.couponData && req.body.couponData[wcCouponId] ? req.body.couponData[wcCouponId] : {};
+        
+        // Build image gallery from product images if available
+        let imageGallery = [];
+        let imageUrl = undefined;
+        if (productFullDetails && productFullDetails.images && Array.isArray(productFullDetails.images) && productFullDetails.images.length > 0) {
+          if (couponCustomData.imageGallery && Array.isArray(couponCustomData.imageGallery)) {
+            imageGallery = couponCustomData.imageGallery;
+          } else {
+            imageGallery = productFullDetails.images.map((img, idx) => ({
+              url: img.src,
+              alt: img.alt || img.name || productFullDetails.name || 'Product image',
+              order: idx,
+            }));
+          }
+          imageUrl = imageGallery.length > 0 ? imageGallery[0].url : undefined;
+        }
+        
+        // Extract highlights from product or custom data
+        let highlights = [];
+        if (couponCustomData.highlights && Array.isArray(couponCustomData.highlights)) {
+          highlights = couponCustomData.highlights;
+        } else if (productFullDetails && productFullDetails.short_description) {
+          const bulletPoints = productFullDetails.short_description.split(/[•\-\*]/).filter(line => line.trim().length > 0);
+          highlights = bulletPoints.slice(0, 5).map(point => point.trim());
+        }
+        
+        // Extract tags from product tags
+        let tags = [];
+        if (couponCustomData.tags && Array.isArray(couponCustomData.tags)) {
+          tags = couponCustomData.tags;
+        } else if (productFullDetails && productFullDetails.tags && Array.isArray(productFullDetails.tags)) {
+          tags = productFullDetails.tags.map(tag => tag.name || tag.slug).filter(Boolean);
+        }
+        
+        // Get pricing from product if available
+        let originalPrice = undefined;
+        let discountedPrice = undefined;
+        if (productFullDetails) {
+          const regular = Number(productFullDetails.regular_price || 0);
+          const sale = Number(productFullDetails.sale_price || 0);
+          if (regular > 0) originalPrice = regular;
+          if (sale > 0) discountedPrice = sale;
+        }
+        
+        // Get currency from store or default to USD
+        const currency = couponCustomData.currency || (productFullDetails && productFullDetails.currency) || store.currency || 'USD';
+        
+        // Get location targeting from store settings
+        const availableCountries = store.availableCountries || ['WORLDWIDE'];
+        const isWorldwide = store.isWorldwide !== undefined ? store.isWorldwide : true;
         
         // Build coupon update object with all fields
         const couponData = {
@@ -547,8 +710,10 @@ exports.syncSelectedCoupons = async (req, res) => {
           storeId: store._id,
           categoryId: categoryId || store.categoryId || undefined,
           code: c.code,
-          title: c.description || c.code, // Use description as title, fallback to code
-          description: c.description || undefined,
+          title: couponCustomData.title || c.description || c.code, // Use custom title, description, or code
+          description: couponCustomData.description || c.description || undefined,
+          instructions: couponCustomData.instructions || c.description || undefined,
+          longDescription: couponCustomData.longDescription || (productFullDetails ? productFullDetails.description : undefined) || c.description || undefined,
           discountType: c.discount_type === 'percent' ? 'percentage' : 'fixed',
           discountValue: Number(c.amount) || 0,
           minPurchaseAmount: c.minimum_amount ? Number(c.minimum_amount) : 0,
@@ -565,19 +730,26 @@ exports.syncSelectedCoupons = async (req, res) => {
           productCategoryIds: Array.isArray(c.product_categories) && c.product_categories.length > 0 ? c.product_categories : undefined,
           excludedProductCategoryIds: Array.isArray(c.excluded_product_categories) && c.excluded_product_categories.length > 0 ? c.excluded_product_categories : undefined,
           wooCommerceId: c.id || Number(wcCouponId),
+          // Pricing fields
+          originalPrice: originalPrice,
+          discountedPrice: discountedPrice,
+          currency: currency,
+          // Rich content fields
+          highlights: highlights.length > 0 ? highlights : undefined,
+          tags: tags.length > 0 ? tags : undefined,
+          // Image fields
+          imageUrl: imageUrl || (productDetails ? productDetails.imageUrl : undefined) || store.logo || undefined,
+          imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
+          // Product fields
+          productUrl: productDetails ? productDetails.permalink : undefined,
+          productName: productDetails ? productDetails.name : undefined,
+          // Location targeting
+          availableCountries: availableCountries,
+          isWorldwide: isWorldwide,
+          // Status fields
           isActive: true,
           updatedAt: new Date(),
         };
-        
-        // Add product details if available
-        if (productDetails) {
-          couponData.productUrl = productDetails.permalink;
-          couponData.imageUrl = productDetails.imageUrl;
-          couponData.productName = productDetails.name;
-        } else {
-          // Use store logo as fallback image
-          couponData.imageUrl = store.logo || undefined;
-        }
         
         const coupon = await Coupon.findOneAndUpdate(
           { code: c.code, storeId: store._id },
@@ -683,6 +855,54 @@ exports.syncSelectedDeals = async (req, res) => {
         const description = productCustomData.description || p.description || p.short_description || '';
         const longDescription = productCustomData.longDescription || p.description || '';
         
+        // Extract highlights from product short description or attributes
+        let highlights = [];
+        if (productCustomData.highlights && Array.isArray(productCustomData.highlights)) {
+          highlights = productCustomData.highlights;
+        } else if (p.short_description) {
+          // Try to extract bullet points from short description
+          const bulletPoints = p.short_description.split(/[•\-\*]/).filter(line => line.trim().length > 0);
+          highlights = bulletPoints.slice(0, 5).map(point => point.trim()); // Limit to 5 highlights
+        }
+        
+        // Extract features from product attributes
+        let features = [];
+        if (productCustomData.features && Array.isArray(productCustomData.features)) {
+          features = productCustomData.features;
+        } else if (p.attributes && Array.isArray(p.attributes)) {
+          features = p.attributes
+            .filter(attr => attr.visible && attr.options && attr.options.length > 0)
+            .map(attr => `${attr.name}: ${attr.options.join(', ')}`)
+            .slice(0, 10); // Limit to 10 features
+        }
+        
+        // Extract specifications from product attributes as key-value pairs
+        let specifications = {};
+        if (productCustomData.specifications && typeof productCustomData.specifications === 'object') {
+          specifications = productCustomData.specifications;
+        } else if (p.attributes && Array.isArray(p.attributes)) {
+          p.attributes.forEach(attr => {
+            if (attr.visible && attr.options && attr.options.length > 0) {
+              specifications[attr.name] = attr.options.join(', ');
+            }
+          });
+        }
+        
+        // Extract tags from product tags
+        let tags = [];
+        if (productCustomData.tags && Array.isArray(productCustomData.tags)) {
+          tags = productCustomData.tags;
+        } else if (p.tags && Array.isArray(p.tags)) {
+          tags = p.tags.map(tag => tag.name || tag.slug).filter(Boolean);
+        }
+        
+        // Get currency from store or default to USD
+        const currency = productCustomData.currency || p.currency || store.currency || 'USD';
+        
+        // Get location targeting from store settings
+        const availableCountries = store.availableCountries || ['WORLDWIDE'];
+        const isWorldwide = store.isWorldwide !== undefined ? store.isWorldwide : true;
+        
         // Ensure categoryId exists (required field)
         const finalCategoryId = categoryId || store.categoryId;
         if (!finalCategoryId) {
@@ -705,12 +925,28 @@ exports.syncSelectedDeals = async (req, res) => {
             dealType: 'discount',
             discountType: 'percentage',
             discountValue: discountPct,
+            // Pricing fields for savings calculation
+            originalPrice: regular > 0 ? regular : undefined,
+            discountedPrice: sale > 0 ? sale : undefined,
+            currency: currency,
+            // Rich content fields
+            highlights: highlights.length > 0 ? highlights : undefined,
+            features: features.length > 0 ? features : undefined,
+            specifications: Object.keys(specifications).length > 0 ? specifications : undefined,
+            tags: tags.length > 0 ? tags : undefined,
+            // Image fields
             imageUrl: imageUrl || store.logo || undefined, // Product image or store logo fallback
             imageGallery: imageGallery.length > 0 ? imageGallery : undefined, // Add image gallery
+            // Product fields
             productUrl: p.permalink || undefined,
             productId: p.id || Number(wcProductId),
+            // Date fields
             startDate,
             endDate,
+            // Location targeting
+            availableCountries: availableCountries,
+            isWorldwide: isWorldwide,
+            // Status fields
             isActive: true,
             store: store._id,
             categoryId: finalCategoryId, // Required field

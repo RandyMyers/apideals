@@ -15,6 +15,9 @@ router.get('/top', storeController.getTopStores);
 // Route to get sponsored stores
 router.get('/sponsored', storeController.getSponsoredStores);
 
+// Route to get trending stores by category (MUST come before /:id)
+router.get('/trending/category/:categoryId', storeController.getTrendingStoresByCategory);
+
 // Route to get a store by its ID
 router.get('/:id', storeController.getStoreById);
 

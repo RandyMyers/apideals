@@ -116,6 +116,10 @@ const DealSchema = new Schema({
     type: Number,
     default: 0, // Number of times the deal has been used
   },
+  views: {
+    type: Number,
+    default: 0, // Track how many times this deal has been viewed
+  },
   isActive: {
     type: Boolean,
     default: true, // Whether the deal is active or not

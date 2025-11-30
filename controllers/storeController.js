@@ -421,6 +421,37 @@ exports.getSponsoredStores = async (req, res) => {
     }
 };
 
+// Get trending stores by category
+exports.getTrendingStoresByCategory = async (req, res) => {
+    try {
+        const { categoryId } = req.params;
+        const { limit = 6 } = req.query;
+        
+        if (!categoryId) {
+            return res.status(400).json({ message: 'Category ID is required' });
+        }
+
+        // Get stores in this category, sorted by views/rating/followers
+        const stores = await Store.find({
+            categoryId: categoryId,
+            isActive: true
+        })
+            .populate('categoryId', 'name slug')
+            .sort({ views: -1, rating: -1, followers: -1, createdAt: -1 })
+            .limit(parseInt(limit))
+            .select('name logo website rating followers categoryId views')
+            .lean();
+
+        res.status(200).json(stores);
+    } catch (error) {
+        console.error('Error fetching trending stores by category:', error);
+        res.status(500).json({
+            message: 'Error fetching trending stores',
+            error: error.message
+        });
+    }
+};
+
 // Update sponsored status (Admin or Store Owner)
 exports.updateSponsoredStatus = async (req, res) => {
     try {

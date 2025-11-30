@@ -64,6 +64,10 @@ const CouponSchema = new Schema({
     type: Number,
     default: 0, // Track how many times this coupon has been used
   },
+  views: {
+    type: Number,
+    default: 0, // Track how many times this coupon has been viewed
+  },
   isActive: {
     type: Boolean,
     default: true, // Whether the coupon is active or not

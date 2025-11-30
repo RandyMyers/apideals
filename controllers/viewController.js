@@ -1,4 +1,8 @@
 const View = require('../models/view');
+const Coupon = require('../models/coupon');
+const Deal = require('../models/deal');
+const Store = require('../models/store');
+const Category = require('../models/category');
 
 exports.createView = async (req, res) => {
     try {
@@ -52,6 +56,22 @@ exports.createView = async (req, res) => {
 
         // Save to the database
         await view.save();
+
+        // Also increment the views counter on the entity (for quick queries and trending)
+        try {
+            if (couponId) {
+                await Coupon.findByIdAndUpdate(couponId, { $inc: { views: 1 } });
+            } else if (dealId) {
+                await Deal.findByIdAndUpdate(dealId, { $inc: { views: 1 } });
+            } else if (storeId) {
+                await Store.findByIdAndUpdate(storeId, { $inc: { views: 1 } });
+            } else if (categoryId) {
+                await Category.findByIdAndUpdate(categoryId, { $inc: { views: 1 } });
+            }
+        } catch (incrementError) {
+            // Log but don't fail the view tracking if increment fails
+            console.warn('Error incrementing views counter:', incrementError);
+        }
 
         res.status(201).json({
             message: 'View logged successfully',

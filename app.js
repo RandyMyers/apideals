@@ -47,6 +47,7 @@ const savingTipsRoutes = require('./routes/savingTipsRoutes');
 const productRoutes = require('./routes/productRoutes'); 
 const categoryRoutes = require('./routes/categoryRoutes');  // New Category Routes
 const reviewRoutes = require('./routes/rateAndReviewRoutes');
+const voteRoutes = require('./routes/voteRoutes');  // Vote Routes
 const subscriptionRoutes = require('./routes/subscriptionRoutes');  // New Subscription Routes
 const discountRoutes = require('./routes/discountRoutes');  // New Discount Routes
 const discountUsageRoutes = require('./routes/discountUsageRoutes');  // New Discount Usage Routes
@@ -184,6 +185,7 @@ app.use('/api/v1/stores', savingTipsRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/category', categoryRoutes);  // New route for Categories
 app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/v1/votes', voteRoutes);  // Vote routes
 app.use('/api/v1/subscriptions', subscriptionRoutes);  // New route for Subscriptions
 app.use('/api/v1/discounts', discountRoutes);  // New route for Discounts
 app.use('/api/v1/discountUsages', discountUsageRoutes);  // New route for Discount Usages

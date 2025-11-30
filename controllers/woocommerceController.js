@@ -472,7 +472,12 @@ exports.listWcProducts = async (req, res) => {
       sale_price: p.sale_price,
       date_on_sale_from: p.date_on_sale_from,
       date_on_sale_to: p.date_on_sale_to,
-      images: p.images?.map(i=>i.src) || [],
+      images: p.images?.map(i => ({
+        id: i.id,
+        src: i.src,
+        name: i.name || i.src.split('/').pop(),
+        alt: i.alt || p.name,
+      })) || [],
       short_description: p.short_description,
       description: p.description,
     }));
@@ -651,10 +656,32 @@ exports.syncSelectedDeals = async (req, res) => {
         const startDate = p.date_on_sale_from ? new Date(p.date_on_sale_from) : new Date();
         const endDate = p.date_on_sale_to ? new Date(p.date_on_sale_to) : new Date(Date.now() + 14 * 86400000);
         
-        // Get product image (first image if available)
-        const imageUrl = p.images && Array.isArray(p.images) && p.images.length > 0 
-          ? p.images[0].src 
-          : undefined;
+        // Get product images - create image gallery
+        let imageGallery = [];
+        let imageUrl = undefined;
+        
+        if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+          // If imageGallery is provided from frontend (user selected images), use it
+          // Otherwise, use all product images
+          if (req.body.productData && req.body.productData[wcProductId] && req.body.productData[wcProductId].imageGallery) {
+            imageGallery = req.body.productData[wcProductId].imageGallery;
+          } else {
+            // Create gallery from all product images
+            imageGallery = p.images.map((img, idx) => ({
+              url: img.src,
+              alt: img.alt || img.name || p.name || 'Product image',
+              order: idx,
+            }));
+          }
+          // Set imageUrl to first gallery image for backward compatibility
+          imageUrl = imageGallery.length > 0 ? imageGallery[0].url : undefined;
+        }
+        
+        // Get instructions and description from request body if provided
+        const productCustomData = req.body.productData && req.body.productData[wcProductId] ? req.body.productData[wcProductId] : {};
+        const instructions = productCustomData.instructions || p.short_description || '';
+        const description = productCustomData.description || p.description || p.short_description || '';
+        const longDescription = productCustomData.longDescription || p.description || '';
         
         // Ensure categoryId exists (required field)
         const finalCategoryId = categoryId || store.categoryId;
@@ -670,13 +697,16 @@ exports.syncSelectedDeals = async (req, res) => {
         const deal = await Deal.findOneAndUpdate(
           { name: p.name, store: store._id },
           {
-            title: p.name, // Use product name as title
+            title: productCustomData.title || p.name, // Use custom title or product name
             name: p.name,
-            description: '', // No description needed for deals
+            description: description, // Use custom description or product description
+            instructions: instructions, // Use custom instructions or short description
+            longDescription: longDescription, // Use custom long description or product description
             dealType: 'discount',
             discountType: 'percentage',
             discountValue: discountPct,
             imageUrl: imageUrl || store.logo || undefined, // Product image or store logo fallback
+            imageGallery: imageGallery.length > 0 ? imageGallery : undefined, // Add image gallery
             productUrl: p.permalink || undefined,
             productId: p.id || Number(wcProductId),
             startDate,

@@ -7,12 +7,36 @@ const cloudinary = require('cloudinary').v2;
 const { logger } = require('../utils/logger');
 const { wooCommerceValidation, validate } = require('../utils/validation');
 
-const buildClient = (store) => new WooCommerceRestApi({
-  url: store.url,
-  consumerKey: store.apiKey,
-  consumerSecret: store.secretKey,
-  version: 'wc/v3',
-}); 
+const buildClient = (store) => {
+  if (!store.url || !store.apiKey || !store.secretKey) {
+    throw new Error('Store is missing required WooCommerce credentials (url, apiKey, or secretKey)');
+  }
+  
+  try {
+    const client = new WooCommerceRestApi({
+      url: store.url,
+      consumerKey: store.apiKey,
+      consumerSecret: store.secretKey,
+      version: 'wc/v3',
+    });
+    
+    logger.debug('WooCommerce client built', {
+      storeId: store._id,
+      url: store.url,
+      hasApiKey: !!store.apiKey,
+      hasSecretKey: !!store.secretKey
+    });
+    
+    return client;
+  } catch (error) {
+    logger.error('Failed to build WooCommerce client', {
+      storeId: store._id,
+      error: error.message,
+      url: store.url
+    });
+    throw error;
+  }
+}; 
 
 exports.connectStore = async (req, res) => {
   try {
@@ -445,27 +469,76 @@ exports.listWcCoupons = async (req, res) => {
     }
     
     const client = buildClient(store);
+    
+    // Debug: Log request details
+    logger.info('Fetching WooCommerce coupons', {
+      storeId,
+      storeUrl: store.url,
+      page,
+      per_page,
+      search,
+      hasApiKey: !!store.apiKey,
+      hasSecretKey: !!store.secretKey
+    });
+    
     const resp = await client.get('coupons', { per_page: Number(per_page), page: Number(page), search });
     
+    // Debug: Log full response structure
+    logger.info('WooCommerce coupons API response', {
+      storeId,
+      respType: typeof resp,
+      respDataType: typeof resp.data,
+      isRespDataArray: Array.isArray(resp.data),
+      respDataLength: Array.isArray(resp.data) ? resp.data.length : 'N/A',
+      respKeys: resp && typeof resp === 'object' ? Object.keys(resp) : null,
+      respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null,
+      respStatus: resp.status,
+      sampleData: Array.isArray(resp.data) && resp.data.length > 0 ? resp.data[0] : null
+    });
+    
     // Handle different response formats from WooCommerce API
+    // The @woocommerce/woocommerce-rest-api library returns resp.data as the array directly
     let couponsData = [];
     if (Array.isArray(resp.data)) {
       couponsData = resp.data;
+      logger.info('Using resp.data as array', { count: couponsData.length });
+    } else if (resp && Array.isArray(resp)) {
+      // Sometimes the response itself is the array
+      couponsData = resp;
+      logger.info('Using resp as array', { count: couponsData.length });
     } else if (resp.data && Array.isArray(resp.data.data)) {
       couponsData = resp.data.data;
+      logger.info('Using resp.data.data as array', { count: couponsData.length });
     } else if (resp.data && typeof resp.data === 'object') {
       // If it's an object, try to extract array from common properties
-      couponsData = resp.data.coupons || resp.data.items || [];
-    }
-    
-    // Log for debugging if no coupons found
-    if (!Array.isArray(couponsData) || couponsData.length === 0) {
-      logger.warn('WooCommerce coupons response format unexpected', {
+      couponsData = resp.data.coupons || resp.data.items || resp.data.results || [];
+      logger.info('Extracted from object properties', { 
+        count: couponsData.length,
+        usedProperty: resp.data.coupons ? 'coupons' : (resp.data.items ? 'items' : 'results')
+      });
+    } else {
+      // Safely log response without circular references
+      const safeRespData = {
         storeId,
+        respType: typeof resp,
         respDataType: typeof resp.data,
         isArray: Array.isArray(resp.data),
-        respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null
-      });
+        respStatus: resp.status,
+        respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null,
+        respDataSample: resp.data && typeof resp.data === 'object' ? 
+          Object.keys(resp.data).reduce((acc, key) => {
+            const value = resp.data[key];
+            if (typeof value !== 'object' || value === null) {
+              acc[key] = value;
+            } else if (Array.isArray(value)) {
+              acc[key] = `[Array(${value.length})]`;
+            } else {
+              acc[key] = `[Object(${Object.keys(value).length} keys)]`;
+            }
+            return acc;
+          }, {}) : null
+      };
+      logger.error('Unexpected WooCommerce coupons response format', safeRespData);
     }
     
     const coupons = couponsData.map(c => ({
@@ -479,6 +552,8 @@ exports.listWcCoupons = async (req, res) => {
       usage_limit: c.usage_limit,
       usage_count: c.usage_count,
     }));
+    
+    logger.info('Processed WooCommerce coupons', { storeId, count: coupons.length });
     res.json({ coupons });
   } catch (error) {
     logger.error('List WC coupons error', { 
@@ -523,27 +598,77 @@ exports.listWcProducts = async (req, res) => {
     }
     
     const client = buildClient(store);
+    
+    // Debug: Log request details
+    logger.info('Fetching WooCommerce products', {
+      storeId,
+      storeUrl: store.url,
+      page,
+      per_page,
+      search,
+      on_sale,
+      hasApiKey: !!store.apiKey,
+      hasSecretKey: !!store.secretKey
+    });
+    
     const resp = await client.get('products', { per_page: Number(per_page), page: Number(page), search, on_sale });
     
+    // Debug: Log full response structure
+    logger.info('WooCommerce products API response', {
+      storeId,
+      respType: typeof resp,
+      respDataType: typeof resp.data,
+      isRespDataArray: Array.isArray(resp.data),
+      respDataLength: Array.isArray(resp.data) ? resp.data.length : 'N/A',
+      respKeys: resp && typeof resp === 'object' ? Object.keys(resp) : null,
+      respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null,
+      respStatus: resp.status,
+      sampleData: Array.isArray(resp.data) && resp.data.length > 0 ? resp.data[0] : null
+    });
+    
     // Handle different response formats from WooCommerce API
+    // The @woocommerce/woocommerce-rest-api library returns resp.data as the array directly
     let productsData = [];
     if (Array.isArray(resp.data)) {
       productsData = resp.data;
+      logger.info('Using resp.data as array', { count: productsData.length });
+    } else if (resp && Array.isArray(resp)) {
+      // Sometimes the response itself is the array
+      productsData = resp;
+      logger.info('Using resp as array', { count: productsData.length });
     } else if (resp.data && Array.isArray(resp.data.data)) {
       productsData = resp.data.data;
+      logger.info('Using resp.data.data as array', { count: productsData.length });
     } else if (resp.data && typeof resp.data === 'object') {
       // If it's an object, try to extract array from common properties
-      productsData = resp.data.products || resp.data.items || [];
-    }
-    
-    // Log for debugging if no products found
-    if (!Array.isArray(productsData) || productsData.length === 0) {
-      logger.warn('WooCommerce products response format unexpected', {
+      productsData = resp.data.products || resp.data.items || resp.data.results || [];
+      logger.info('Extracted from object properties', { 
+        count: productsData.length,
+        usedProperty: resp.data.products ? 'products' : (resp.data.items ? 'items' : 'results')
+      });
+    } else {
+      // Safely log response without circular references
+      const safeRespData = {
         storeId,
+        respType: typeof resp,
         respDataType: typeof resp.data,
         isArray: Array.isArray(resp.data),
-        respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null
-      });
+        respStatus: resp.status,
+        respDataKeys: resp.data && typeof resp.data === 'object' ? Object.keys(resp.data) : null,
+        respDataSample: resp.data && typeof resp.data === 'object' ? 
+          Object.keys(resp.data).reduce((acc, key) => {
+            const value = resp.data[key];
+            if (typeof value !== 'object' || value === null) {
+              acc[key] = value;
+            } else if (Array.isArray(value)) {
+              acc[key] = `[Array(${value.length})]`;
+            } else {
+              acc[key] = `[Object(${Object.keys(value).length} keys)]`;
+            }
+            return acc;
+          }, {}) : null
+      };
+      logger.error('Unexpected WooCommerce products response format', safeRespData);
     }
     
     const products = productsData.map(p => ({
@@ -564,28 +689,61 @@ exports.listWcProducts = async (req, res) => {
       short_description: p.short_description,
       description: p.description,
     }));
+    
+    logger.info('Processed WooCommerce products', { storeId, count: products.length });
     res.json({ products });
   } catch (error) {
-    logger.error('List WC products error', { 
+    // Enhanced error logging (avoid circular references)
+    const errorLogData = {
       storeId: req.params.storeId, 
       error: error.message,
-      stack: error.stack,
-      response: error.response?.data 
-    });
+      errorName: error.name,
+      code: error.code,
+      responseStatus: error.response?.status,
+      responseStatusText: error.response?.statusText,
+      responseData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method
+    };
+    
+    // Only include stack in development
+    if (process.env.NODE_ENV === 'development') {
+      errorLogData.stack = error.stack;
+    }
+    
+    logger.error('List WC products error', errorLogData);
     
     // Provide more detailed error message
     let errorMessage = 'Failed to list Woo products';
-    if (error.response?.status === 401) {
+    let statusCode = 500;
+    
+    if (error.message && error.message.includes('missing required')) {
+      errorMessage = error.message;
+      statusCode = 400;
+    } else if (error.response?.status === 401) {
       errorMessage = 'Invalid API credentials. Please check your Consumer Key and Consumer Secret.';
+      statusCode = 401;
     } else if (error.response?.status === 404) {
-      errorMessage = 'WooCommerce store not found or API endpoint not available.';
+      errorMessage = 'WooCommerce store not found or API endpoint not available. Please verify the store URL.';
+      statusCode = 404;
+    } else if (error.response?.status === 403) {
+      errorMessage = 'Access forbidden. Please check API key permissions (needs Read access).';
+      statusCode = 403;
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      errorMessage = `Cannot connect to WooCommerce store. Please verify the store URL: ${error.message}`;
+      statusCode = 503;
     } else if (error.message) {
       errorMessage = `Failed to list Woo products: ${error.message}`;
     }
     
-    res.status(error.response?.status || 500).json({ 
+    res.status(statusCode).json({ 
       message: errorMessage,
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      details: process.env.NODE_ENV === 'development' ? {
+        status: error.response?.status,
+        data: error.response?.data,
+        code: error.code
+      } : undefined
     });
   }
 };

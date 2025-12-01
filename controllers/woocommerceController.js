@@ -537,18 +537,51 @@ exports.listWcCoupons = async (req, res) => {
     // If data is a string, try to parse it as JSON
     if (typeof rawData === 'string') {
       console.log('[Step 6] ⚠️  Response.data is a string, attempting to parse as JSON...');
+      console.log('[Step 6] String length:', rawData.length);
+      
+      // Try to extract JSON part if HTML is mixed in (common with WooCommerce API)
+      let jsonString = rawData;
+      const jsonStart = jsonString.indexOf('[');
+      
+      if (jsonStart !== -1) {
+        // Find the actual end of the JSON array by looking for the last ']' 
+        // that's followed by whitespace or end of string (not HTML/JS)
+        let jsonEnd = -1;
+        for (let i = jsonString.length - 1; i >= jsonStart; i--) {
+          if (jsonString[i] === ']') {
+            // Check if this ']' is followed by whitespace or end of string
+            const after = jsonString.substring(i + 1).trim();
+            if (after === '' || after.startsWith('<') || after.startsWith('\n<script') || after.startsWith('<script')) {
+              jsonEnd = i;
+              break;
+            }
+          }
+        }
+        
+        if (jsonEnd === -1) {
+          // Fallback: use lastIndexOf
+          jsonEnd = jsonString.lastIndexOf(']');
+        }
+        
+        if (jsonEnd !== -1 && jsonEnd > jsonStart) {
+          jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
+          console.log('[Step 6] Extracted JSON substring (length:', jsonString.length, ')');
+        }
+      }
+      
       try {
-        rawData = JSON.parse(rawData);
+        rawData = JSON.parse(jsonString);
         console.log('[Step 6] ✅ Successfully parsed JSON string');
         console.log('[Step 6] Parsed data type:', typeof rawData);
         console.log('[Step 6] Parsed data is array:', Array.isArray(rawData));
       } catch (parseError) {
         console.log('[Step 6] ❌ Failed to parse JSON:', parseError.message);
-        console.log('[Step 6] String preview (first 200 chars):', rawData.substring(0, 200));
+        console.log('[Step 6] String preview (first 500 chars):', rawData.substring(0, 500));
+        console.log('[Step 6] String end preview (last 200 chars):', rawData.substring(Math.max(0, rawData.length - 200)));
         logger.error('Failed to parse WooCommerce response as JSON', {
           storeId,
           error: parseError.message,
-          dataPreview: rawData.substring(0, 200)
+          dataPreview: rawData.substring(0, 500)
         });
       }
     }

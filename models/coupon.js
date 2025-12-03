@@ -72,11 +72,23 @@ const CouponSchema = new Schema({
     type: Boolean,
     default: true, // Whether the coupon is active or not
   },
+  isPublished: {
+    type: Boolean,
+    default: false, // Whether the coupon is published and visible to public
+  },
   // Product-specific coupon information
   productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product', // Reference to our Product model (if product exists in our DB)
     required: false,
+  },
+  wooProductId: {
+    type: Number,
+    required: false, // WooCommerce product ID (for tracking which WooCommerce product this coupon entry is for)
+  },
+  parentProductId: {
+    type: Number,
+    required: false, // WooCommerce parent product ID (if this is a variation)
   },
   productIds: {
     type: [Number],
@@ -197,6 +209,83 @@ const CouponSchema = new Schema({
     required: false, // Calculated: (savingsAmount / originalPrice) * 100
   },
 
+  // Variable product support
+  isVariableProduct: {
+    type: Boolean,
+    default: false, // True if this coupon applies to a variable product
+  },
+  variations: [{
+    variationId: {
+      type: Number,
+      required: true, // WooCommerce variation ID
+    },
+    sku: {
+      type: String,
+      required: false,
+    },
+    attributes: {
+      type: Map,
+      of: String, // e.g., { "Size": "M", "Color": "Red" }
+    },
+    regularPrice: {
+      type: Number,
+      required: false,
+    },
+    salePrice: {
+      type: Number,
+      required: false,
+    },
+    onSale: {
+      type: Boolean,
+      default: false,
+    },
+    image: {
+      url: {
+        type: String,
+        required: false,
+      },
+      alt: {
+        type: String,
+        required: false,
+      },
+    },
+    stockStatus: {
+      type: String,
+      enum: ['instock', 'outofstock', 'onbackorder'],
+      default: 'instock',
+    },
+    stockQuantity: {
+      type: Number,
+      required: false,
+    },
+    purchasable: {
+      type: Boolean,
+      default: true,
+    },
+  }],
+  defaultVariationId: {
+    type: Number,
+    required: false, // Variation ID to show by default (first on-sale, or first in stock)
+  },
+  applicableVariationIds: {
+    type: [Number],
+    required: false, // Array of variation IDs that are on sale (if only some variations are on sale)
+  },
+  allVariationsOnSale: {
+    type: Boolean,
+    default: true, // True if all variations are on sale, false if only some are
+  },
+  priceRange: {
+    min: {
+      type: Number,
+      required: false, // Minimum price across all variations
+    },
+    max: {
+      type: Number,
+      required: false, // Maximum price across all variations
+    },
+  },
+
   // Image gallery support (for detail pages)
   imageGallery: [{
     url: {
@@ -225,6 +314,13 @@ const CouponSchema = new Schema({
   termsAndConditions: {
     type: String,
     required: false, // Full T&C text
+  },
+
+  // Language translations (for multi-language support)
+  languageTranslations: {
+    type: mongoose.Schema.Types.Mixed,
+    required: false,
+    default: {},
   },
 
   // SEO fields
@@ -311,7 +407,12 @@ CouponSchema.methods.incrementUsage = function () {
 
 const Coupon = mongoose.model('Coupon', CouponSchema);
 
-// Ensure compound uniqueness for (code, storeId)
-Coupon.collection.createIndex({ code: 1, storeId: 1 }, { unique: true }).catch(()=>{});
+// Indexes are managed by fixCouponIndexes.js script
+// We do NOT create indexes here to avoid conflicts
+// The script creates:
+// 1. Sparse unique index on (code, storeId, productUrl) - for multi-product coupons with URLs
+// 2. Sparse unique index on (code, storeId, wooProductId) - for multi-product coupons without URLs
+// 3. Non-unique index on (code) - for faster queries
+// Note: All-products coupons use a marker productUrl (__all_products__{code}) to ensure uniqueness
 
 module.exports = Coupon;

@@ -56,3 +56,4 @@ async function deleteAllRedirects() {
 deleteAllRedirects();
 
 
+

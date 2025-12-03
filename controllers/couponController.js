@@ -128,6 +128,11 @@ exports.createCoupon = async (req, res) => {
         ...couponData 
       } = otherCouponData;
       
+      // Default isPublished based on user type - admins can publish immediately
+      const defaultIsPublished = (userType === 'superAdmin' || userType === 'couponManager') 
+        ? (couponData.isPublished !== undefined ? couponData.isPublished : true)
+        : false;
+      
       const newCoupon = new Coupon({ 
         storeId, 
         categoryId, 
@@ -140,6 +145,7 @@ exports.createCoupon = async (req, res) => {
         seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
         availableCountries: availableCountries || ['WORLDWIDE'],
         isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
+        isPublished: defaultIsPublished,
         ...couponData 
       });
     await newCoupon.save();
@@ -201,6 +207,9 @@ exports.createCoupon = async (req, res) => {
       ...couponData 
     } = otherCouponData;
     
+    // Default isPublished - regular users default to false
+    const defaultIsPublished = couponData.isPublished !== undefined ? couponData.isPublished : false;
+    
     const newCoupon = new Coupon({ 
       storeId, 
       categoryId, 
@@ -213,6 +222,7 @@ exports.createCoupon = async (req, res) => {
       seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
       availableCountries: availableCountries || ['WORLDWIDE'],
       isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
+      isPublished: defaultIsPublished,
       ...couponData 
     });
     await newCoupon.save();
@@ -282,19 +292,29 @@ exports.bulkUpsert = async (req, res) => {
   }
 };
 
-// Get all coupons (public - only active coupons)
+// Get all coupons (public - only active coupons, or all for admin)
 exports.getAllCoupons = async (req, res) => {
   try {
-    const { country } = req.query; // Visitor country for location filtering
+    const { country, admin } = req.query; // Visitor country for location filtering, admin flag to show all
     const now = new Date();
-    let coupons = await Coupon.find({
-      isActive: true,
-      $or: [
-        { endDate: { $gte: now } },
-        { endDate: null },
-        { endDate: { $exists: false } }
-      ]
-    })
+    
+    // Build query - if admin=true, show all coupons (including expired/inactive/unpublished)
+    let query = {};
+    if (admin !== 'true') {
+      // Public query: only published, active and non-expired
+      query = {
+        isPublished: true,
+        isActive: true,
+        $or: [
+          { endDate: { $gte: now } },
+          { endDate: null },
+          { endDate: { $exists: false } }
+        ]
+      };
+    }
+    // If admin=true, query is empty (show all)
+    
+    let coupons = await Coupon.find(query)
       .populate({
         path: 'storeId',
         select: 'name website logo',
@@ -316,11 +336,42 @@ exports.getAllCoupons = async (req, res) => {
     }
 
     // Map coupons to ensure consistent structure (handle null populated fields)
-    coupons = coupons.map(coupon => ({
-      ...coupon,
-      store: coupon.storeId || null, // Map storeId to store for frontend compatibility
-      category: coupon.categoryId || null
-    }));
+    coupons = coupons.map(coupon => {
+      // Ensure imageGallery is properly formatted
+      let imageGallery = coupon.imageGallery || [];
+      if (!Array.isArray(imageGallery)) {
+        imageGallery = [];
+      }
+      
+      // If imageGallery is empty but imageUrl exists, create gallery from single image
+      if (imageGallery.length === 0 && coupon.imageUrl) {
+        imageGallery = [{
+          url: coupon.imageUrl,
+          alt: coupon.title || coupon.code || 'Coupon image',
+          order: 0,
+        }];
+      }
+      
+      // Calculate status based on endDate
+      let status = 'active';
+      if (coupon.endDate) {
+        const endDate = new Date(coupon.endDate);
+        if (endDate < now) {
+          status = 'expired';
+        } else {
+          status = 'active';
+        }
+      }
+      
+      return {
+        ...coupon,
+        store: coupon.storeId || null, // Map storeId to store for frontend compatibility
+        category: coupon.categoryId || null,
+        imageGallery: imageGallery, // Ensure imageGallery is always an array
+        imageUrl: coupon.imageUrl || (imageGallery.length > 0 ? imageGallery[0].url : null), // Ensure imageUrl exists
+        status: status // Add status field (active/expired)
+      };
+    });
 
     res.status(200).json(coupons);
   } catch (error) {
@@ -409,6 +460,21 @@ exports.getCouponById = async (req, res) => {
       }];
     }
 
+    // Format variations for JSON response (convert Map to plain object)
+    if (coupon.isVariableProduct && coupon.variations && Array.isArray(coupon.variations)) {
+      coupon.variations = coupon.variations.map(v => {
+        const variation = { ...v };
+        // Convert attributes Map to plain object
+        if (v.attributes && v.attributes instanceof Map) {
+          variation.attributes = Object.fromEntries(v.attributes);
+        } else if (v.attributes && typeof v.attributes === 'object') {
+          // Already an object, keep as is
+          variation.attributes = v.attributes;
+        }
+        return variation;
+      });
+    }
+
     res.status(200).json(coupon);
   } catch (error) {
     console.error('Error fetching coupon by ID:', error);
@@ -439,17 +505,243 @@ exports.getCouponsByUserId = async (req, res) => {
   }
 };
 
+// Get all coupons for admin (includes expired and inactive)
+exports.getAllCouponsAdmin = async (req, res) => {
+  try {
+    const { storeId, categoryId, isActive, search } = req.query;
+    const query = {};
+    
+    // Filter by store if provided
+    if (storeId) {
+      query.storeId = storeId;
+    }
+    
+    // Filter by category if provided
+    if (categoryId) {
+      query.categoryId = categoryId;
+    }
+    
+    // Filter by active status if provided
+    if (isActive !== undefined) {
+      query.isActive = isActive === 'true';
+    }
+    
+    // Search by code or title if provided
+    if (search) {
+      query.$or = [
+        { code: { $regex: search, $options: 'i' } },
+        { title: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    let coupons = await Coupon.find(query)
+      .populate({
+        path: 'storeId',
+        select: 'name website logo',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'categoryId',
+        select: 'name',
+        strictPopulate: false
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Map coupons to ensure consistent structure
+    coupons = coupons.map(coupon => {
+      let imageGallery = coupon.imageGallery || [];
+      if (!Array.isArray(imageGallery)) {
+        imageGallery = [];
+      }
+      
+      if (imageGallery.length === 0 && coupon.imageUrl) {
+        imageGallery = [{
+          url: coupon.imageUrl,
+          alt: coupon.title || coupon.code || 'Coupon image',
+          order: 0,
+        }];
+      }
+      
+      return {
+        ...coupon,
+        store: coupon.storeId || null,
+        category: coupon.categoryId || null,
+        imageGallery: imageGallery,
+        imageUrl: coupon.imageUrl || (imageGallery.length > 0 ? imageGallery[0].url : null)
+      };
+    });
+
+    res.status(200).json(coupons);
+  } catch (error) {
+    console.error('Error in getAllCouponsAdmin:', error);
+    res.status(500).json({ message: 'Error fetching coupons', error: error.message });
+  }
+};
+
 
 // Update a coupon by ID
 exports.updateCoupon = async (req, res) => {
   const { id } = req.params;
-  const updatedData = req.body;
+  let updatedData = {};
 
   try {
-    const updatedCoupon = await Coupon.findByIdAndUpdate(id, updatedData, { new: true })
+    // Handle FormData (multipart/form-data) or JSON
+    if (req.body && typeof req.body === 'object') {
+      // Parse FormData fields
+      Object.keys(req.body).forEach(key => {
+        const value = req.body[key];
+        
+        // Handle JSON strings
+        if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+          try {
+            updatedData[key] = JSON.parse(value);
+          } catch (e) {
+            updatedData[key] = value;
+          }
+        } else {
+          updatedData[key] = value;
+        }
+      });
+    }
+
+    // Handle language-specific fields
+    if (updatedData.languageData) {
+      try {
+        const languageData = typeof updatedData.languageData === 'string' 
+          ? JSON.parse(updatedData.languageData) 
+          : updatedData.languageData;
+        
+        // Store language data in a nested structure
+        // For now, we'll use the current language (default to 'en') for main fields
+        // and store all language data in a separate field
+        if (languageData.en) {
+          updatedData.title = languageData.en.title || updatedData.title;
+          updatedData.description = languageData.en.description || updatedData.description;
+          updatedData.instructions = languageData.en.instructions || updatedData.instructions;
+          updatedData.longDescription = languageData.en.longDescription || updatedData.longDescription;
+          updatedData.termsAndConditions = languageData.en.termsAndConditions || updatedData.termsAndConditions;
+          updatedData.seoTitle = languageData.en.seoTitle || updatedData.seoTitle;
+          updatedData.seoDescription = languageData.en.seoDescription || updatedData.seoDescription;
+          
+          if (languageData.en.highlights) {
+            updatedData.highlights = typeof languageData.en.highlights === 'string'
+              ? languageData.en.highlights.split('\n').filter(item => item.trim())
+              : languageData.en.highlights;
+          }
+        }
+        
+        // Store all language data for future use
+        updatedData.languageTranslations = languageData;
+      } catch (e) {
+        console.error('Error parsing language data:', e);
+      }
+      delete updatedData.languageData; // Remove from update object
+    }
+
+    // Process main image upload
+    if (req.files && req.files.image) {
+      const image = req.files.image;
+      try {
+        const uploadResult = await cloudinary.uploader.upload(image.tempFilePath, {
+          folder: 'coupons',
+        });
+        updatedData.imageUrl = uploadResult.secure_url;
+      } catch (uploadError) {
+        console.error('Error uploading image:', uploadError);
+      }
+    }
+
+    // Process image gallery
+    if (req.files) {
+      const galleryFiles = Object.keys(req.files)
+        .filter(key => key.startsWith('galleryImage_'))
+        .sort((a, b) => {
+          const idxA = parseInt(a.split('_')[1]);
+          const idxB = parseInt(b.split('_')[1]);
+          return idxA - idxB;
+        })
+        .map(key => req.files[key]);
+
+      if (galleryFiles.length > 0) {
+        const imageGallery = [];
+        for (let i = 0; i < galleryFiles.length; i++) {
+          const file = galleryFiles[i];
+          try {
+            const uploadResult = await cloudinary.uploader.upload(file.tempFilePath, {
+              folder: 'coupons/gallery',
+            });
+            imageGallery.push({
+              url: uploadResult.secure_url,
+              alt: updatedData.title || updatedData.code || `Coupon image ${i + 1}`,
+              order: i,
+            });
+          } catch (galleryError) {
+            console.error(`Error uploading gallery image ${i}:`, galleryError);
+          }
+        }
+        if (imageGallery.length > 0) {
+          updatedData.imageGallery = imageGallery;
+        }
+      }
+    }
+
+    // Process array fields
+    if (updatedData.highlights && typeof updatedData.highlights === 'string') {
+      try {
+        updatedData.highlights = JSON.parse(updatedData.highlights);
+      } catch (e) {
+        updatedData.highlights = updatedData.highlights.split('\n').filter(item => item.trim());
+      }
+    }
+
+    if (updatedData.tags && typeof updatedData.tags === 'string') {
+      try {
+        updatedData.tags = JSON.parse(updatedData.tags);
+      } catch (e) {
+        updatedData.tags = updatedData.tags.split(',').map(item => item.trim()).filter(item => item);
+      }
+    }
+
+    if (updatedData.seoKeywords && typeof updatedData.seoKeywords === 'string') {
+      try {
+        updatedData.seoKeywords = JSON.parse(updatedData.seoKeywords);
+      } catch (e) {
+        updatedData.seoKeywords = updatedData.seoKeywords.split(',').map(item => item.trim()).filter(item => item);
+      }
+    }
+
+    // Convert date strings to Date objects
+    if (updatedData.startDate && typeof updatedData.startDate === 'string') {
+      updatedData.startDate = new Date(updatedData.startDate);
+    }
+    if (updatedData.endDate && typeof updatedData.endDate === 'string') {
+      updatedData.endDate = new Date(updatedData.endDate);
+    }
+
+    // Convert boolean strings
+    if (updatedData.isActive !== undefined) {
+      updatedData.isActive = updatedData.isActive === 'true' || updatedData.isActive === true;
+    }
+    if (updatedData.isPublished !== undefined) {
+      updatedData.isPublished = updatedData.isPublished === 'true' || updatedData.isPublished === true;
+    }
+
+    // Convert numeric fields
+    if (updatedData.discountValue !== undefined) {
+      updatedData.discountValue = Number(updatedData.discountValue);
+    }
+    if (updatedData.minPurchaseAmount !== undefined) {
+      updatedData.minPurchaseAmount = Number(updatedData.minPurchaseAmount) || 0;
+    }
+    if (updatedData.usageLimit !== undefined) {
+      updatedData.usageLimit = Number(updatedData.usageLimit) || 1;
+    }
+
+    const updatedCoupon = await Coupon.findByIdAndUpdate(id, updatedData, { new: true, runValidators: true })
       .populate('affiliateId', 'name')
       .populate('storeId', 'name location')
-      .populate('category', 'name');
+      .populate('categoryId', 'name');
 
     if (!updatedCoupon) {
       return res.status(404).json({ message: 'Coupon not found' });
@@ -457,6 +749,7 @@ exports.updateCoupon = async (req, res) => {
 
     res.status(200).json({ message: 'Coupon updated successfully', coupon: updatedCoupon });
   } catch (error) {
+    console.error('Error updating coupon:', error);
     res.status(500).json({ message: 'Error updating coupon', error: error.message });
   }
 };

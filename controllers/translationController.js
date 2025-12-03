@@ -35,6 +35,47 @@ exports.getTranslations = async (req, res) => {
 };
 
 /**
+ * Get all translations for all supported languages (public - bulk loading)
+ * Returns formatted translations for all languages: { en: {...}, ga: {...}, ... }
+ */
+exports.getAllTranslationsBulk = async (req, res) => {
+  try {
+    const supportedLanguages = ['en', 'ga', 'de', 'es', 'it', 'no', 'fi', 'da', 'sv'];
+    
+    // Load all languages in parallel for better performance
+    const translationPromises = supportedLanguages.map(async (lang) => {
+      try {
+        const translations = await Translation.getTranslationsForLanguage(lang);
+        return { lang, translations };
+      } catch (error) {
+        console.error(`Error fetching translations for ${lang}:`, error);
+        return { lang, translations: {} };
+      }
+    });
+    
+    const results = await Promise.all(translationPromises);
+    
+    // Format as object: { en: {...}, ga: {...}, ... }
+    const allTranslations = {};
+    results.forEach(({ lang, translations }) => {
+      allTranslations[lang] = translations;
+    });
+    
+    res.json({
+      success: true,
+      translations: allTranslations,
+      languages: supportedLanguages,
+    });
+  } catch (error) {
+    console.error('Error fetching all translations:', error);
+    res.status(500).json({
+      error: 'Failed to fetch all translations',
+      message: error.message,
+    });
+  }
+};
+
+/**
  * Get all translations (admin)
  */
 exports.getAllTranslations = async (req, res) => {

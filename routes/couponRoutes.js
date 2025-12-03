@@ -5,8 +5,11 @@ const couponController = require('../controllers/couponController'); // Adjust t
 // Route to create a new coupon
 router.post('/create', couponController.createCoupon);
 
-// Route to get all coupons
+// Route to get all coupons (public - only active, non-expired)
 router.get('/all', couponController.getAllCoupons);
+
+// Route to get all coupons for admin (includes expired and inactive)
+router.get('/admin/all', couponController.getAllCouponsAdmin);
 
 // Get trending coupons (must be before /:id route)
 router.get('/trending', couponController.getTrendingCoupons);

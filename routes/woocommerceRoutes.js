@@ -33,6 +33,9 @@ router.get('/stores/:storeId/products', authMiddleware, wc.listWcProducts);
 router.post('/stores/:storeId/sync-coupons', authMiddleware, wc.syncSelectedCoupons);
 router.post('/stores/:storeId/sync-deals', authMiddleware, wc.syncSelectedDeals);
 
+// Direct coupon creation in WooCommerce
+router.post('/stores/:storeId/coupons/create', authMiddleware, wc.createWcCoupon);
+
 // List connected stores for current user
 router.get('/stores', authMiddleware, wc.listStores);
 

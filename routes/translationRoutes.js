@@ -21,6 +21,9 @@ router.get('/admin/:key', authMiddleware, adminMiddleware(allowedAdminTypes), tr
 router.put('/admin/:key', authMiddleware, adminMiddleware(allowedAdminTypes), translationController.updateTranslation);
 router.delete('/admin/:key', authMiddleware, adminMiddleware(allowedAdminTypes), translationController.deleteTranslation);
 
+// Public routes - Bulk loading must come before single language route
+router.get('/all', translationController.getAllTranslationsBulk);
+
 // Public route - Get translations for a language (must be last to avoid matching admin routes)
 router.get('/:lang', translationController.getTranslations);
 

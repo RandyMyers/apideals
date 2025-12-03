@@ -1132,7 +1132,7 @@ exports.getAllUsersActivities = async (req, res) => {
 
         // Build filters
         const userFilter = userId ? { userId } : {};
-        
+
         let activities = [];
 
         // Get views

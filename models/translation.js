@@ -73,8 +73,15 @@ translationSchema.index({ 'en': 'text', 'description': 'text' }); // Full-text s
 
 // Static method to get translations for a specific language
 translationSchema.statics.getTranslationsForLanguage = async function(language) {
-  // Select all fields, but we'll only use the ones we need
-  const translations = await this.find({}).lean();
+  // Optimize query: only select the fields we need (key and the requested language + English fallback)
+  // This reduces data transfer significantly
+  const fieldsToSelect = ['key', 'en', language].filter(Boolean);
+  const selectFields = fieldsToSelect.reduce((acc, field) => {
+    acc[field] = 1;
+    return acc;
+  }, {});
+  
+  const translations = await this.find({}).select(selectFields).lean();
   
   // Format for react-i18next (nested structure)
   const formatted = {};

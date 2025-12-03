@@ -202,6 +202,11 @@ exports.createDeal = async (req, res) => {
         ...restDealData 
       } = dealData;
       
+      // Default isPublished - admins can publish immediately, regular users default to false
+      const defaultIsPublished = userType === 'superAdmin' || userType === 'couponManager'
+        ? (dealData.isPublished !== undefined ? dealData.isPublished : true)
+        : false;
+      
       const newDeal = new Deal({ 
         store: storeId, 
         categoryId, 
@@ -214,6 +219,7 @@ exports.createDeal = async (req, res) => {
         seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
         availableCountries: availableCountries || ['WORLDWIDE'],
         isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
+        isPublished: defaultIsPublished,
         ...restDealData,
         imageUrl,
       });
@@ -275,6 +281,9 @@ exports.createDeal = async (req, res) => {
       ...restDealData 
     } = dealData;
     
+    // Default isPublished - regular users default to false
+    const defaultIsPublished = dealData.isPublished !== undefined ? dealData.isPublished : false;
+    
     const newDeal = new Deal({ 
       store: storeId, 
       categoryId, 
@@ -287,6 +296,7 @@ exports.createDeal = async (req, res) => {
       seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
       availableCountries: availableCountries || ['WORLDWIDE'],
       isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
+      isPublished: defaultIsPublished,
       ...restDealData,
       imageUrl,
     });
@@ -380,16 +390,24 @@ exports.bulkUpsert = async (req, res) => {
 // Get all deals (public - only active deals)
 exports.getAllDeals = async (req, res) => {
   try {
-    const { country } = req.query; // Visitor country for location filtering
+    const { country, admin } = req.query; // Visitor country for location filtering, admin flag to show all
     const now = new Date();
-    let deals = await Deal.find({
-      isActive: true,
-      $or: [
-        { endDate: { $gte: now } },
-        { endDate: null },
-        { endDate: { $exists: false } }
-      ]
-    })
+    
+    // Build query - if admin=true, show all deals (including expired/inactive/unpublished)
+    // Otherwise, only show published, active, and non-expired deals
+    const query = admin === 'true' 
+      ? {} // Admin sees all deals
+      : {
+          isPublished: true,
+          isActive: true,
+          $or: [
+            { endDate: { $gte: now } },
+            { endDate: null },
+            { endDate: { $exists: false } }
+          ]
+        };
+    
+    let deals = await Deal.find(query)
     .populate('store', 'name website logo')
     .sort({ createdAt: -1 })
     .lean();
@@ -460,6 +478,21 @@ exports.getDealById = async (req, res) => {
       }];
     }
 
+    // Format variations for JSON response (convert Map to plain object)
+    if (deal.isVariableProduct && deal.variations && Array.isArray(deal.variations)) {
+      deal.variations = deal.variations.map(v => {
+        const variation = { ...v };
+        // Convert attributes Map to plain object
+        if (v.attributes && v.attributes instanceof Map) {
+          variation.attributes = Object.fromEntries(v.attributes);
+        } else if (v.attributes && typeof v.attributes === 'object') {
+          // Already an object, keep as is
+          variation.attributes = v.attributes;
+        }
+        return variation;
+      });
+    }
+
     res.status(200).json(deal);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching deal', error: error.message });
@@ -494,8 +527,62 @@ exports.getDealsByUserId = async (req, res) => {
 // Update a deal by ID
 exports.updateDeal = async (req, res) => {
   const { id } = req.params;
-  const updatedData = req.body;
+  let updatedData = req.body;
+  
   try {
+    // Handle FormData - if content-type is multipart/form-data, parse it
+    if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+      // FormData parsing is handled by multer middleware
+      // Extract JSON fields if they exist
+      if (req.body.languageData) {
+        try {
+          updatedData.languageTranslations = typeof req.body.languageData === 'string' 
+            ? JSON.parse(req.body.languageData) 
+            : req.body.languageData;
+        } catch (e) {
+          console.warn('Failed to parse languageData:', e);
+        }
+      }
+      
+      // Process array fields
+      if (req.body.highlights && typeof req.body.highlights === 'string') {
+        try {
+          updatedData.highlights = JSON.parse(req.body.highlights);
+        } catch (e) {
+          updatedData.highlights = req.body.highlights.split('\n').filter(item => item.trim());
+        }
+      }
+      if (req.body.features && typeof req.body.features === 'string') {
+        try {
+          updatedData.features = JSON.parse(req.body.features);
+        } catch (e) {
+          updatedData.features = req.body.features.split('\n').filter(item => item.trim());
+        }
+      }
+      if (req.body.tags && typeof req.body.tags === 'string') {
+        try {
+          updatedData.tags = JSON.parse(req.body.tags);
+        } catch (e) {
+          updatedData.tags = req.body.tags.split(',').map(item => item.trim()).filter(item => item);
+        }
+      }
+      if (req.body.seoKeywords && typeof req.body.seoKeywords === 'string') {
+        try {
+          updatedData.seoKeywords = JSON.parse(req.body.seoKeywords);
+        } catch (e) {
+          updatedData.seoKeywords = req.body.seoKeywords.split(',').map(item => item.trim()).filter(item => item);
+        }
+      }
+    }
+    
+    // Handle boolean fields from form data (they come as strings)
+    if (updatedData.isActive !== undefined) {
+      updatedData.isActive = updatedData.isActive === 'true' || updatedData.isActive === true;
+    }
+    if (updatedData.isPublished !== undefined) {
+      updatedData.isPublished = updatedData.isPublished === 'true' || updatedData.isPublished === true;
+    }
+    
     // Get the deal before update to check if isActive is changing
     const oldDeal = await Deal.findById(id);
     if (!oldDeal) {

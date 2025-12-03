@@ -100,6 +100,83 @@ const DealSchema = new Schema({
     type: Number,
     required: false, // Calculated: (savingsAmount / originalPrice) * 100
   },
+
+  // Variable product support
+  isVariableProduct: {
+    type: Boolean,
+    default: false, // True if this deal applies to a variable product
+  },
+  variations: [{
+    variationId: {
+      type: Number,
+      required: true, // WooCommerce variation ID
+    },
+    sku: {
+      type: String,
+      required: false,
+    },
+    attributes: {
+      type: Map,
+      of: String, // e.g., { "Size": "M", "Color": "Red" }
+    },
+    regularPrice: {
+      type: Number,
+      required: false,
+    },
+    salePrice: {
+      type: Number,
+      required: false,
+    },
+    onSale: {
+      type: Boolean,
+      default: false,
+    },
+    image: {
+      url: {
+        type: String,
+        required: false,
+      },
+      alt: {
+        type: String,
+        required: false,
+      },
+    },
+    stockStatus: {
+      type: String,
+      enum: ['instock', 'outofstock', 'onbackorder'],
+      default: 'instock',
+    },
+    stockQuantity: {
+      type: Number,
+      required: false,
+    },
+    purchasable: {
+      type: Boolean,
+      default: true,
+    },
+  }],
+  defaultVariationId: {
+    type: Number,
+    required: false, // Variation ID to show by default (first on-sale, or first in stock)
+  },
+  applicableVariationIds: {
+    type: [Number],
+    required: false, // Array of variation IDs that are on sale (if only some variations are on sale)
+  },
+  allVariationsOnSale: {
+    type: Boolean,
+    default: true, // True if all variations are on sale, false if only some are
+  },
+  priceRange: {
+    min: {
+      type: Number,
+      required: false, // Minimum price across all variations
+    },
+    max: {
+      type: Number,
+      required: false, // Maximum price across all variations
+    },
+  },
   startDate: {
     type: Date,
     required: true, // The date the deal becomes valid
@@ -123,6 +200,10 @@ const DealSchema = new Schema({
   isActive: {
     type: Boolean,
     default: true, // Whether the deal is active or not
+  },
+  isPublished: {
+    type: Boolean,
+    default: false, // Whether the deal is published and visible to public
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,

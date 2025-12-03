@@ -9,6 +9,7 @@ const {
   parseKeywords,
 } = require('../utils/seoUtils');
 
+
 // @desc    Create a new blog post with image upload
 // @route   POST /api/blogs
 // @access  Private

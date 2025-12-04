@@ -301,16 +301,12 @@ exports.getAllCoupons = async (req, res) => {
     // Build query - if admin=true, show all coupons (including expired/inactive/unpublished)
     let query = {};
     if (admin !== 'true') {
-      // Public query: only published, active and non-expired
+      // Public query: only published and active coupons (include expired ones too, we'll mark them)
       // Explicitly require isPublished: true (undefined values won't match, which is correct)
       query = {
         isPublished: true,
-        isActive: true,
-        $or: [
-          { endDate: { $gte: now } },
-          { endDate: null },
-          { endDate: { $exists: false } }
-        ]
+        isActive: true
+        // Removed expiry filter - we'll show expired coupons with a badge
       };
     }
     // If admin=true, query is empty (show all)
@@ -335,6 +331,21 @@ exports.getAllCoupons = async (req, res) => {
       const activeCount = await Coupon.countDocuments({ isActive: true });
       const publishedAndActiveCount = await Coupon.countDocuments({ isPublished: true, isActive: true });
       console.log(`📊 Published: ${publishedCount}, Active: ${activeCount}, Published+Active: ${publishedAndActiveCount}`);
+      
+      // Check the published coupons to see why they're not matching
+      if (publishedCount > 0) {
+        const publishedCoupons = await Coupon.find({ isPublished: true })
+          .select('_id title code isPublished isActive endDate createdAt')
+          .lean();
+        console.log('📋 All published coupons:', JSON.stringify(publishedCoupons, null, 2));
+        
+        // Check which ones are expired
+        const now = new Date();
+        publishedCoupons.forEach(coupon => {
+          const isExpired = coupon.endDate && new Date(coupon.endDate) < now;
+          console.log(`  - ${coupon.title || coupon.code}: isActive=${coupon.isActive}, isExpired=${isExpired}, endDate=${coupon.endDate}`);
+        });
+      }
     }
     
     let coupons = await Coupon.find(query)
@@ -374,6 +385,10 @@ exports.getAllCoupons = async (req, res) => {
       if (admin !== 'true' && coupon.isPublished !== true) {
         console.warn(`⚠️ Coupon ${coupon._id} (${coupon.title || coupon.code}) has isPublished: ${coupon.isPublished}, but should be true for public view`);
       }
+      
+      // Calculate if coupon is expired
+      const isExpired = coupon.endDate && new Date(coupon.endDate) < now;
+      coupon.isExpired = isExpired;
       
       // Ensure imageGallery is properly formatted
       let imageGallery = coupon.imageGallery || [];

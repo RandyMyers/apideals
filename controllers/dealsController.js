@@ -421,7 +421,13 @@ exports.getAllDeals = async (req, res) => {
 
     res.status(200).json(deals);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching deals', error: error.message });
+    console.error('Error fetching deals:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      message: 'Error fetching deals', 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
@@ -573,14 +579,142 @@ exports.updateDeal = async (req, res) => {
           updatedData.seoKeywords = req.body.seoKeywords.split(',').map(item => item.trim()).filter(item => item);
         }
       }
+      
+      // Parse imageGallery if it's a JSON string
+      if (req.body.imageGallery && typeof req.body.imageGallery === 'string') {
+        try {
+          updatedData.imageGallery = JSON.parse(req.body.imageGallery);
+        } catch (e) {
+          console.warn('Failed to parse imageGallery:', e);
+          // If parsing fails, try to keep existing gallery or set to empty array
+          updatedData.imageGallery = [];
+        }
+      }
+      
+      // Parse entityTags if it's a JSON string
+      if (req.body.entityTags && typeof req.body.entityTags === 'string') {
+        try {
+          const parsed = JSON.parse(req.body.entityTags);
+          updatedData.entityTags = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          // If it's just "[]" or empty, set to empty array
+          if (req.body.entityTags.trim() === '[]' || req.body.entityTags.trim() === '') {
+            updatedData.entityTags = [];
+          } else {
+            // Try splitting by comma as fallback
+            updatedData.entityTags = req.body.entityTags.split(',').map(item => item.trim()).filter(item => item);
+          }
+        }
+      }
+      
+      // Parse specifications if it's a JSON string
+      if (req.body.specifications && typeof req.body.specifications === 'string') {
+        try {
+          updatedData.specifications = JSON.parse(req.body.specifications);
+        } catch (e) {
+          console.warn('Failed to parse specifications:', e);
+          // Keep as string if parsing fails
+        }
+      }
+      
+      // Remove storeId if present (only use store field)
+      if (updatedData.storeId && !updatedData.store) {
+        updatedData.store = updatedData.storeId;
+      }
+      delete updatedData.storeId;
+      
+      // Remove category if present (only use categoryId field)
+      if (updatedData.category && !updatedData.categoryId) {
+        updatedData.categoryId = updatedData.category;
+      }
+      delete updatedData.category;
     }
     
+    // Convert date strings to Date objects
+    if (updatedData.startDate && typeof updatedData.startDate === 'string') {
+      updatedData.startDate = new Date(updatedData.startDate);
+    }
+    if (updatedData.endDate && typeof updatedData.endDate === 'string') {
+      updatedData.endDate = new Date(updatedData.endDate);
+    }
+    if (updatedData.expiryDate && typeof updatedData.expiryDate === 'string') {
+      updatedData.expiryDate = new Date(updatedData.expiryDate);
+    }
+
     // Handle boolean fields from form data (they come as strings)
-    if (updatedData.isActive !== undefined) {
+    console.log('🔍 Before boolean conversion - isActive:', updatedData.isActive, 'type:', typeof updatedData.isActive);
+    console.log('🔍 Before boolean conversion - isPublished:', updatedData.isPublished, 'type:', typeof updatedData.isPublished);
+    
+    if (updatedData.isActive !== undefined && updatedData.isActive !== null) {
       updatedData.isActive = updatedData.isActive === 'true' || updatedData.isActive === true;
     }
-    if (updatedData.isPublished !== undefined) {
+    if (updatedData.isPublished !== undefined && updatedData.isPublished !== null) {
       updatedData.isPublished = updatedData.isPublished === 'true' || updatedData.isPublished === true;
+    }
+    
+    console.log('✅ After boolean conversion - isActive:', updatedData.isActive, 'type:', typeof updatedData.isActive);
+    console.log('✅ After boolean conversion - isPublished:', updatedData.isPublished, 'type:', typeof updatedData.isPublished);
+
+    // Convert numeric fields
+    if (updatedData.discountValue !== undefined) {
+      updatedData.discountValue = Number(updatedData.discountValue);
+    }
+    if (updatedData.originalPrice !== undefined) {
+      updatedData.originalPrice = Number(updatedData.originalPrice) || 0;
+    }
+    if (updatedData.discountedPrice !== undefined) {
+      updatedData.discountedPrice = Number(updatedData.discountedPrice) || 0;
+    }
+    
+    // Process image upload if present
+    if (req.files && req.files.image) {
+      try {
+        const uploadResult = await cloudinary.uploader.upload(req.files.image.tempFilePath, {
+          folder: 'deals',
+        });
+        updatedData.imageUrl = uploadResult.secure_url;
+      } catch (uploadError) {
+        console.error('Error uploading image:', uploadError);
+      }
+    }
+
+    // Process image gallery - only if new files are uploaded
+    if (req.files) {
+      const galleryFiles = Object.keys(req.files)
+        .filter(key => key.startsWith('galleryImage_'))
+        .sort((a, b) => {
+          const idxA = parseInt(a.split('_')[1]);
+          const idxB = parseInt(b.split('_')[1]);
+          return idxA - idxB;
+        })
+        .map(key => req.files[key]);
+
+      if (galleryFiles.length > 0) {
+        const imageGallery = updatedData.imageGallery && Array.isArray(updatedData.imageGallery) 
+          ? [...updatedData.imageGallery] 
+          : [];
+        
+        for (let i = 0; i < galleryFiles.length; i++) {
+          const file = galleryFiles[i];
+          try {
+            const uploadResult = await cloudinary.uploader.upload(file.tempFilePath, {
+              folder: 'deals/gallery',
+            });
+            imageGallery.push({
+              url: uploadResult.secure_url,
+              alt: updatedData.title || updatedData.name || `Deal image ${imageGallery.length + 1}`,
+              order: imageGallery.length,
+            });
+          } catch (galleryError) {
+            console.error(`Error uploading gallery image ${i}:`, galleryError);
+          }
+        }
+        if (imageGallery.length > 0) {
+          updatedData.imageGallery = imageGallery;
+        }
+      }
+      // If no new gallery files but imageGallery was parsed from form, keep it
+      // (it's already set in updatedData from the parsing above)
     }
     
     // Get the deal before update to check if isActive is changing
@@ -592,10 +726,20 @@ exports.updateDeal = async (req, res) => {
     const wasInactive = !oldDeal.isActive;
     const willBeActive = updatedData.isActive === true;
 
-    const updatedDeal = await Deal.findByIdAndUpdate(id, updatedData, { new: true });
+    // Log what we're about to update
+    console.log('📝 Updating deal with data:', JSON.stringify({
+      isPublished: updatedData.isPublished,
+      isActive: updatedData.isActive,
+      title: updatedData.title || updatedData.name,
+      // Only log a few key fields to avoid cluttering
+    }, null, 2));
+
+    const updatedDeal = await Deal.findByIdAndUpdate(id, updatedData, { new: true, runValidators: true });
     if (!updatedDeal) {
       return res.status(404).json({ message: 'Deal not found' });
     }
+    
+    console.log('✅ Deal updated successfully. New isPublished:', updatedDeal.isPublished, 'New isActive:', updatedDeal.isActive);
 
     // Send notification if deal was approved (changed from inactive to active) and has a userId
     if (wasInactive && willBeActive && updatedDeal.userId) {
@@ -644,7 +788,14 @@ exports.updateDeal = async (req, res) => {
 
     res.status(200).json({ message: 'Deal updated successfully', deal: updatedDeal });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating deal', error: error.message });
+    console.error('Error updating deal:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Updated data:', JSON.stringify(updatedData, null, 2));
+    res.status(500).json({ 
+      message: 'Error updating deal', 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

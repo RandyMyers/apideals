@@ -302,6 +302,7 @@ exports.getAllCoupons = async (req, res) => {
     let query = {};
     if (admin !== 'true') {
       // Public query: only published, active and non-expired
+      // Explicitly require isPublished: true (undefined values won't match, which is correct)
       query = {
         isPublished: true,
         isActive: true,
@@ -313,6 +314,9 @@ exports.getAllCoupons = async (req, res) => {
       };
     }
     // If admin=true, query is empty (show all)
+    
+    console.log('🔍 getAllCoupons - Query:', JSON.stringify(query, null, 2));
+    console.log('🔍 getAllCoupons - Admin flag:', admin);
     
     let coupons = await Coupon.find(query)
       .populate({
@@ -328,6 +332,16 @@ exports.getAllCoupons = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    console.log(`✅ Found ${coupons.length} coupons matching query`);
+    if (coupons.length > 0) {
+      console.log('📋 Sample coupon isPublished values:', coupons.slice(0, 5).map(c => ({ 
+        id: c._id, 
+        title: c.title || c.code, 
+        isPublished: c.isPublished, 
+        isActive: c.isActive 
+      })));
+    }
+
     // Filter by location if country is provided
     if (country) {
       coupons = coupons.filter(coupon => 
@@ -337,6 +351,11 @@ exports.getAllCoupons = async (req, res) => {
 
     // Map coupons to ensure consistent structure (handle null populated fields)
     coupons = coupons.map(coupon => {
+      // Log each coupon's isPublished status for debugging
+      if (admin !== 'true' && coupon.isPublished !== true) {
+        console.warn(`⚠️ Coupon ${coupon._id} (${coupon.title || coupon.code}) has isPublished: ${coupon.isPublished}, but should be true for public view`);
+      }
+      
       // Ensure imageGallery is properly formatted
       let imageGallery = coupon.imageGallery || [];
       if (!Array.isArray(imageGallery)) {

@@ -318,6 +318,25 @@ exports.getAllCoupons = async (req, res) => {
     console.log('🔍 getAllCoupons - Query:', JSON.stringify(query, null, 2));
     console.log('🔍 getAllCoupons - Admin flag:', admin);
     
+    // First, check what coupons exist in the database (for debugging)
+    const totalCoupons = await Coupon.countDocuments({});
+    console.log(`📊 Total coupons in database: ${totalCoupons}`);
+    
+    if (totalCoupons > 0) {
+      // Sample a few coupons to see their status
+      const sampleCoupons = await Coupon.find({})
+        .limit(5)
+        .select('_id title code isPublished isActive endDate createdAt')
+        .lean();
+      console.log('📋 Sample coupons from database:', JSON.stringify(sampleCoupons, null, 2));
+      
+      // Count by status
+      const publishedCount = await Coupon.countDocuments({ isPublished: true });
+      const activeCount = await Coupon.countDocuments({ isActive: true });
+      const publishedAndActiveCount = await Coupon.countDocuments({ isPublished: true, isActive: true });
+      console.log(`📊 Published: ${publishedCount}, Active: ${activeCount}, Published+Active: ${publishedAndActiveCount}`);
+    }
+    
     let coupons = await Coupon.find(query)
       .populate({
         path: 'storeId',

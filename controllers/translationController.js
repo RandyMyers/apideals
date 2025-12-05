@@ -14,7 +14,7 @@ exports.getTranslations = async (req, res) => {
     const { lang } = req.params;
     
     // Validate language code
-    const supportedLanguages = ['en', 'ga', 'de', 'es', 'it', 'no', 'fi', 'da', 'sv'];
+    const supportedLanguages = ['en', 'en-GB', 'en-AU', 'ga', 'de', 'de-AT', 'es', 'it', 'no', 'fi', 'da', 'sv', 'fr', 'pt', 'nl'];
     const language = supportedLanguages.includes(lang) ? lang : 'en';
     
     // Get translations formatted for react-i18next
@@ -40,7 +40,7 @@ exports.getTranslations = async (req, res) => {
  */
 exports.getAllTranslationsBulk = async (req, res) => {
   try {
-    const supportedLanguages = ['en', 'ga', 'de', 'es', 'it', 'no', 'fi', 'da', 'sv'];
+    const supportedLanguages = ['en', 'en-GB', 'en-AU', 'ga', 'de', 'de-AT', 'es', 'it', 'no', 'fi', 'da', 'sv', 'fr', 'pt', 'nl'];
     
     // Load all languages in parallel for better performance
     const translationPromises = supportedLanguages.map(async (lang) => {

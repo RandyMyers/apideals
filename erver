@@ -1,0 +1,34 @@
+warning: in the working copy of 'controllers/blogController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/couponController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/dealsController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/translationController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/userController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'controllers/woocommerceController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/coupon.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/deal.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'models/translation.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/couponRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/dealRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/translationRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'routes/woocommerceRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/testWooCommerce.js', LF will be replaced by CRLF the next time Git touches it
+controllers/blogController.js
+controllers/couponController.js
+controllers/dealsController.js
+controllers/translationController.js
+controllers/urlRedirectController.js
+controllers/userController.js
+controllers/woocommerceController.js
+middleware/redirectMiddleware.js
+models/.coupon.js.swp
+models/coupon.js
+models/deal.js
+models/translation.js
+models/urlRedirect.js
+models/vote.js
+routes/couponRoutes.js
+routes/translationRoutes.js
+routes/woocommerceRoutes.js
+scripts/deleteAllRedirects.js
+scripts/deleteBlogs.js
+scripts/importRedirects.js

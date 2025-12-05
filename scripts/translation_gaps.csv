@@ -1,0 +1,2 @@
+Language,Key,Category,English Translation,In Seed File,Seed File,Files Using Key
+"en","next","common","NOT IN DATABASE","No","N/A","components\auth\loginForm.js; components\auth\registerForm.js"

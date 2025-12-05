@@ -1,0 +1,554 @@
+{
+  "generatedAt": "2025-12-04T17:24:50.354Z",
+  "summary": {
+    "totalInDB": 614,
+    "totalUsed": 105,
+    "missingInDB": 105,
+    "missingInCode": 614
+  },
+  "missingTranslations": {
+    "en": [],
+    "ga": [],
+    "de": [],
+    "es": [],
+    "it": [],
+    "no": [],
+    "fi": [],
+    "da": [],
+    "sv": []
+  },
+  "missingInDB": [
+    ",",
+    "ref",
+    "Please select an image for the coupon.",
+    "Please select an image for the deal.",
+    "Title and content are required!",
+    "none",
+    "woocommerce",
+    "shopify",
+    ".",
+    "Passwords do not match!",
+    "next",
+    "Your authentication session has expired. Please log in again.",
+    "[data-user-dropdown]",
+    "/",
+    "Link copied to clipboard!",
+    "textarea",
+    "${shareText} ${shareUrl}",
+    "${shareText}\\n\\n${shareUrl}",
+    "Coupon/Deal ID is required",
+    "Please select a rating between 1 and 5",
+    "Please login to follow coupons/deals",
+    "@",
+    "Deal ID is required",
+    "Please login to follow deals",
+    "Best ",
+    "T",
+    "Campaign created! Please complete payment to activate.",
+    "script",
+    "${API_BASE_URL.replace('/api/v1', '')}/api/public/settings",
+    "store",
+    "type",
+    "config",
+    "../../../services/woocommerceServices",
+    "coupon",
+    "deal",
+    "-",
+    "token",
+    "tx_ref",
+    "Failed to start payment",
+    "q",
+    " ",
+    "../../services/savingTipsServices",
+    "../../services/storeServices",
+    "Change Password",
+    "Delete Account",
+    "Link Google",
+    "Link Facebook",
+    "web-vitals",
+    "${BASE_URL}/api/affiliates/all",
+    "${BASE_URL}/api/affiliates/get/${id}",
+    "${API_BASE_URL}/blog/all",
+    "${API_BASE_URL}/blog/get/${blogId}",
+    "${API_BASE_URL}/blog/slug/${slug}",
+    "${API_BASE_URL}/blog/like/${blogId}",
+    "${BASE_URL}/category/all",
+    "${BASE_URL}/category/get/${id}",
+    "${BASE_URL}/category/parent/${parentId}",
+    "${BASE_URL}/category/popular?limit=${limitNum}",
+    "${BASE_URL}/coupons/${id}/validity",
+    "${BASE_URL}/coupons/user/${userId}",
+    "${BASE_URL}/deals/user/${userId}",
+    "${BASE_URL}/deals/validity/${dealId}",
+    "${BASE_URL}/deals/increment/${dealId}",
+    "${BASE_URL}/api/discounts/all",
+    "${BASE_URL}/api/discounts/get/${id}",
+    "${BASE_URL}/api/discounts/active",
+    "${BASE_URL}/api/discountUsages/all",
+    "${BASE_URL}/api/discountUsages/${id}",
+    "${API_BASE_URL}/faq/all",
+    "${API_BASE_URL}/faq/category/${category}",
+    "${API_BASE_URL}/faq/${id}",
+    "${API_BASE_URL}/help/all",
+    "${API_BASE_URL}/help/category/${category}",
+    "${API_BASE_URL}/help/${id}",
+    "${BASE_URL}/api/interactions/all",
+    "${BASE_URL}/api/interactions/visitor/${visitorId}",
+    "${BASE_URL}/api/interactions/target/${targetId}",
+    "${baseUrl}/api/payment-gateways/active",
+    "${BASE_URL}/api/paymentLinks/all",
+    "${BASE_URL}/api/paymentLinks/${id}",
+    "${BASE_URL}/api/payments/all",
+    "${BASE_URL}/api/payments/get/${id}",
+    "${API_BASE_URL}/policies/all",
+    "${API_BASE_URL}/policies/${title}",
+    "${BASE_URL}/reviews/all",
+    "${BASE_URL}/reviews/coupon/${couponId}",
+    "${BASE_URL}/reviews/deal/${dealId}",
+    "${BASE_URL}/stores/${storeId}/saving-tips",
+    "${API_URL}/stats/homepage",
+    "${BASE_URL}/plans/all",
+    "${BASE_URL}/plans/get/${id}",
+    "${BASE_URL}/plans/active",
+    "${BASE_URL}/subscriptions/all",
+    "${BASE_URL}/subscriptions/get/${id}",
+    "${BASE_URL}/subscriptions/user/${userId}",
+    "${API_URL}/translations/all",
+    "./couponUsageServices",
+    "${BASE_URL}/views/all",
+    "${BASE_URL}/views/visitor/${visitorId}",
+    "${BASE_URL}/visitors/all"
+  ],
+  "missingInCode": [
+    "nav.home",
+    "nav.coupons",
+    "nav.deals",
+    "nav.stores",
+    "nav.categories",
+    "nav.submitcoupon",
+    "nav.dashboard",
+    "auth.signin",
+    "auth.joinfree",
+    "auth.logout",
+    "search.placeholder",
+    "search.placeholderfull",
+    "search.resultsfor",
+    "search.couponsfound",
+    "search.filters",
+    "search.clearall",
+    "search.category",
+    "search.allcategories",
+    "search.store",
+    "search.allstores",
+    "search.discount",
+    "search.anydiscount",
+    "search.verifiedonly",
+    "search.expiringsoon",
+    "search.allresults",
+    "search.coupons",
+    "search.stores",
+    "search.mostrelevant",
+    "search.highestdiscount",
+    "search.newest",
+    "search.mostpopular",
+    "search.expiringsoonsort",
+    "search.noresults",
+    "search.tryadjusting",
+    "search.searching",
+    "help.title",
+    "help.subtitle",
+    "help.searchplaceholder",
+    "help.categories",
+    "help.allarticles",
+    "help.gettingstarted",
+    "help.account",
+    "help.payments",
+    "help.troubleshooting",
+    "help.coupons",
+    "help.deals",
+    "help.loading",
+    "help.noarticles",
+    "help.views",
+    "common.allcoupons",
+    "common.loading",
+    "common.error",
+    "auth.login.title",
+    "auth.login.subtitle",
+    "auth.login.emaillabel",
+    "auth.login.emailplaceholder",
+    "auth.login.passwordlabel",
+    "auth.login.passwordplaceholder",
+    "auth.login.forgotpassword",
+    "auth.login.signin",
+    "auth.login.signingin",
+    "auth.login.noaccount",
+    "auth.login.createaccount",
+    "auth.register.title",
+    "auth.register.subtitle",
+    "auth.register.usernamelabel",
+    "auth.register.usernameplaceholder",
+    "auth.register.emaillabel",
+    "auth.register.emailplaceholder",
+    "auth.register.passwordlabel",
+    "auth.register.passwordplaceholder",
+    "auth.register.confirmpasswordlabel",
+    "auth.register.confirmpasswordplaceholder",
+    "auth.register.passwordmismatch",
+    "auth.register.success",
+    "auth.register.createaccount",
+    "auth.register.creating",
+    "auth.register.hasaccount",
+    "auth.register.signin",
+    "auth.register.termstext",
+    "auth.register.terms",
+    "auth.register.and",
+    "auth.register.privacy",
+    "auth.togglepasswordvisibility",
+    "home.hero.trustedbadge",
+    "home.hero.title",
+    "home.hero.titlesubtext",
+    "home.hero.subtitle",
+    "home.hero.searchplaceholder",
+    "home.hero.searchbutton",
+    "home.hero.stats.activecoupons",
+    "home.hero.stats.userssaved",
+    "home.hero.stats.partnerstores",
+    "home.hero.stats.userrating",
+    "home.hero.trust.verified",
+    "home.hero.trust.happyusers",
+    "home.hero.trust.dailyupdates",
+    "footer.trust.verified",
+    "footer.trust.trusted",
+    "footer.sections.categories"
+  ],
+  "keyUsage": {
+    ",": [
+      "App.js",
+      "components\\admin\\subscriptionPlanForm.js",
+      "utils\\seoUtils.js"
+    ],
+    "ref": [
+      "App.js"
+    ],
+    "Please select an image for the coupon.": [
+      "components\\admin\\addProductCoupon.js"
+    ],
+    "Please select an image for the deal.": [
+      "components\\admin\\addProductDeal.js"
+    ],
+    "Title and content are required!": [
+      "components\\admin\\policyForm.js"
+    ],
+    "none": [
+      "components\\admin\\StoreWizard.js"
+    ],
+    "woocommerce": [
+      "components\\admin\\StoreWizard.js"
+    ],
+    "shopify": [
+      "components\\admin\\StoreWizard.js"
+    ],
+    ".": [
+      "components\\admin\\subscriptionPlanForm.js"
+    ],
+    "Passwords do not match!": [
+      "components\\auth\\adminRegister.js"
+    ],
+    "next": [
+      "components\\auth\\loginForm.js",
+      "components\\auth\\registerForm.js"
+    ],
+    "Your authentication session has expired. Please log in again.": [
+      "components\\common\\ErrorToastListener.js"
+    ],
+    "[data-user-dropdown]": [
+      "components\\common\\header.js"
+    ],
+    "/": [
+      "components\\common\\LanguageRouteWrapper.js",
+      "components\\common\\LanguageSwitcher.js",
+      "utils\\hreflangGenerator.js",
+      "utils\\languageLink.js",
+      "utils\\languageRoutes.js"
+    ],
+    "Link copied to clipboard!": [
+      "components\\common\\share.js"
+    ],
+    "textarea": [
+      "components\\common\\share.js"
+    ],
+    "${shareText} ${shareUrl}": [
+      "components\\common\\share.js"
+    ],
+    "${shareText}\\n\\n${shareUrl}": [
+      "components\\common\\share.js"
+    ],
+    "Coupon/Deal ID is required": [
+      "components\\coupon\\couponModal.js"
+    ],
+    "Please select a rating between 1 and 5": [
+      "components\\coupon\\couponModal.js",
+      "components\\coupon\\dealsModal.js"
+    ],
+    "Please login to follow coupons/deals": [
+      "components\\coupon\\couponModal.js"
+    ],
+    "@": [
+      "components\\coupon\\couponModal.js",
+      "components\\coupon\\dealsModal.js"
+    ],
+    "Deal ID is required": [
+      "components\\coupon\\dealsModal.js"
+    ],
+    "Please login to follow deals": [
+      "components\\coupon\\dealsModal.js"
+    ],
+    "Best ": [
+      "components\\home\\heroSection.js"
+    ],
+    "T": [
+      "components\\users\\CampaignWizard.js"
+    ],
+    "Campaign created! Please complete payment to activate.": [
+      "components\\users\\CampaignWizard.js"
+    ],
+    "script": [
+      "components\\users\\SubscriptionPlans.js",
+      "components\\users\\WalletBalance.js"
+    ],
+    "${API_BASE_URL.replace('/api/v1', '')}/api/public/settings": [
+      "components\\users\\SubscriptionPlans.js",
+      "components\\users\\WalletBalance.js"
+    ],
+    "store": [
+      "components\\woocommerce\\wizard\\ReviewStep.js"
+    ],
+    "type": [
+      "components\\woocommerce\\wizard\\ReviewStep.js"
+    ],
+    "config": [
+      "components\\woocommerce\\wizard\\ReviewStep.js"
+    ],
+    "../../../services/woocommerceServices": [
+      "components\\woocommerce\\wizard\\SyncProgressStep.js"
+    ],
+    "coupon": [
+      "components\\woocommerce\\wizard\\TypeSelectionStep.js"
+    ],
+    "deal": [
+      "components\\woocommerce\\wizard\\TypeSelectionStep.js"
+    ],
+    "-": [
+      "config\\languageConfig.js",
+      "pages\\blog\\BlogPage.js",
+      "pages\\blog\\BlogPostPage.js"
+    ],
+    "token": [
+      "pages\\auth\\ResetPasswordPage.js"
+    ],
+    "tx_ref": [
+      "pages\\billing\\BillingSuccessPage.js"
+    ],
+    "Failed to start payment": [
+      "pages\\billing\\PricingPage.js"
+    ],
+    "q": [
+      "pages\\search\\SearchPage.js"
+    ],
+    " ": [
+      "pages\\search\\SearchPage.js"
+    ],
+    "../../services/savingTipsServices": [
+      "pages\\store\\StoreDetailPage.js"
+    ],
+    "../../services/storeServices": [
+      "pages\\users\\DashboardPage.js"
+    ],
+    "Change Password": [
+      "pages\\users\\ProfilePage.js"
+    ],
+    "Delete Account": [
+      "pages\\users\\ProfilePage.js"
+    ],
+    "Link Google": [
+      "pages\\users\\ProfilePage.js"
+    ],
+    "Link Facebook": [
+      "pages\\users\\ProfilePage.js"
+    ],
+    "web-vitals": [
+      "reportWebVitals.js"
+    ],
+    "${BASE_URL}/api/affiliates/all": [
+      "services\\affiliateServices.js"
+    ],
+    "${BASE_URL}/api/affiliates/get/${id}": [
+      "services\\affiliateServices.js"
+    ],
+    "${API_BASE_URL}/blog/all": [
+      "services\\blogServices.js"
+    ],
+    "${API_BASE_URL}/blog/get/${blogId}": [
+      "services\\blogServices.js"
+    ],
+    "${API_BASE_URL}/blog/slug/${slug}": [
+      "services\\blogServices.js"
+    ],
+    "${API_BASE_URL}/blog/like/${blogId}": [
+      "services\\blogServices.js"
+    ],
+    "${BASE_URL}/category/all": [
+      "services\\categoryServices.js"
+    ],
+    "${BASE_URL}/category/get/${id}": [
+      "services\\categoryServices.js"
+    ],
+    "${BASE_URL}/category/parent/${parentId}": [
+      "services\\categoryServices.js"
+    ],
+    "${BASE_URL}/category/popular?limit=${limitNum}": [
+      "services\\categoryServices.js"
+    ],
+    "${BASE_URL}/coupons/${id}/validity": [
+      "services\\couponServices.js"
+    ],
+    "${BASE_URL}/coupons/user/${userId}": [
+      "services\\couponServices.js"
+    ],
+    "${BASE_URL}/deals/user/${userId}": [
+      "services\\dealServices.js"
+    ],
+    "${BASE_URL}/deals/validity/${dealId}": [
+      "services\\dealServices.js"
+    ],
+    "${BASE_URL}/deals/increment/${dealId}": [
+      "services\\dealServices.js"
+    ],
+    "${BASE_URL}/api/discounts/all": [
+      "services\\discountServices.js"
+    ],
+    "${BASE_URL}/api/discounts/get/${id}": [
+      "services\\discountServices.js"
+    ],
+    "${BASE_URL}/api/discounts/active": [
+      "services\\discountServices.js"
+    ],
+    "${BASE_URL}/api/discountUsages/all": [
+      "services\\discountUsageServices.js"
+    ],
+    "${BASE_URL}/api/discountUsages/${id}": [
+      "services\\discountUsageServices.js"
+    ],
+    "${API_BASE_URL}/faq/all": [
+      "services\\faqServices.js"
+    ],
+    "${API_BASE_URL}/faq/category/${category}": [
+      "services\\faqServices.js"
+    ],
+    "${API_BASE_URL}/faq/${id}": [
+      "services\\faqServices.js"
+    ],
+    "${API_BASE_URL}/help/all": [
+      "services\\helpServices.js"
+    ],
+    "${API_BASE_URL}/help/category/${category}": [
+      "services\\helpServices.js"
+    ],
+    "${API_BASE_URL}/help/${id}": [
+      "services\\helpServices.js"
+    ],
+    "${BASE_URL}/api/interactions/all": [
+      "services\\interactionServices.js"
+    ],
+    "${BASE_URL}/api/interactions/visitor/${visitorId}": [
+      "services\\interactionServices.js"
+    ],
+    "${BASE_URL}/api/interactions/target/${targetId}": [
+      "services\\interactionServices.js"
+    ],
+    "${baseUrl}/api/payment-gateways/active": [
+      "services\\paymentGatewayServices.js"
+    ],
+    "${BASE_URL}/api/paymentLinks/all": [
+      "services\\paymentLinkServices.js"
+    ],
+    "${BASE_URL}/api/paymentLinks/${id}": [
+      "services\\paymentLinkServices.js"
+    ],
+    "${BASE_URL}/api/payments/all": [
+      "services\\paymentServices.js"
+    ],
+    "${BASE_URL}/api/payments/get/${id}": [
+      "services\\paymentServices.js"
+    ],
+    "${API_BASE_URL}/policies/all": [
+      "services\\policyServices.js"
+    ],
+    "${API_BASE_URL}/policies/${title}": [
+      "services\\policyServices.js"
+    ],
+    "${BASE_URL}/reviews/all": [
+      "services\\rateAndReviewServices.js"
+    ],
+    "${BASE_URL}/reviews/coupon/${couponId}": [
+      "services\\rateAndReviewServices.js"
+    ],
+    "${BASE_URL}/reviews/deal/${dealId}": [
+      "services\\rateAndReviewServices.js"
+    ],
+    "${BASE_URL}/stores/${storeId}/saving-tips": [
+      "services\\savingTipsServices.js"
+    ],
+    "${API_URL}/stats/homepage": [
+      "services\\statsServices.js"
+    ],
+    "${BASE_URL}/plans/all": [
+      "services\\subscriptionPlanServices.js"
+    ],
+    "${BASE_URL}/plans/get/${id}": [
+      "services\\subscriptionPlanServices.js"
+    ],
+    "${BASE_URL}/plans/active": [
+      "services\\subscriptionPlanServices.js"
+    ],
+    "${BASE_URL}/subscriptions/all": [
+      "services\\subscriptionServices.js"
+    ],
+    "${BASE_URL}/subscriptions/get/${id}": [
+      "services\\subscriptionServices.js"
+    ],
+    "${BASE_URL}/subscriptions/user/${userId}": [
+      "services\\subscriptionServices.js"
+    ],
+    "${API_URL}/translations/all": [
+      "services\\translationServices.js"
+    ],
+    "./couponUsageServices": [
+      "services\\userStatsServices.js"
+    ],
+    "${BASE_URL}/views/all": [
+      "services\\viewServices.js"
+    ],
+    "${BASE_URL}/views/visitor/${visitorId}": [
+      "services\\viewServices.js"
+    ],
+    "${BASE_URL}/visitors/all": [
+      "services\\visitorServices.js"
+    ],
+    "${BASE_URL}/visitors/${id}": [
+      "services\\visitorServices.js"
+    ],
+    "\\n": [
+      "utils\\keywordAnalysis.js"
+    ],
+    "?": [
+      "utils\\urlOptimization.js"
+    ],
+    "&": [
+      "utils\\urlOptimization.js"
+    ],
+    "://": [
+      "utils\\urlOptimization.js"
+    ]
+  }
+}

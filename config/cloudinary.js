@@ -1,3 +1,5 @@
+const dotenv = require('dotenv');
+
 // Cloudinary configuration - reads from environment variables
 const cloudinaryConfig = {
   cloud_name: process.env.CLOUDINARY_NAME,

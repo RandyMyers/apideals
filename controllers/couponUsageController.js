@@ -172,13 +172,23 @@ exports.getUserSavingsStatistics = async (req, res) => {
       });
     }
 
+    // Validate userId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID format'
+      });
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
     // Get total savings
-    const totalSavings = await CouponUsage.getTotalSavings(mongoose.Types.ObjectId(userId));
+    const totalSavings = await CouponUsage.getTotalSavings(userObjectId);
 
     // Get current month savings
     const now = new Date();
     const currentMonthSavings = await CouponUsage.getMonthlySavings(
-      mongoose.Types.ObjectId(userId),
+      userObjectId,
       now.getFullYear(),
       now.getMonth() + 1
     );
@@ -186,18 +196,18 @@ exports.getUserSavingsStatistics = async (req, res) => {
     // Get last month savings
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthSavings = await CouponUsage.getMonthlySavings(
-      mongoose.Types.ObjectId(userId),
+      userObjectId,
       lastMonth.getFullYear(),
       lastMonth.getMonth() + 1
     );
 
     // Get usage stats
-    const usageStats = await CouponUsage.getUsageStats(mongoose.Types.ObjectId(userId));
+    const usageStats = await CouponUsage.getUsageStats(userObjectId);
 
     // Get savings by category - separate queries for coupons and deals
     // Get coupon usage with categories
     const couponUsage = await CouponUsage.find({
-      userId: mongoose.Types.ObjectId(userId),
+      userId: userObjectId,
       worked: true,
       entityType: 'coupon'
     }).populate({
@@ -208,7 +218,7 @@ exports.getUserSavingsStatistics = async (req, res) => {
 
     // Get deal usage with categories
     const dealUsage = await CouponUsage.find({
-      userId: mongoose.Types.ObjectId(userId),
+      userId: userObjectId,
       worked: true,
       entityType: 'deal'
     }).populate({
@@ -244,7 +254,7 @@ exports.getUserSavingsStatistics = async (req, res) => {
 
     // Get savings by store
     const storeSavings = await CouponUsage.aggregate([
-      { $match: { userId: mongoose.Types.ObjectId(userId), worked: true } },
+      { $match: { userId: userObjectId, worked: true } },
       {
         $group: {
           _id: '$storeId',

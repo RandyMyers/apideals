@@ -1,104 +1,81 @@
 /**
- * Analyze translation keys to understand the camelCase conversion pattern
+ * Quick Analysis Script - Compare Translation Keys
+ * Checks if seedTranslations.js contains all keys or if supplementary files add new ones
  */
 
-require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
-const mongoose = require('mongoose');
-const Translation = require('../models/translation');
+const fs = require('fs');
+const path = require('path');
 
-const connectDB = async () => {
+// Read seedTranslations.js
+console.log('📊 ANALYZING TRANSLATION KEYS\n');
+console.log('='.repeat(80));
+
+const mainFile = fs.readFileSync(path.join(__dirname, 'seedTranslations.js'), 'utf8');
+const mainMatches = mainFile.match(/key:\s*['"]([^'"]+)['"]/g);
+const mainKeys = mainMatches ? mainMatches.map(m => m.match(/['"]([^'"]+)['"]/)[1]) : [];
+
+console.log(`\n📁 seedTranslations.js`);
+console.log(`   Total keys: ${mainKeys.length}`);
+console.log(`   Sample keys (first 10):`);
+mainKeys.slice(0, 10).forEach((key, i) => console.log(`      ${i+1}. ${key}`));
+
+// Check supplementary files
+const supplementaryFiles = [
+  'seedMissingTranslations_1_dashboard_sections.js',
+  'seedMissingTranslations_2_dashboard_submissions.js',
+  'seedMissingTranslations_4_forms_titles.js',
+  'seedMissingTranslations_11_woocommerce.js',
+  'seedMissingTranslations_16_home.js',
+];
+
+console.log('\n' + '='.repeat(80));
+console.log('📁 CHECKING SUPPLEMENTARY FILES\n');
+
+let totalSupplementaryKeys = 0;
+let uniqueSupplementaryKeys = 0;
+let overlappingKeys = 0;
+
+supplementaryFiles.forEach(filename => {
   try {
-    await mongoose.connect(process.env.MONGO_URL, { 
-      useNewUrlParser: true, 
-      useUnifiedTopology: true 
-    });
-    console.log('✅ Connected to MongoDB\n');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to connect:', error.message);
-    return false;
-  }
-};
-
-const analyzeKeys = async () => {
-  const translations = await Translation.find({}).select('key').lean();
-  
-  // Group keys by their last part
-  const lastParts = new Map();
-  
-  translations.forEach(t => {
-    const parts = t.key.split('.');
-    const lastPart = parts[parts.length - 1];
+    const content = fs.readFileSync(path.join(__dirname, filename), 'utf8');
+    const matches = content.match(/key:\s*['"]([^'"]+)['"]/g);
+    const keys = matches ? matches.map(m => m.match(/['"]([^'"]+)['"]/)[1]) : [];
     
-    if (!lastParts.has(lastPart)) {
-      lastParts.set(lastPart, []);
+    totalSupplementaryKeys += keys.length;
+    
+    // Check for overlaps
+    const unique = keys.filter(k => !mainKeys.includes(k));
+    uniqueSupplementaryKeys += unique.length;
+    overlappingKeys += keys.length - unique.length;
+    
+    console.log(`\n   ${filename}`);
+    console.log(`      Total keys: ${keys.length}`);
+    console.log(`      Unique (not in main): ${unique.length}`);
+    console.log(`      Overlapping: ${keys.length - unique.length}`);
+    
+    if (unique.length > 0) {
+      console.log(`      Sample unique keys (first 5):`);
+      unique.slice(0, 5).forEach(k => console.log(`         - ${k}`));
     }
-    lastParts.get(lastPart).push(t.key);
-  });
-  
-  // Find keys that are all lowercase and might need camelCase conversion
-  const needsConversion = [];
-  
-  lastParts.forEach((keys, lastPart) => {
-    if (lastPart === lastPart.toLowerCase() && lastPart.length > 3) {
-      // Check if it looks like it should be camelCase (has common word patterns)
-      const commonPatterns = ['only', 'info', 'tagline', 'description', 'title', 'subtitle', 
-                              'placeholder', 'filter', 'sort', 'empty', 'active', 'results'];
-      const hasPattern = commonPatterns.some(pattern => 
-        lastPart.includes(pattern) && lastPart.length > pattern.length
-      );
-      
-      if (hasPattern) {
-        needsConversion.push({
-          key: lastPart,
-          fullKeys: keys,
-          suggested: suggestCamelCase(lastPart)
-        });
-      }
-    }
-  });
-  
-  console.log('Keys that likely need camelCase conversion:\n');
-  needsConversion.slice(0, 50).forEach(item => {
-    console.log(`${item.key} -> ${item.suggested}`);
-    console.log(`  Used in: ${item.fullKeys.join(', ')}\n`);
-  });
-  
-  await mongoose.connection.close();
-};
+  } catch (err) {
+    console.log(`   ⚠️  File not found: ${filename}`);
+  }
+});
 
-function suggestCamelCase(str) {
-  // Common word boundaries
-  const words = ['active', 'only', 'results', 'info', 'brand', 'tagline', 'description',
-                 'title', 'subtitle', 'search', 'placeholder', 'filter', 'sort', 'empty',
-                 'no', 'view', 'grid', 'list', 'newest', 'discount', 'expiring', 'price',
-                 'low', 'high', 'card', 'default', 'verified', 'unverified', 'timeleft',
-                 'days', 'hours', 'minutes', 'seconds'];
-  
-  for (const word of words) {
-    if (str.startsWith(word) && str.length > word.length) {
-      return word + str.charAt(word.length).toUpperCase() + str.slice(word.length + 1);
-    }
-    if (str.endsWith(word) && str.length > word.length) {
-      const before = str.slice(0, str.length - word.length);
-      return before + before.charAt(before.length - 1).toUpperCase() + word;
-    }
-  }
-  
-  // Default: capitalize first letter after position 4-6 (common word length)
-  if (str.length > 6) {
-    return str.slice(0, 6) + str.charAt(6).toUpperCase() + str.slice(7);
-  }
-  
-  return str;
+console.log('\n' + '='.repeat(80));
+console.log('📊 SUMMARY\n');
+console.log(`   Main file (seedTranslations.js): ${mainKeys.length} keys`);
+console.log(`   Supplementary files checked: ${supplementaryFiles.length}`);
+console.log(`   Total keys in supplementary: ${totalSupplementaryKeys}`);
+console.log(`   Unique keys (not in main): ${uniqueSupplementaryKeys}`);
+console.log(`   Overlapping keys: ${overlappingKeys}`);
+
+console.log('\n' + '='.repeat(80));
+if (uniqueSupplementaryKeys > 0) {
+  console.log('❌ CONCLUSION: seedTranslations.js does NOT cover everything');
+  console.log(`   You NEED the supplementary files - they add ${uniqueSupplementaryKeys} unique keys`);
+} else {
+  console.log('✅ CONCLUSION: seedTranslations.js covers all keys');
+  console.log('   You may NOT need the supplementary files (they only duplicate)');
 }
-
-const main = async () => {
-  if (await connectDB()) {
-    await analyzeKeys();
-  }
-  process.exit(0);
-};
-
-main();
-
+console.log('='.repeat(80));

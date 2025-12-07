@@ -175,21 +175,26 @@ translationSchema.statics.getTranslationsForLanguage = async function(language) 
   // Optimize query: only select the fields we need (key and the requested language + base language + English fallback)
   // This reduces data transfer significantly
   const fieldsToSelect = ['key', 'en', baseLang, language].filter((field, index, self) => self.indexOf(field) === index);
-  const selectFields = fieldsToSelect.reduce((acc, field) => {
-    acc[field] = 1;
-    return acc;
-  }, {});
   
-  const translations = await this.find({}).select(selectFields).lean();
+  // Build select string for Mongoose (handles hyphenated field names)
+  const selectString = fieldsToSelect.join(' ');
+  
+  const translations = await this.find({}).select(selectString).lean();
   
   // Format for react-i18next (nested structure)
   const formatted = {};
   
   translations.forEach(t => {
+    // Skip if no key
+    if (!t || !t.key) return;
+    
     const keys = t.key.split('.');
     let current = formatted;
     
     keys.forEach((key, index) => {
+      // Skip empty keys
+      if (!key) return;
+      
       // Convert last key part to camelCase for client compatibility
       // e.g., "deals.filter.activeonly" -> "deals.filter.activeOnly"
       const camelKey = index === keys.length - 1 ? toCamelCase(key) : key;
@@ -197,13 +202,22 @@ translationSchema.statics.getTranslationsForLanguage = async function(language) 
       if (index === keys.length - 1) {
         // Last key - set the translation value
         // Use requested language if available, otherwise fallback to base language, then English
-        current[camelKey] = t[language] || t[baseLang] || t.en || '';
+        if (current && typeof current === 'object') {
+          current[camelKey] = t[language] || t[baseLang] || t.en || '';
+        }
       } else {
         // Intermediate key - create nested object
+        if (!current || typeof current !== 'object') {
+          return; // Skip if current is not an object
+        }
         if (!current[camelKey]) {
           current[camelKey] = {};
         }
         current = current[camelKey];
+        // Safety check
+        if (!current || typeof current !== 'object') {
+          return; // Skip if we can't continue
+        }
       }
     });
   });

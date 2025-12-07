@@ -16,6 +16,12 @@ const translations = [
     fi: 'Asetukset',
     da: 'Indstillinger',
     sv: 'Inställningar',
+    fr: 'Paramètres',
+    pt: 'Configurações',
+    nl: 'Instellingen',
+    'en-GB': 'Settings',
+    'en-AU': 'Settings',
+    'de-AT': 'Einstellungen',
     description: 'Settings section in dashboard',
     context: 'DashboardPage.js'
   },

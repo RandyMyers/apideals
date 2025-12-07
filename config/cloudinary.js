@@ -1,8 +1,14 @@
+// Cloudinary configuration - reads from environment variables
 const cloudinaryConfig = {
-    cloud_name: 'dcee0fx6p',
-    api_key: '674787449512356',
-    api_secret: 'bv04WWjoWMwI2K4gfe4PEGitLr8',
-  }
-  
-  //margaritaflemming@gmail.com serveices2021z@pr Tracyfree20204!
-  module.exports = cloudinaryConfig;
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_SECRET,
+};
+
+// Validate that all required environment variables are set
+if (!cloudinaryConfig.cloud_name || !cloudinaryConfig.api_key || !cloudinaryConfig.api_secret) {
+  console.error('❌ Error: Missing Cloudinary credentials in environment variables');
+  console.error('Please ensure CLOUDINARY_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_SECRET are set in .env file');
+}
+
+module.exports = cloudinaryConfig;

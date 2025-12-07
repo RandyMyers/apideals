@@ -48,6 +48,7 @@ const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');  // New Category Routes
 const reviewRoutes = require('./routes/rateAndReviewRoutes');
 const voteRoutes = require('./routes/voteRoutes');  // Vote Routes
+const Vote = require('./models/vote');  // Import Vote model for index migration
 const subscriptionRoutes = require('./routes/subscriptionRoutes');  // New Subscription Routes
 const discountRoutes = require('./routes/discountRoutes');  // New Discount Routes
 const discountUsageRoutes = require('./routes/discountUsageRoutes');  // New Discount Usage Routes
@@ -87,8 +88,16 @@ if (!fs.existsSync(logsDir)) {
 const systemAlertService = require('./services/systemAlertService');
 
 mongoose.connect(process.env.MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => {
+  .then(async () => {
     logger.info('Connected to MongoDB');
+    
+    // Run vote index migration (drop unique constraints to allow multiple votes)
+    try {
+      const Vote = require('./models/vote');
+      await Vote.migrateIndexes();
+    } catch (error) {
+      logger.warn('Vote index migration failed (non-critical):', error.message);
+    }
   })
   .catch((error) => {
     logger.error('Failed to connect to MongoDB', { error: error.message });

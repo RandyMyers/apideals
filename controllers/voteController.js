@@ -45,93 +45,41 @@ exports.createOrUpdateVote = async (req, res) => {
       return res.status(400).json({ message: 'Store not found for this coupon/deal.' });
     }
 
-    // Find existing vote
-    const query = couponId 
-      ? { userId, couponId }
-      : { userId, dealId };
-
-    const existingVote = await Vote.findOne(query);
-
-    let vote;
+    // Always create a new vote (allow multiple uses)
+    // This allows users to vote multiple times if they use the deal/coupon multiple times
+    const vote = new Vote({
+      userId,
+      couponId,
+      dealId,
+      type,
+    });
+    await vote.save();
+    
+    // If it's a thumbs up, track savings (create usage record)
     let shouldTrackSavings = false;
-    let shouldRemoveSavings = false;
-    
-    if (existingVote) {
-      // Update existing vote
-      if (existingVote.type === type) {
-        // Same vote type, remove it (toggle off)
-        await Vote.findByIdAndDelete(existingVote._id);
-        vote = null;
-        // If it was a thumbs up, remove the savings tracking
-        if (existingVote.type === 'up') {
-          shouldRemoveSavings = true;
-        }
-      } else {
-        // Different vote type, update it
-        const wasThumbsUp = existingVote.type === 'up';
-        const isNowThumbsUp = type === 'up';
-        
-        existingVote.type = type;
-        existingVote.updatedAt = Date.now();
-        vote = await existingVote.save();
-        
-        // If changing from down to up, track savings
-        if (!wasThumbsUp && isNowThumbsUp) {
-          shouldTrackSavings = true;
-        }
-        // If changing from up to down, remove savings
-        if (wasThumbsUp && !isNowThumbsUp) {
-          shouldRemoveSavings = true;
-        }
-      }
-    } else {
-      // Create new vote
-      vote = new Vote({
-        userId,
-        couponId,
-        dealId,
-        type,
-      });
-      await vote.save();
-      
-      // If it's a thumbs up, track savings
-      if (type === 'up') {
-        shouldTrackSavings = true;
-      }
+    if (type === 'up') {
+      shouldTrackSavings = true;
     }
     
-    // Track or remove savings based on vote
+    // Track savings based on vote (always create new usage record for thumbs up)
+    // This allows tracking multiple uses of the same deal/coupon
     if (shouldTrackSavings && entity) {
-      // Check if usage already exists
-      const usageQuery = couponId 
-        ? { userId, entityId: couponId, entityType: 'coupon' }
-        : { userId, entityId: dealId, entityType: 'deal' };
-      
-      const existingUsage = await CouponUsage.findOne(usageQuery);
-      
-      if (!existingUsage) {
-        // Create new usage record
-        const usage = new CouponUsage({
-          userId,
-          entityType: couponId ? 'coupon' : 'deal',
-          entityId: couponId || dealId,
-          entityModel: couponId ? 'Coupon' : 'Deal',
-          storeId,
-          discountType: entity.discountType,
-          discountValue: entity.discountValue,
-          purchaseAmount: entity.originalPrice || entity.savingsAmount || 0, // Use original price if available, otherwise estimate
-          worked: true, // User confirmed it worked by voting thumbs up
-        });
-        await usage.save();
-      }
-    } else if (shouldRemoveSavings) {
-      // Remove usage record when user removes thumbs up or changes to thumbs down
-      const usageQuery = couponId 
-        ? { userId, entityId: couponId, entityType: 'coupon' }
-        : { userId, entityId: dealId, entityType: 'deal' };
-      
-      await CouponUsage.deleteMany(usageQuery);
+      // Always create a new usage record (allow multiple uses)
+      const usage = new CouponUsage({
+        userId,
+        entityType: couponId ? 'coupon' : 'deal',
+        entityId: couponId || dealId,
+        entityModel: couponId ? 'Coupon' : 'Deal',
+        storeId,
+        discountType: entity.discountType,
+        discountValue: entity.discountValue,
+        purchaseAmount: entity.originalPrice || entity.savingsAmount || 0, // Use original price if available, otherwise estimate
+        worked: true, // User confirmed it worked by voting thumbs up
+      });
+      await usage.save();
     }
+    // Note: We don't remove usage records when voting thumbs down
+    // Thumbs down only indicates the deal didn't work, but doesn't remove previous successful uses
 
     // Get updated vote counts
     const voteCounts = await getVoteCounts(couponId, dealId);

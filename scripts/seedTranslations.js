@@ -8216,11 +8216,19 @@ const seedTranslations = async () => {
       const existing = await Translation.findOne({ key: translation.key });
       
       if (existing) {
-        // Update existing translation
+        // Update existing translation - ensure ALL language fields are updated
+        // Use $set to update all fields including all language translations
+        const updateData = { ...translation };
+        // Remove _id if present to avoid conflicts
+        delete updateData._id;
+        delete updateData.__v;
+        delete updateData.createdAt;
+        delete updateData.updatedAt;
+        
         await Translation.findOneAndUpdate(
           { key: translation.key },
-          { $set: translation },
-          { runValidators: true }
+          { $set: updateData },
+          { runValidators: true, new: true }
         );
         updated++;
         console.log(`✓ Updated: ${translation.key}`);

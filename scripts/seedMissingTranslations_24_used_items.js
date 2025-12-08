@@ -301,6 +301,28 @@ const translations = [
     description: 'Deal type badge',
     context: 'UsedItemsTable.js'
   },
+  // Used Items Section - Login Required
+  {
+    key: 'dashboard.usedItems.loginRequired',
+    category: 'pages',
+    en: 'Please log in to view your used items.',
+    ga: 'Logáil isteach le do mhíreanna úsáidte a fheiceáil.',
+    de: 'Bitte melden Sie sich an, um Ihre verwendeten Artikel anzuzeigen.',
+    es: 'Por favor, inicie sesión para ver sus artículos usados.',
+    it: 'Accedi per visualizzare i tuoi articoli utilizzati.',
+    no: 'Vennligst logg inn for å se dine brukte varer.',
+    fi: 'Kirjaudu sisään nähdäksesi käyttämäsi kohteet.',
+    da: 'Log venligst ind for at se dine brugte varer.',
+    sv: 'Logga in för att se dina använda artiklar.',
+    fr: 'Veuillez vous connecter pour voir vos articles utilisés.',
+    pt: 'Por favor, faça login para ver seus itens usados.',
+    nl: 'Log in om uw gebruikte items te bekijken.',
+    'en-GB': 'Please log in to view your used items.',
+    'en-AU': 'Please log in to view your used items.',
+    'de-AT': 'Bitte melden Sie sich an, um Ihre verwendeten Artikel anzuzeigen.',
+    description: 'Login required message for used items',
+    context: 'UsedItemsTable.js'
+  },
   // Used Items Section - Empty State
   {
     key: 'dashboard.usedItems.noItems',

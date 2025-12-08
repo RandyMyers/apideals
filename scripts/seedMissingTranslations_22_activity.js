@@ -360,15 +360,12 @@ async function seedActivityTranslations() {
         const existing = await Translation.findOne({ key: translation.key });
 
         if (existing) {
-          // Update existing translation
-          Object.keys(translation).forEach((lang) => {
-            if (['en', 'ga', 'de', 'es', 'it', 'no', 'fi', 'da', 'sv'].includes(lang)) {
-              existing[lang] = translation[lang];
-            }
-          });
-          if (translation.description) existing.description = translation.description;
-          if (translation.context) existing.context = translation.context;
-          await existing.save();
+          // Update existing translation with all languages
+          await Translation.findOneAndUpdate(
+            { key: translation.key },
+            { $set: translation },
+            { runValidators: true }
+          );
           updated++;
           console.log(`Updated: ${translation.key}`);
         } else {

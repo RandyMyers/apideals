@@ -135,6 +135,21 @@ function toCamelCase(str) {
     'seodescriptiondefault': 'seoDescriptionDefault',
     'sortlabel': 'sortLabel',
     'descriptionfallback': 'descriptionFallback',
+    // Navigation and buttons
+    'followedcoupons': 'followedCoupons',
+    'submitcoupon': 'submitCoupon',
+    'signin': 'signIn',
+    'joinfree': 'joinFree',
+    'notifications': 'notifications', // Already correct (single word)
+    'deals': 'deals', // Already correct (single word)
+    // Dashboard sections
+    'useditems': 'usedItems',
+    'totalsaved': 'totalSaved',
+    'couponsused': 'couponsUsed',
+    'dealsused': 'dealsUsed',
+    'totalitems': 'totalItems',
+    'loginrequired': 'loginRequired',
+    'noitems': 'noItems',
     // Detail page voting section
     'helpothers': 'helpOthers',
     'itworked': 'itWorked',
@@ -253,9 +268,10 @@ translationSchema.statics.getTranslationsForLanguage = async function(language) 
       // Skip empty keys
       if (!key) return;
       
-      // Convert last key part to camelCase for client compatibility
-      // e.g., "deals.filter.activeonly" -> "deals.filter.activeOnly"
-      const camelKey = index === keys.length - 1 ? toCamelCase(key) : key;
+      // Convert ALL key parts to camelCase for client compatibility
+      // e.g., "dashboard.useditems.totalsaved" -> "dashboard.usedItems.totalSaved"
+      // Single words like "dashboard" will remain unchanged
+      const camelKey = toCamelCase(key);
       
       if (index === keys.length - 1) {
         // Last key - set the translation value

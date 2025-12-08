@@ -134,7 +134,7 @@ const initialTranslations = [
     context: 'header.js',
   },
   {
-    key: 'nav.submitCoupon',
+    key: 'nav.submitcoupon',
     category: 'navigation',
     en: 'Submit Coupon',
     ga: 'Cúpón a Chur Isteach',
@@ -178,7 +178,7 @@ const initialTranslations = [
   
   // Authentication
   {
-    key: 'auth.signIn',
+    key: 'auth.signin',
     category: 'buttons',
     en: 'Sign In',
     ga: 'Sínigh Isteach',
@@ -199,7 +199,7 @@ const initialTranslations = [
     context: 'header.js',
   },
   {
-    key: 'auth.joinFree',
+    key: 'auth.joinfree',
     category: 'buttons',
     en: 'Join Free',
     ga: 'Bí páirteach saor',
@@ -241,7 +241,7 @@ const initialTranslations = [
     context: 'header.js',
   },
   {
-    key: 'buttons.followedCoupons',
+    key: 'buttons.followedcoupons',
     category: 'buttons',
     en: 'Followed Coupons',
     ga: 'Cúpóin a Leanúint',

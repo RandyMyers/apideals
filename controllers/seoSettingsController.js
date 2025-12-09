@@ -6,6 +6,33 @@
 const SEOSettings = require('../models/seoSettings');
 
 /**
+ * Get public SEO settings (verification tags only)
+ */
+exports.getPublicSettings = async (req, res) => {
+  try {
+    const settings = await SEOSettings.getSettings();
+    
+    // Only return meta verification tags (public data)
+    res.status(200).json({
+      metaVerification: settings.metaVerification || {
+        google: '',
+        bing: '',
+        yandex: '',
+        pinterest: '',
+        facebook: '',
+        custom: [],
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching public SEO settings:', error);
+    res.status(500).json({
+      error: 'Failed to fetch SEO settings',
+      message: error.message,
+    });
+  }
+};
+
+/**
  * Get SEO settings
  */
 exports.getSettings = async (req, res) => {

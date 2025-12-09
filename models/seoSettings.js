@@ -166,6 +166,37 @@ const seoSettingsSchema = new mongoose.Schema(
       },
     },
 
+    // Meta verification tags (for Google Search Console, Bing, etc.)
+    metaVerification: {
+      google: {
+        type: String,
+        default: '',
+      },
+      bing: {
+        type: String,
+        default: '',
+      },
+      yandex: {
+        type: String,
+        default: '',
+      },
+      pinterest: {
+        type: String,
+        default: '',
+      },
+      facebook: {
+        type: String,
+        default: '',
+      },
+      custom: {
+        type: [{
+          name: String,
+          content: String,
+        }],
+        default: [],
+      },
+    },
+
     // Last updated
     lastUpdated: {
       type: Date,

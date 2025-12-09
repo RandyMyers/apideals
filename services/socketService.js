@@ -59,8 +59,27 @@ const getAdminNamespace = () => {
  * @param {Object} data - Event data
  */
 const emitToAdmin = (event, data) => {
-  if (adminNamespace) {
+  if (!adminNamespace) {
+    console.warn('Socket.IO admin namespace not initialized. Cannot emit event:', event);
+    return;
+  }
+
+  const connectedClients = adminNamespace.sockets.size;
+  if (connectedClients === 0) {
+    // No admin clients connected, but we'll still log for debugging
+    console.debug(`No admin clients connected. Event "${event}" not emitted.`);
+    return;
+  }
+
+  try {
     adminNamespace.emit(event, data);
+    console.log(`✅ Emitted "${event}" to ${connectedClients} admin client(s)`, {
+      event,
+      connectedClients,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error emitting Socket.IO event:', error);
   }
 };
 

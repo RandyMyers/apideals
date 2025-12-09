@@ -24,6 +24,17 @@ const extractLanguageCode = (path) => {
 
 exports.createView = async (req, res) => {
     try {
+        console.log('📥 Received createView request:', {
+            visitorId: req.body.visitorId,
+            userId: req.body.userId,
+            storeId: req.body.storeId,
+            couponId: req.body.couponId,
+            dealId: req.body.dealId,
+            categoryId: req.body.categoryId,
+            pagePath: req.body.pagePath,
+            languageCode: req.body.languageCode
+        });
+        
         const { visitorId, userId, storeId, couponId, dealId, categoryId, pagePath, languageCode, referrer } = req.body;
         const Visitor = require('../models/visitor');
 
@@ -143,6 +154,15 @@ exports.createView = async (req, res) => {
                 .populate('visitorId', 'country deviceType platform')
                 .populate('userId', 'username email')
                 .lean();
+            
+            console.log('📊 Emitting newView event for view:', {
+                viewId: view._id,
+                entityType: entityType,
+                entityId: entityId,
+                visitorId: populatedView.visitorId?._id || populatedView.visitorId,
+                userId: populatedView.userId?._id || populatedView.userId,
+                pagePath: populatedView.pagePath
+            });
             
             socketService.emitToAdmin('newView', {
                 view: populatedView,

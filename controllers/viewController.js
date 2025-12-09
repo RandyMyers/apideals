@@ -88,11 +88,13 @@ exports.createView = async (req, res) => {
             entityModel = 'Category';
         }
 
-        // Validate that at least one entity ID is provided
+        // Allow page views without entity IDs (for general pages like homepage, blog, etc.)
+        // If no entity ID is provided, we'll track it as a general page view
         if (!entityId || !entityType) {
-            return res.status(400).json({
-                message: 'At least one entity ID (storeId, couponId, dealId, or categoryId) is required',
-            });
+            // This is a general page view (homepage, blog listing, etc.)
+            entityType = 'page';
+            entityId = null;
+            entityModel = null;
         }
 
         // Extract language code from pagePath if not provided
@@ -130,16 +132,16 @@ exports.createView = async (req, res) => {
         const view = new View({
             visitorId: finalVisitorId || null,
             userId: authenticatedUserId, // Use authenticated user ID if available
-            entityType,
-            entityId,
-            entityModel,
-            storeId, // Keep for backward compatibility
-            couponId, // Keep for backward compatibility
-            dealId, // Keep for backward compatibility
-            categoryId, // Keep for backward compatibility
+            entityType: entityType || null,
+            entityId: entityId || null,
+            entityModel: entityModel || null,
+            storeId: storeId || null, // Keep for backward compatibility
+            couponId: couponId || null, // Keep for backward compatibility
+            dealId: dealId || null, // Keep for backward compatibility
+            categoryId: categoryId || null, // Keep for backward compatibility
             pagePath: pagePath || null, // Full URL path
             languageCode: finalLanguageCode || null, // Language prefix
-            referrer: finalReferrer, // HTTP referrer
+            referrer: finalReferrer || null, // HTTP referrer
             isLandingPage, // First page in session
         });
 

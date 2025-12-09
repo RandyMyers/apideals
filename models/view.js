@@ -4,9 +4,9 @@ const Schema = mongoose.Schema;
 const ViewSchema = new Schema({
     visitorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Visitor' }, // Reference to the visitor (optional for logged-in users)
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, // Reference to the user (for logged-in users)
-    entityType: { type: String, enum: ['store', 'coupon', 'deal', 'category'], default: null }, // Type of entity viewed
+    entityType: { type: String, enum: ['store', 'coupon', 'deal', 'category', 'page'], default: null }, // Type of entity viewed
     entityId: { type: mongoose.Schema.Types.ObjectId, refPath: 'entityModel' }, // Dynamic reference
-    entityModel: { type: String, enum: ['Store', 'Coupon', 'Deal', 'Category'] }, // Model name for dynamic ref
+    entityModel: { type: String, enum: ['Store', 'Coupon', 'Deal', 'Category'], default: null }, // Model name for dynamic ref (null for general pages)
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store' }, // Reference to a store (for backward compatibility)
     couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' }, // Reference to a coupon (for backward compatibility)
     dealId: { type: mongoose.Schema.Types.ObjectId, ref: 'Deal' }, // Reference to a deal (for backward compatibility)

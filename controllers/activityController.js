@@ -527,16 +527,22 @@ exports.getLiveActivity = async (req, res) => {
   try {
     const View = require('../models/view');
     const Visitor = require('../models/visitor');
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    // Increased to 15 minutes for testing - can reduce to 5 minutes later
+    const timeWindowMinutes = 15;
+    const timeWindowAgo = new Date(Date.now() - timeWindowMinutes * 60 * 1000);
 
-    // Get all views in last 5 minutes
+    console.log(`📊 Fetching live activity, looking for views in last ${timeWindowMinutes} minutes, after:`, timeWindowAgo);
+
+    // Get all views in the time window
     const recentViews = await View.find({
-      viewedAt: { $gte: fiveMinutesAgo }
+      viewedAt: { $gte: timeWindowAgo }
     })
       .populate('visitorId', 'country deviceType platform ip city')
       .populate('userId', 'username email')
       .sort({ viewedAt: -1 })
       .lean();
+
+    console.log('📊 Found recent views:', recentViews.length);
 
     // Group by visitorId to get latest activity per visitor
     const visitorMap = new Map();
@@ -588,12 +594,23 @@ exports.getLiveActivity = async (req, res) => {
         ...visitor,
         timeOnPage, // seconds
         sessionDuration, // seconds
-        isActive: timeOnPage < 300 // Active if last activity < 5 minutes
+        isActive: timeOnPage < (timeWindowMinutes * 60) // Active if last activity < time window
       };
     });
 
     // Sort by last activity (most recent first)
     liveVisitors.sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity));
+
+    console.log('📊 Returning live visitors:', liveVisitors.length);
+    if (liveVisitors.length > 0) {
+      console.log('📊 Sample visitor:', {
+        username: liveVisitors[0].username,
+        country: liveVisitors[0].country,
+        currentPage: liveVisitors[0].currentPage,
+        isActive: liveVisitors[0].isActive,
+        timeOnPage: liveVisitors[0].timeOnPage
+      });
+    }
 
     res.json({
       success: true,

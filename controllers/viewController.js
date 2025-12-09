@@ -151,9 +151,20 @@ exports.createView = async (req, res) => {
             const socketService = require('../services/socketService');
             // Populate visitor data for the event
             const populatedView = await View.findById(view._id)
-                .populate('visitorId', 'country deviceType platform')
+                .populate('visitorId', 'country deviceType platform ip city')
                 .populate('userId', 'username email')
                 .lean();
+            
+            // Ensure pagePath and languageCode are included
+            if (!populatedView.pagePath && pagePath) {
+                populatedView.pagePath = pagePath;
+            }
+            if (!populatedView.languageCode && finalLanguageCode) {
+                populatedView.languageCode = finalLanguageCode;
+            }
+            if (!populatedView.referrer && finalReferrer) {
+                populatedView.referrer = finalReferrer;
+            }
             
             console.log('📊 Emitting newView event for view:', {
                 viewId: view._id,
@@ -161,11 +172,18 @@ exports.createView = async (req, res) => {
                 entityId: entityId,
                 visitorId: populatedView.visitorId?._id || populatedView.visitorId,
                 userId: populatedView.userId?._id || populatedView.userId,
-                pagePath: populatedView.pagePath
+                pagePath: populatedView.pagePath,
+                languageCode: populatedView.languageCode
             });
             
             socketService.emitToAdmin('newView', {
-                view: populatedView,
+                view: {
+                    ...populatedView,
+                    pagePath: populatedView.pagePath,
+                    languageCode: populatedView.languageCode,
+                    referrer: populatedView.referrer,
+                    viewedAt: populatedView.viewedAt || populatedView.createdAt
+                },
                 timestamp: new Date()
             });
         } catch (socketError) {

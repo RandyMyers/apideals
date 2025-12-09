@@ -543,6 +543,18 @@ exports.getLiveActivity = async (req, res) => {
       .lean();
 
     console.log('📊 Found recent views:', recentViews.length);
+    
+    // Debug: Check total views in database
+    const totalViews = await View.countDocuments({});
+    const latestView = await View.findOne().sort({ viewedAt: -1 }).lean();
+    console.log('📊 Total views in database:', totalViews);
+    if (latestView) {
+      console.log('📊 Latest view timestamp:', latestView.viewedAt);
+      const minutesAgo = Math.floor((Date.now() - new Date(latestView.viewedAt).getTime()) / 1000 / 60);
+      console.log('📊 Latest view was', minutesAgo, 'minutes ago');
+    } else {
+      console.log('📊 No views found in database at all');
+    }
 
     // Group by visitorId to get latest activity per visitor
     const visitorMap = new Map();

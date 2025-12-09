@@ -2,6 +2,11 @@ const Deal = require('../models/deal'); // Assuming the model is located in mode
 const Subscription = require('../models/subscriptions');
 const Store = require('../models/store');
 const User = require('../models/user');
+const View = require('../models/view');
+const Interaction = require('../models/interaction');
+const RateAndReview = require('../models/rateAndReview');
+const Vote = require('../models/vote');
+const CouponUsage = require('../models/couponUsage');
 const cloudinary = require('cloudinary').v2;
 const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
@@ -803,10 +808,29 @@ exports.updateDeal = async (req, res) => {
 exports.deleteDeal = async (req, res) => {
   const { id } = req.params;
   try {
-    const deletedDeal = await Deal.findByIdAndDelete(id);
-    if (!deletedDeal) {
+    // Check if deal exists before cleanup
+    const deal = await Deal.findById(id);
+    if (!deal) {
       return res.status(404).json({ message: 'Deal not found' });
     }
+    
+    // Clean up all related data (non-blocking, but wait for completion)
+    try {
+      await Promise.all([
+        View.deleteMany({ dealId: id }),
+        Interaction.deleteMany({ dealId: id }),
+        RateAndReview.deleteMany({ dealId: id }),
+        Vote.deleteMany({ dealId: id, entityType: 'deal' }),
+        CouponUsage.deleteMany({ entityId: id, entityType: 'deal' })
+      ]);
+    } catch (cleanupError) {
+      console.error('Error cleaning up deal-related data:', cleanupError);
+      // Continue with deletion even if cleanup fails
+    }
+    
+    // Delete the deal (translations are automatically deleted as they're embedded)
+    await Deal.findByIdAndDelete(id);
+    
     res.status(200).json({ message: 'Deal deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting deal', error: error.message });

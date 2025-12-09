@@ -2,6 +2,11 @@ const Coupon = require('../models/coupon'); // Adjust the path as per your proje
 const Subscription = require('../models/subscriptions'); // Import Subscription model
 const User = require('../models/user');
 const Store = require('../models/store');
+const View = require('../models/view');
+const Interaction = require('../models/interaction');
+const RateAndReview = require('../models/rateAndReview');
+const Vote = require('../models/vote');
+const CouponUsage = require('../models/couponUsage');
 const cloudinary = require('cloudinary').v2;
 const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
@@ -812,11 +817,28 @@ exports.deleteCoupon = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const deletedCoupon = await Coupon.findByIdAndDelete(id);
-
-    if (!deletedCoupon) {
+    // Check if coupon exists before cleanup
+    const coupon = await Coupon.findById(id);
+    if (!coupon) {
       return res.status(404).json({ message: 'Coupon not found' });
     }
+    
+    // Clean up all related data (non-blocking, but wait for completion)
+    try {
+      await Promise.all([
+        View.deleteMany({ couponId: id }),
+        Interaction.deleteMany({ couponId: id }),
+        RateAndReview.deleteMany({ couponId: id }),
+        Vote.deleteMany({ couponId: id, entityType: 'coupon' }),
+        CouponUsage.deleteMany({ entityId: id, entityType: 'coupon' })
+      ]);
+    } catch (cleanupError) {
+      console.error('Error cleaning up coupon-related data:', cleanupError);
+      // Continue with deletion even if cleanup fails
+    }
+    
+    // Delete the coupon (translations are automatically deleted as they're embedded)
+    await Coupon.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'Coupon deleted successfully' });
   } catch (error) {

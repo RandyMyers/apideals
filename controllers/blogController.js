@@ -1,4 +1,5 @@
 const Blog = require('../models/blog'); // Import the Blog model
+const View = require('../models/view');
 const cloudinary = require('cloudinary').v2;
 const {
   calculateReadingTime,
@@ -470,10 +471,29 @@ exports.updateBlog = async (req, res) => {
 // @access  Private
 exports.deleteBlog = async (req, res) => {
   try {
-    const blog = await Blog.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    
+    // Check if blog exists before cleanup
+    const blog = await Blog.findById(id);
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });
     }
+    
+    // Clean up related data (non-blocking)
+    try {
+      // Delete views related to this blog (if any)
+      await View.deleteMany({ 
+        entityType: 'page',
+        pagePath: { $regex: `/blog/${blog.slug}`, $options: 'i' }
+      });
+    } catch (cleanupError) {
+      console.error('Error cleaning up blog-related data:', cleanupError);
+      // Continue with deletion even if cleanup fails
+    }
+    
+    // Delete the blog (translations are automatically deleted as they're embedded)
+    await Blog.findByIdAndDelete(id);
+    
     res.status(200).json({ message: 'Blog deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete blog', error: error.message });

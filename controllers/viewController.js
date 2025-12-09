@@ -3,6 +3,7 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const Store = require('../models/store');
 const Category = require('../models/category');
+const Blog = require('../models/blog');
 
 /**
  * Extract language code from page path
@@ -31,11 +32,12 @@ exports.createView = async (req, res) => {
             couponId: req.body.couponId,
             dealId: req.body.dealId,
             categoryId: req.body.categoryId,
+            blogId: req.body.blogId,
             pagePath: req.body.pagePath,
             languageCode: req.body.languageCode
         });
         
-        const { visitorId, userId, storeId, couponId, dealId, categoryId, pagePath, languageCode, referrer } = req.body;
+        const { visitorId, userId, storeId, couponId, dealId, categoryId, blogId, pagePath, languageCode, referrer } = req.body;
         const Visitor = require('../models/visitor');
 
         // Get userId from authenticated user if available
@@ -86,6 +88,10 @@ exports.createView = async (req, res) => {
             entityType = 'category';
             entityId = categoryId;
             entityModel = 'Category';
+        } else if (blogId) {
+            entityType = 'blog';
+            entityId = blogId;
+            entityModel = 'Blog';
         }
 
         // Allow page views without entity IDs (for general pages like homepage, blog, etc.)
@@ -139,6 +145,7 @@ exports.createView = async (req, res) => {
             couponId: couponId || null, // Keep for backward compatibility
             dealId: dealId || null, // Keep for backward compatibility
             categoryId: categoryId || null, // Keep for backward compatibility
+            blogId: blogId || null, // Keep for backward compatibility
             pagePath: pagePath || null, // Full URL path
             languageCode: finalLanguageCode || null, // Language prefix
             referrer: finalReferrer || null, // HTTP referrer
@@ -203,6 +210,8 @@ exports.createView = async (req, res) => {
                 await Store.findByIdAndUpdate(storeId, { $inc: { views: 1 } });
             } else if (categoryId) {
                 await Category.findByIdAndUpdate(categoryId, { $inc: { views: 1 } });
+            } else if (blogId) {
+                await Blog.findByIdAndUpdate(blogId, { $inc: { views: 1 } });
             }
         } catch (incrementError) {
             // Log but don't fail the view tracking if increment fails

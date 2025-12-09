@@ -4,9 +4,34 @@ const Interaction = require('../models/interaction'); // Path to your Interactio
 exports.createInteraction = async (req, res) => {
     try {
         const { visitorId, userId, interactionType, type, entityType, entityId, entityModel, storeId, couponId, dealId, categoryId } = req.body;
+        const Visitor = require('../models/visitor');
 
         // Get userId from authenticated user if available
         const authenticatedUserId = req.user?.id || userId || null;
+
+        // Auto-link to visitor if not provided: find visitor by IP and userAgent
+        let finalVisitorId = visitorId;
+        if (!finalVisitorId) {
+            const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress;
+            const userAgent = req.headers['user-agent'] || req.body.userAgent;
+            
+            if (clientIp && userAgent) {
+                const visitor = await Visitor.findOne({ ip: clientIp, userAgent })
+                    .sort({ visitedAt: -1 })
+                    .select('_id')
+                    .lean();
+                
+                if (visitor) {
+                    finalVisitorId = visitor._id;
+                    // Update visitor userId if we have an authenticated user
+                    if (authenticatedUserId) {
+                        await Visitor.findByIdAndUpdate(visitor._id, { 
+                            userId: authenticatedUserId 
+                        }, { upsert: false });
+                    }
+                }
+            }
+        }
 
         // Determine entity type and ID
         let finalEntityType = entityType || null;
@@ -35,7 +60,7 @@ exports.createInteraction = async (req, res) => {
 
         // Create a new Interaction
         const interaction = new Interaction({
-            visitorId: visitorId || null,
+            visitorId: finalVisitorId || null,
             userId: authenticatedUserId,
             interactionType: interactionType || type || 'click',
             entityType: finalEntityType,
@@ -50,6 +75,24 @@ exports.createInteraction = async (req, res) => {
 
         // Save the interaction to the database
         await interaction.save();
+
+        // Emit Socket.IO event for real-time updates
+        try {
+            const socketService = require('../services/socketService');
+            // Populate visitor data for the event
+            const populatedInteraction = await Interaction.findById(interaction._id)
+                .populate('visitorId', 'country deviceType platform')
+                .populate('userId', 'username email')
+                .lean();
+            
+            socketService.emitToAdmin('newInteraction', {
+                interaction: populatedInteraction,
+                timestamp: new Date()
+            });
+        } catch (socketError) {
+            // Don't fail interaction creation if Socket.IO fails
+            console.warn('Error emitting Socket.IO event:', socketError);
+        }
 
         res.status(201).json({
             message: 'Interaction created successfully',

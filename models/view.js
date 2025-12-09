@@ -11,6 +11,10 @@ const ViewSchema = new Schema({
     couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' }, // Reference to a coupon (for backward compatibility)
     dealId: { type: mongoose.Schema.Types.ObjectId, ref: 'Deal' }, // Reference to a deal (for backward compatibility)
     categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' }, // Reference to a category (for backward compatibility)
+    pagePath: { type: String, index: true }, // Full URL path (e.g., '/sv/coupons/all')
+    languageCode: { type: String, index: true }, // Language prefix from URL (e.g., 'sv', 'en')
+    referrer: { type: String }, // HTTP referrer header
+    isLandingPage: { type: Boolean, default: false, index: true }, // First page in session
     viewedAt: { type: Date, default: Date.now }, // Timestamp
     createdAt: { type: Date, default: Date.now }, // Alias for viewedAt for consistency
 });
@@ -19,6 +23,10 @@ const ViewSchema = new Schema({
 ViewSchema.index({ userId: 1, viewedAt: -1 });
 ViewSchema.index({ visitorId: 1, viewedAt: -1 });
 ViewSchema.index({ entityType: 1, entityId: 1 });
+ViewSchema.index({ pagePath: 1, viewedAt: -1 });
+ViewSchema.index({ languageCode: 1, viewedAt: -1 });
+ViewSchema.index({ isLandingPage: 1, viewedAt: -1 });
+ViewSchema.index({ viewedAt: -1 }); // For live activity queries
 
 const View = mongoose.model('View', ViewSchema);
 

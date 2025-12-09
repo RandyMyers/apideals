@@ -1125,14 +1125,28 @@ exports.getAllUsersActivities = async (req, res) => {
     try {
         const { page = 1, limit = 50, userId, type, startDate, endDate } = req.query;
         const skip = (page - 1) * limit;
+        const mongoose = require('mongoose');
         
         const View = require('../models/view');
         const Interaction = require('../models/interaction');
         const CouponUsage = require('../models/couponUsage');
+        const Visitor = require('../models/visitor');
 
         // Build filters
         const userFilter = userId ? { userId } : {};
 
+        // Helper function to get visitor data for a user
+        const getUserVisitorData = async (userId) => {
+            if (!userId) return null;
+            const visitor = await Visitor.findOne({ userId })
+                .sort({ visitedAt: -1 })
+                .select('country deviceType platform')
+                .lean();
+            return visitor;
+        };
+
+        // Get visitor data for all unique users (for fallback)
+        const allUserIds = new Set();
         let activities = [];
 
         // Get views
@@ -1146,6 +1160,7 @@ exports.getAllUsersActivities = async (req, res) => {
 
             const views = await View.find(viewFilter)
                 .populate('userId', 'username email')
+                .populate('visitorId', 'country deviceType platform')
                 .populate('entityId', 'title name code imageUrl')
                 .populate('storeId', 'name logo')
                 .populate('couponId', 'title code imageUrl')
@@ -1155,15 +1170,47 @@ exports.getAllUsersActivities = async (req, res) => {
                 .limit(type === 'view' ? parseInt(limit) : 10)
                 .lean();
 
-            activities.push(...views.map(v => ({
-                type: 'view',
-                userId: v.userId,
-                entityType: v.entityType || (v.couponId ? 'coupon' : v.dealId ? 'deal' : v.storeId ? 'store' : 'category'),
-                entityId: v.entityId || v.couponId || v.dealId || v.storeId,
-                storeId: v.storeId,
-                createdAt: v.viewedAt || v.createdAt,
-                data: v
-            })));
+            views.forEach(v => {
+                if (v.userId) {
+                    const userIdStr = typeof v.userId === 'object' && v.userId._id 
+                        ? v.userId._id.toString() 
+                        : v.userId.toString();
+                    allUserIds.add(userIdStr);
+                }
+            });
+
+            activities.push(...views.map(v => {
+                // Extract visitorId (could be ObjectId, populated object, or null)
+                let visitorIdValue = null;
+                if (v.visitorId) {
+                    if (typeof v.visitorId === 'object' && v.visitorId._id) {
+                        visitorIdValue = v.visitorId._id;
+                    } else {
+                        visitorIdValue = v.visitorId;
+                    }
+                }
+                
+                // Get country and deviceType from populated visitorId (if available)
+                const country = (v.visitorId && typeof v.visitorId === 'object') 
+                    ? (v.visitorId.country || null)
+                    : null;
+                const deviceType = (v.visitorId && typeof v.visitorId === 'object')
+                    ? (v.visitorId.deviceType || v.visitorId.platform || null)
+                    : null;
+                
+                return {
+                    type: 'view',
+                    userId: v.userId,
+                    visitorId: visitorIdValue, // Store as ID for lookup
+                    country: country, // Will be filled in later if null
+                    deviceType: deviceType, // Will be filled in later if null
+                    entityType: v.entityType || (v.couponId ? 'coupon' : v.dealId ? 'deal' : v.storeId ? 'store' : 'category'),
+                    entityId: v.entityId || v.couponId || v.dealId || v.storeId,
+                    storeId: v.storeId,
+                    createdAt: v.viewedAt || v.createdAt,
+                    data: v
+                };
+            }));
         }
 
         // Get interactions
@@ -1177,6 +1224,7 @@ exports.getAllUsersActivities = async (req, res) => {
 
             const interactions = await Interaction.find(interactionFilter)
                 .populate('userId', 'username email')
+                .populate('visitorId', 'country deviceType platform')
                 .populate('entityId', 'title name code imageUrl')
                 .populate('storeId', 'name logo')
                 .populate('couponId', 'title code imageUrl')
@@ -1186,16 +1234,48 @@ exports.getAllUsersActivities = async (req, res) => {
                 .limit(type === 'interaction' ? parseInt(limit) : 10)
                 .lean();
 
-            activities.push(...interactions.map(i => ({
-                type: 'interaction',
-                userId: i.userId,
-                interactionType: i.interactionType || i.type,
-                entityType: i.entityType || (i.couponId ? 'coupon' : i.dealId ? 'deal' : i.storeId ? 'store' : 'category'),
-                entityId: i.entityId || i.couponId || i.dealId || i.storeId,
-                storeId: i.storeId,
-                createdAt: i.interactionAt || i.createdAt,
-                data: i
-            })));
+            interactions.forEach(i => {
+                if (i.userId) {
+                    const userIdStr = typeof i.userId === 'object' && i.userId._id 
+                        ? i.userId._id.toString() 
+                        : i.userId.toString();
+                    allUserIds.add(userIdStr);
+                }
+            });
+
+            activities.push(...interactions.map(i => {
+                // Extract visitorId (could be ObjectId, populated object, or null)
+                let visitorIdValue = null;
+                if (i.visitorId) {
+                    if (typeof i.visitorId === 'object' && i.visitorId._id) {
+                        visitorIdValue = i.visitorId._id;
+                    } else {
+                        visitorIdValue = i.visitorId;
+                    }
+                }
+                
+                // Get country and deviceType from populated visitorId (if available)
+                const country = (i.visitorId && typeof i.visitorId === 'object')
+                    ? (i.visitorId.country || null)
+                    : null;
+                const deviceType = (i.visitorId && typeof i.visitorId === 'object')
+                    ? (i.visitorId.deviceType || i.visitorId.platform || null)
+                    : null;
+                
+                return {
+                    type: 'interaction',
+                    userId: i.userId,
+                    visitorId: visitorIdValue, // Store as ID for lookup
+                    country: country, // Will be filled in later if null
+                    deviceType: deviceType, // Will be filled in later if null
+                    interactionType: i.interactionType || i.type,
+                    entityType: i.entityType || (i.couponId ? 'coupon' : i.dealId ? 'deal' : i.storeId ? 'store' : 'category'),
+                    entityId: i.entityId || i.couponId || i.dealId || i.storeId,
+                    storeId: i.storeId,
+                    createdAt: i.interactionAt || i.createdAt,
+                    data: i
+                };
+            }));
         }
 
         // Get coupon/deal usage
@@ -1216,6 +1296,15 @@ exports.getAllUsersActivities = async (req, res) => {
                 .limit(type === 'usage' ? parseInt(limit) : 10)
                 .lean();
 
+            usages.forEach(u => {
+                if (u.userId) {
+                    const userIdStr = typeof u.userId === 'object' && u.userId._id 
+                        ? u.userId._id.toString() 
+                        : u.userId.toString();
+                    allUserIds.add(userIdStr);
+                }
+            });
+
             activities.push(...usages.map(u => ({
                 type: 'usage',
                 userId: u.userId,
@@ -1227,6 +1316,85 @@ exports.getAllUsersActivities = async (req, res) => {
                 data: u
             })));
         }
+
+        // SIMPLE DIRECT ACCESS: Fetch visitors and match to activities
+        const visitorIds = [];
+        const userIds = [];
+        
+        activities.forEach(activity => {
+            // Collect visitorIds
+            if (activity.visitorId) {
+                const vid = activity.visitorId._id || activity.visitorId;
+                if (vid) visitorIds.push(vid);
+            }
+            // Collect userIds
+            if (activity.userId) {
+                const uid = activity.userId._id || activity.userId;
+                if (uid) userIds.push(uid);
+            }
+        });
+
+        // Fetch visitors by visitorId OR userId (direct access)
+        const visitorMap = new Map();
+        if (visitorIds.length > 0 || userIds.length > 0) {
+            const query = {
+                $or: []
+            };
+            if (visitorIds.length > 0) {
+                query.$or.push({ _id: { $in: visitorIds } });
+            }
+            if (userIds.length > 0) {
+                query.$or.push({ userId: { $in: userIds } });
+            }
+            
+            const visitors = await Visitor.find(query)
+                .select('_id userId country deviceType platform')
+                .lean();
+            
+            // Map by visitorId
+            visitors.forEach(v => {
+                visitorMap.set(v._id.toString(), {
+                    country: v.country,
+                    deviceType: v.deviceType || v.platform
+                });
+            });
+            
+            // Map by userId (most recent)
+            visitors.sort((a, b) => new Date(b.visitedAt || 0) - new Date(a.visitedAt || 0));
+            visitors.forEach(v => {
+                if (v.userId) {
+                    const uid = v.userId.toString();
+                    if (!visitorMap.has(`user_${uid}`)) {
+                        visitorMap.set(`user_${uid}`, {
+                            country: v.country,
+                            deviceType: v.deviceType || v.platform
+                        });
+                    }
+                }
+            });
+        }
+
+        // Apply visitor data to activities
+        activities.forEach(activity => {
+            // Try visitorId first
+            if (activity.visitorId) {
+                const vid = (activity.visitorId._id || activity.visitorId).toString();
+                const v = visitorMap.get(vid);
+                if (v) {
+                    activity.country = v.country;
+                    activity.deviceType = v.deviceType;
+                }
+            }
+            // Fallback to userId
+            if ((!activity.country || !activity.deviceType) && activity.userId) {
+                const uid = (activity.userId._id || activity.userId).toString();
+                const v = visitorMap.get(`user_${uid}`);
+                if (v) {
+                    activity.country = activity.country || v.country;
+                    activity.deviceType = activity.deviceType || v.deviceType;
+                }
+            }
+        });
 
         // Sort all activities by date
         activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

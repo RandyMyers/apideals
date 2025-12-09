@@ -295,14 +295,22 @@ startCampaignJobs();
 const { startNotificationJobs } = require('./jobs/notificationJobs');
 startNotificationJobs();
 
+// Create HTTP server for Socket.IO
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+const socketService = require('./services/socketService');
+socketService.initSocket(server);
+
 // Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`, {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
+  logger.info('Socket.IO server initialized', { namespace: '/admin' });
 });
 
 // Graceful shutdown

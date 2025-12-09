@@ -67,6 +67,25 @@ exports.markAsUsed = async (req, res) => {
 
     await usage.save();
 
+    // Emit Socket.IO event for real-time updates
+    try {
+        const socketService = require('../services/socketService');
+        // Populate user data for the event
+        const populatedUsage = await CouponUsage.findById(usage._id)
+            .populate('userId', 'username email')
+            .populate('entityId', 'title name code')
+            .populate('storeId', 'name logo')
+            .lean();
+        
+        socketService.emitToAdmin('newUsage', {
+            usage: populatedUsage,
+            timestamp: new Date()
+        });
+    } catch (socketError) {
+        // Don't fail usage creation if Socket.IO fails
+        console.warn('Error emitting Socket.IO event:', socketError);
+    }
+
     // Populate entity and store for response
     await usage.populate([
       { path: 'entityId', select: 'title name code discountType discountValue' },

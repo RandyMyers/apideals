@@ -38,6 +38,8 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.7",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "winston": "^3.10.0",
     "xmlbuilder": "^15.1.1"
   }

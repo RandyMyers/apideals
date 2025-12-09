@@ -73,7 +73,7 @@ exports.createRateAndReview = async (req, res) => {
 exports.getAllRatingsAndReviews = async (req, res) => {
     try {
         const ratingsAndReviews = await RateAndReview.find()
-            .populate('userId', 'name email') // Populate user details
+            .populate('userId', 'username') // Populate only username (privacy: no email)
             .populate('couponId')            // Populate coupon details
             .populate('dealId')              // Populate deal details
             .sort({ createdAt: -1 });        // Sort by newest first
@@ -94,7 +94,7 @@ exports.getRatingsAndReviewsByCoupon = async (req, res) => {
         const { couponId } = req.params;
 
         const ratingsAndReviews = await RateAndReview.find({ couponId })
-            .populate('userId', 'name email')
+            .populate('userId', 'username') // Populate only username (privacy: no email)
             .sort({ createdAt: -1 });
 
         res.status(200).json(ratingsAndReviews);
@@ -113,7 +113,7 @@ exports.getRatingsAndReviewsByDeal = async (req, res) => {
         const { dealId } = req.params;
 
         const ratingsAndReviews = await RateAndReview.find({ dealId })
-            .populate('userId', 'name email')
+            .populate('userId', 'username') // Populate only username (privacy: no email)
             .sort({ createdAt: -1 });
 
         res.status(200).json(ratingsAndReviews);

@@ -651,11 +651,40 @@ exports.unfollowStore = async (req, res) => {
 exports.updateStore = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = { ...req.body };
+        
+        console.log('Update store request:', {
+            id,
+            hasFiles: !!req.files,
+            filesKeys: req.files ? Object.keys(req.files) : [],
+            bodyKeys: Object.keys(req.body || {})
+        });
+        
+        // Start with empty updates object
+        const updates = {};
 
         // Handle logo upload if provided
         if (req.files && req.files.logo) {
             const file = req.files.logo;
+            
+            console.log('Logo file received:', {
+                name: file.name,
+                size: file.size,
+                mimetype: file.mimetype,
+                tempFilePath: file.tempFilePath,
+                hasData: !!file.data
+            });
+            
+            // With useTempFiles: true, file should have tempFilePath
+            if (!file.tempFilePath) {
+                console.error('File upload error: tempFilePath not found', {
+                    fileKeys: Object.keys(file),
+                    fileType: typeof file
+                });
+                return res.status(400).json({ 
+                    message: 'File upload error: tempFilePath not found',
+                    error: 'The uploaded file does not have a temporary file path. Please try again.'
+                });
+            }
             
             // Delete old logo from Cloudinary if it exists
             const existingStore = await Store.findById(id);
@@ -668,37 +697,148 @@ exports.updateStore = async (req, res) => {
                 }
             }
             
-            // Upload new logo to Cloudinary
-            const result = await cloudinary.uploader.upload(file.tempFilePath, {
-                folder: 'store_logos',
-                public_id: `store_${id}_${Date.now()}`,
-                overwrite: false,
-            });
+            try {
+                // Upload new logo to Cloudinary
+                const result = await cloudinary.uploader.upload(file.tempFilePath, {
+                    folder: 'store_logos',
+                    public_id: `store_${id}_${Date.now()}`,
+                    overwrite: false,
+                });
 
-            updates.logo = result.secure_url;
-            updates.cloudinaryId = result.public_id;
+                updates.logo = result.secure_url;
+                updates.cloudinaryId = result.public_id;
+                console.log('Logo uploaded successfully:', result.secure_url);
+            } catch (uploadError) {
+                console.error('Error uploading logo to Cloudinary:', uploadError);
+                return res.status(500).json({
+                    message: 'Error uploading logo to Cloudinary',
+                    error: uploadError.message,
+                });
+            }
         }
 
+        // Parse FormData fields from req.body
+        // Handle availableCountries array
+        if (req.body.availableCountries) {
+            if (Array.isArray(req.body.availableCountries)) {
+                updates.availableCountries = req.body.availableCountries;
+            } else if (typeof req.body.availableCountries === 'string') {
+                try {
+                    updates.availableCountries = JSON.parse(req.body.availableCountries);
+                } catch (e) {
+                    // If it's not JSON, check if it's a single value or comma-separated
+                    updates.availableCountries = req.body.availableCountries.split(',').map(c => c.trim());
+                }
+            }
+        } else if (req.body['availableCountries[0]']) {
+            // Handle array format from FormData: availableCountries[0], availableCountries[1], etc.
+            const countries = [];
+            let index = 0;
+            while (req.body[`availableCountries[${index}]`]) {
+                countries.push(req.body[`availableCountries[${index}]`]);
+                index++;
+            }
+            if (countries.length > 0) {
+                updates.availableCountries = countries;
+            }
+        }
+
+        // Handle isWorldwide
+        if (req.body.isWorldwide !== undefined) {
+            updates.isWorldwide = req.body.isWorldwide === 'true' || req.body.isWorldwide === true;
+        }
+
+        // Handle storeIndicators
+        if (req.body.storeIndicators) {
+            try {
+                updates.storeIndicators = typeof req.body.storeIndicators === 'string' 
+                    ? JSON.parse(req.body.storeIndicators)
+                    : req.body.storeIndicators;
+            } catch (e) {
+                console.warn('Could not parse storeIndicators:', e.message);
+            }
+        }
+
+        // Handle boolean fields
+        if (req.body.isActive !== undefined) {
+            updates.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+        }
+        if (req.body.isSponsored !== undefined) {
+            updates.isSponsored = req.body.isSponsored === 'true' || req.body.isSponsored === true;
+        }
+
+        // Handle numeric fields
+        if (req.body.sponsoredPriority !== undefined && req.body.sponsoredPriority !== '') {
+            updates.sponsoredPriority = parseInt(req.body.sponsoredPriority) || 0;
+        }
+
+        // Handle string fields (only update if provided)
+        const stringFields = ['name', 'description', 'url', 'apiKey', 'secretKey', 'storeType'];
+        stringFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                updates[field] = req.body[field];
+            }
+        });
+
+        // Handle ObjectId fields
+        if (req.body.categoryId && req.body.categoryId !== '') {
+            updates.categoryId = req.body.categoryId;
+        }
+        // Handle affiliate - store model uses 'affiliate' (singular) based on createStore
+        if (req.body.affiliateId && req.body.affiliateId !== '') {
+            updates.affiliate = req.body.affiliateId;
+        } else if (req.body.affiliateId === '') {
+            // Allow clearing affiliate - set to null or empty
+            updates.affiliate = null;
+        }
+
+        console.log('Updating store with:', updates);
+        
+        // Check if there are any updates to apply
+        if (Object.keys(updates).length === 0) {
+            console.warn('No updates provided');
+            // Still return the store even if no updates
+            const store = await Store.findById(id)
+                .populate('categoryId', 'name')
+                .populate('userId', 'name email')
+                .populate('affiliate', 'name')
+                .populate('affiliates', 'name');
+            
+            if (!store) {
+                return res.status(404).json({ message: 'Store not found' });
+            }
+            
+            return res.status(200).json({
+                message: 'No changes to update',
+                store,
+            });
+        }
+        
         // Update the store
         const store = await Store.findByIdAndUpdate(id, updates, {
             new: true,
+            runValidators: true,
         }).populate('categoryId', 'name')
           .populate('userId', 'name email')
-          .populate('affiliate', 'name');
+          .populate('affiliate', 'name')
+          .populate('affiliates', 'name');
 
         if (!store) {
             return res.status(404).json({ message: 'Store not found' });
         }
 
+        console.log('Store updated successfully:', store._id);
         res.status(200).json({
             message: 'Store updated successfully',
             store,
         });
     } catch (error) {
         console.error('Error updating store:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             message: 'Error updating store',
             error: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
         });
     }
 };

@@ -772,12 +772,35 @@ exports.updateStore = async (req, res) => {
         // Handle storeIndicators
         if (req.body.storeIndicators) {
             try {
-                updates.storeIndicators = typeof req.body.storeIndicators === 'string' 
+                let indicators = typeof req.body.storeIndicators === 'string' 
                     ? JSON.parse(req.body.storeIndicators)
                     : req.body.storeIndicators;
-                console.log('[storeController] storeIndicators:', updates.storeIndicators);
+                
+                // Filter out invalid indicators (empty key or label)
+                if (Array.isArray(indicators)) {
+                    indicators = indicators.filter(ind => 
+                        ind && 
+                        ind.key && 
+                        ind.key.trim() !== '' && 
+                        ind.label && 
+                        ind.label.trim() !== ''
+                    );
+                    console.log('[storeController] Filtered storeIndicators (removed empty):', indicators);
+                }
+                
+                // Only set if we have valid indicators
+                if (Array.isArray(indicators) && indicators.length > 0) {
+                    updates.storeIndicators = indicators;
+                    console.log('[storeController] storeIndicators set:', updates.storeIndicators);
+                } else {
+                    // If all indicators were invalid, set to empty array
+                    updates.storeIndicators = [];
+                    console.log('[storeController] All storeIndicators were invalid, setting to empty array');
+                }
             } catch (e) {
                 console.warn('[storeController] Could not parse storeIndicators:', e.message);
+                // Set to empty array on parse error
+                updates.storeIndicators = [];
             }
         }
 

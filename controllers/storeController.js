@@ -834,14 +834,15 @@ exports.updateStore = async (req, res) => {
             updates.categoryId = req.body.categoryId;
             console.log('[storeController] categoryId:', updates.categoryId);
         }
-        // Handle affiliate - store model uses 'affiliate' (singular) based on createStore
+        // Handle affiliate - store model uses 'affiliates' (plural array)
         if (req.body.affiliateId && req.body.affiliateId !== '') {
-            updates.affiliate = req.body.affiliateId;
-            console.log('[storeController] affiliate:', updates.affiliate);
+            // Set affiliates array with the provided affiliate ID
+            updates.affiliates = [req.body.affiliateId];
+            console.log('[storeController] Setting affiliates array:', updates.affiliates);
         } else if (req.body.affiliateId === '') {
-            // Allow clearing affiliate - set to null or empty
-            updates.affiliate = null;
-            console.log('[storeController] Clearing affiliate');
+            // Allow clearing all affiliates - set to empty array
+            updates.affiliates = [];
+            console.log('[storeController] Clearing all affiliates');
         }
 
         console.log('[storeController] Final updates object:', updates);
@@ -855,7 +856,6 @@ exports.updateStore = async (req, res) => {
             const store = await Store.findById(id)
                 .populate('categoryId', 'name')
                 .populate('userId', 'name email')
-                .populate('affiliate', 'name')
                 .populate('affiliates', 'name');
             
             if (!store) {
@@ -887,7 +887,6 @@ exports.updateStore = async (req, res) => {
                 runValidators: true,
             }).populate('categoryId', 'name')
               .populate('userId', 'name email')
-              .populate('affiliate', 'name')
               .populate('affiliates', 'name');
 
             if (!store) {

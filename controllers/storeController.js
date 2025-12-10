@@ -651,12 +651,40 @@ exports.unfollowStore = async (req, res) => {
 exports.updateStore = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
+        const updates = { ...req.body };
+
+        // Handle logo upload if provided
+        if (req.files && req.files.logo) {
+            const file = req.files.logo;
+            
+            // Delete old logo from Cloudinary if it exists
+            const existingStore = await Store.findById(id);
+            if (existingStore && existingStore.cloudinaryId) {
+                try {
+                    await cloudinary.uploader.destroy(existingStore.cloudinaryId);
+                } catch (deleteError) {
+                    console.warn('Error deleting old logo from Cloudinary:', deleteError.message);
+                    // Continue even if deletion fails
+                }
+            }
+            
+            // Upload new logo to Cloudinary
+            const result = await cloudinary.uploader.upload(file.tempFilePath, {
+                folder: 'store_logos',
+                public_id: `store_${id}_${Date.now()}`,
+                overwrite: false,
+            });
+
+            updates.logo = result.secure_url;
+            updates.cloudinaryId = result.public_id;
+        }
 
         // Update the store
         const store = await Store.findByIdAndUpdate(id, updates, {
             new: true,
-        });
+        }).populate('categoryId', 'name')
+          .populate('userId', 'name email')
+          .populate('affiliate', 'name');
 
         if (!store) {
             return res.status(404).json({ message: 'Store not found' });
@@ -670,7 +698,7 @@ exports.updateStore = async (req, res) => {
         console.error('Error updating store:', error);
         res.status(500).json({
             message: 'Error updating store',
-            error,
+            error: error.message,
         });
     }
 };

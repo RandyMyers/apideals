@@ -153,6 +153,7 @@ exports.createStore = async (req, res) => {
             userId,
             description,
             logo: logoUrl,
+            affiliate: affiliateId || null,
             subscription,
             url,
             apiKey,
@@ -523,7 +524,7 @@ exports.getStoreById = async (req, res) => {
             .populate('deals')
             .populate('subscription')
             .populate('categoryId', 'name')
-            .populate('affiliates', 'name')
+            .populate('affiliate', 'name')
             .lean();
 
         if (!store) {
@@ -763,10 +764,21 @@ exports.updateStore = async (req, res) => {
             }
         }
 
-        // Handle isWorldwide
+        // Handle isWorldwide - ensure it matches availableCountries
         if (req.body.isWorldwide !== undefined) {
             updates.isWorldwide = req.body.isWorldwide === 'true' || req.body.isWorldwide === true;
-            console.log('[storeController] isWorldwide:', updates.isWorldwide);
+        }
+        // If availableCountries includes 'WORLDWIDE', ensure isWorldwide is true
+        if (updates.availableCountries && updates.availableCountries.includes('WORLDWIDE')) {
+            updates.isWorldwide = true;
+            console.log('[storeController] Setting isWorldwide to true because WORLDWIDE is in availableCountries');
+        } else if (updates.availableCountries && !updates.availableCountries.includes('WORLDWIDE')) {
+            // If WORLDWIDE is not in the array, ensure isWorldwide is false
+            updates.isWorldwide = false;
+            console.log('[storeController] Setting isWorldwide to false because WORLDWIDE is not in availableCountries');
+        }
+        if (updates.isWorldwide !== undefined) {
+            console.log('[storeController] Final isWorldwide:', updates.isWorldwide);
         }
 
         // Handle storeIndicators
@@ -834,15 +846,14 @@ exports.updateStore = async (req, res) => {
             updates.categoryId = req.body.categoryId;
             console.log('[storeController] categoryId:', updates.categoryId);
         }
-        // Handle affiliate - store model uses 'affiliates' (plural array)
+        // Handle affiliate - store model uses 'affiliate' (singular, single field)
         if (req.body.affiliateId && req.body.affiliateId !== '') {
-            // Set affiliates array with the provided affiliate ID
-            updates.affiliates = [req.body.affiliateId];
-            console.log('[storeController] Setting affiliates array:', updates.affiliates);
+            updates.affiliate = req.body.affiliateId;
+            console.log('[storeController] Setting affiliate:', updates.affiliate);
         } else if (req.body.affiliateId === '') {
-            // Allow clearing all affiliates - set to empty array
-            updates.affiliates = [];
-            console.log('[storeController] Clearing all affiliates');
+            // Allow clearing affiliate - set to null
+            updates.affiliate = null;
+            console.log('[storeController] Clearing affiliate');
         }
 
         console.log('[storeController] Final updates object:', updates);
@@ -856,7 +867,7 @@ exports.updateStore = async (req, res) => {
             const store = await Store.findById(id)
                 .populate('categoryId', 'name')
                 .populate('userId', 'name email')
-                .populate('affiliates', 'name');
+                .populate('affiliate', 'name');
             
             if (!store) {
                 console.error('[storeController] Store not found:', id);
@@ -887,7 +898,7 @@ exports.updateStore = async (req, res) => {
                 runValidators: true,
             }).populate('categoryId', 'name')
               .populate('userId', 'name email')
-              .populate('affiliates', 'name');
+              .populate('affiliate', 'name');
 
             if (!store) {
                 console.error('[storeController] Store not found after update');

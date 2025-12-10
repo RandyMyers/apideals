@@ -28,10 +28,15 @@ const StoreSchema = new Schema({
   logo: {
     type: String,
   },
-  affiliates: [{
+  // Cloudinary public ID for logo (for deletion/updates)
+  cloudinaryId: {
+    type: String,
+  },
+  // Affiliate network the store belongs to (single affiliate, not array)
+  affiliate: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Affiliate', // Reference to Coupon model
-  }],
+    ref: 'Affiliate',
+  },
   // Referral coupons associated with the store (reference to Coupon model)
   coupons: [{
     type: mongoose.Schema.Types.ObjectId,

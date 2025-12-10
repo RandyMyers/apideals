@@ -652,11 +652,23 @@ exports.updateStore = async (req, res) => {
     try {
         const { id } = req.params;
         
-        console.log('Update store request:', {
-            id,
-            hasFiles: !!req.files,
-            filesKeys: req.files ? Object.keys(req.files) : [],
-            bodyKeys: Object.keys(req.body || {})
+        console.log('========================================');
+        console.log('[storeController] updateStore called');
+        console.log('[storeController] Store ID:', id);
+        console.log('[storeController] Request method:', req.method);
+        console.log('[storeController] Request headers:', {
+            'content-type': req.headers['content-type'],
+            'authorization': req.headers['authorization'] ? 'Present' : 'Missing',
+            'content-length': req.headers['content-length']
+        });
+        console.log('[storeController] Has files:', !!req.files);
+        console.log('[storeController] Files keys:', req.files ? Object.keys(req.files) : []);
+        console.log('[storeController] Body keys:', Object.keys(req.body || {}));
+        console.log('[storeController] Body sample:', {
+            name: req.body?.name,
+            categoryId: req.body?.categoryId,
+            storeType: req.body?.storeType,
+            hasAvailableCountries: !!req.body?.availableCountries || !!req.body?.['availableCountries[0]']
         });
         
         // Start with empty updates object
@@ -718,20 +730,27 @@ exports.updateStore = async (req, res) => {
         }
 
         // Parse FormData fields from req.body
+        console.log('[storeController] Parsing FormData fields...');
+        
         // Handle availableCountries array
         if (req.body.availableCountries) {
+            console.log('[storeController] availableCountries found in body:', req.body.availableCountries);
             if (Array.isArray(req.body.availableCountries)) {
                 updates.availableCountries = req.body.availableCountries;
+                console.log('[storeController] availableCountries is array:', updates.availableCountries);
             } else if (typeof req.body.availableCountries === 'string') {
                 try {
                     updates.availableCountries = JSON.parse(req.body.availableCountries);
+                    console.log('[storeController] Parsed availableCountries from JSON:', updates.availableCountries);
                 } catch (e) {
                     // If it's not JSON, check if it's a single value or comma-separated
                     updates.availableCountries = req.body.availableCountries.split(',').map(c => c.trim());
+                    console.log('[storeController] Parsed availableCountries from comma-separated:', updates.availableCountries);
                 }
             }
         } else if (req.body['availableCountries[0]']) {
             // Handle array format from FormData: availableCountries[0], availableCountries[1], etc.
+            console.log('[storeController] Found availableCountries array format');
             const countries = [];
             let index = 0;
             while (req.body[`availableCountries[${index}]`]) {
@@ -740,12 +759,14 @@ exports.updateStore = async (req, res) => {
             }
             if (countries.length > 0) {
                 updates.availableCountries = countries;
+                console.log('[storeController] Parsed availableCountries array:', updates.availableCountries);
             }
         }
 
         // Handle isWorldwide
         if (req.body.isWorldwide !== undefined) {
             updates.isWorldwide = req.body.isWorldwide === 'true' || req.body.isWorldwide === true;
+            console.log('[storeController] isWorldwide:', updates.isWorldwide);
         }
 
         // Handle storeIndicators
@@ -754,22 +775,26 @@ exports.updateStore = async (req, res) => {
                 updates.storeIndicators = typeof req.body.storeIndicators === 'string' 
                     ? JSON.parse(req.body.storeIndicators)
                     : req.body.storeIndicators;
+                console.log('[storeController] storeIndicators:', updates.storeIndicators);
             } catch (e) {
-                console.warn('Could not parse storeIndicators:', e.message);
+                console.warn('[storeController] Could not parse storeIndicators:', e.message);
             }
         }
 
         // Handle boolean fields
         if (req.body.isActive !== undefined) {
             updates.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+            console.log('[storeController] isActive:', updates.isActive);
         }
         if (req.body.isSponsored !== undefined) {
             updates.isSponsored = req.body.isSponsored === 'true' || req.body.isSponsored === true;
+            console.log('[storeController] isSponsored:', updates.isSponsored);
         }
 
         // Handle numeric fields
         if (req.body.sponsoredPriority !== undefined && req.body.sponsoredPriority !== '') {
             updates.sponsoredPriority = parseInt(req.body.sponsoredPriority) || 0;
+            console.log('[storeController] sponsoredPriority:', updates.sponsoredPriority);
         }
 
         // Handle string fields (only update if provided)
@@ -777,26 +802,32 @@ exports.updateStore = async (req, res) => {
         stringFields.forEach(field => {
             if (req.body[field] !== undefined) {
                 updates[field] = req.body[field];
+                console.log(`[storeController] ${field}:`, updates[field]);
             }
         });
 
         // Handle ObjectId fields
         if (req.body.categoryId && req.body.categoryId !== '') {
             updates.categoryId = req.body.categoryId;
+            console.log('[storeController] categoryId:', updates.categoryId);
         }
         // Handle affiliate - store model uses 'affiliate' (singular) based on createStore
         if (req.body.affiliateId && req.body.affiliateId !== '') {
             updates.affiliate = req.body.affiliateId;
+            console.log('[storeController] affiliate:', updates.affiliate);
         } else if (req.body.affiliateId === '') {
             // Allow clearing affiliate - set to null or empty
             updates.affiliate = null;
+            console.log('[storeController] Clearing affiliate');
         }
 
-        console.log('Updating store with:', updates);
+        console.log('[storeController] Final updates object:', updates);
+        console.log('[storeController] Updates keys:', Object.keys(updates));
+        console.log('[storeController] Updates count:', Object.keys(updates).length);
         
         // Check if there are any updates to apply
         if (Object.keys(updates).length === 0) {
-            console.warn('No updates provided');
+            console.warn('[storeController] No updates provided');
             // Still return the store even if no updates
             const store = await Store.findById(id)
                 .populate('categoryId', 'name')
@@ -805,36 +836,71 @@ exports.updateStore = async (req, res) => {
                 .populate('affiliates', 'name');
             
             if (!store) {
+                console.error('[storeController] Store not found:', id);
                 return res.status(404).json({ message: 'Store not found' });
             }
             
+            console.log('[storeController] Returning store without updates');
             return res.status(200).json({
                 message: 'No changes to update',
                 store,
             });
         }
         
-        // Update the store
-        const store = await Store.findByIdAndUpdate(id, updates, {
-            new: true,
-            runValidators: true,
-        }).populate('categoryId', 'name')
-          .populate('userId', 'name email')
-          .populate('affiliate', 'name')
-          .populate('affiliates', 'name');
-
-        if (!store) {
+        // Check if store exists before updating
+        console.log('[storeController] Checking if store exists...');
+        const existingStore = await Store.findById(id);
+        if (!existingStore) {
+            console.error('[storeController] Store not found:', id);
             return res.status(404).json({ message: 'Store not found' });
         }
+        console.log('[storeController] Store found:', existingStore.name);
+        
+        // Update the store
+        console.log('[storeController] Updating store in database...');
+        try {
+            const store = await Store.findByIdAndUpdate(id, updates, {
+                new: true,
+                runValidators: true,
+            }).populate('categoryId', 'name')
+              .populate('userId', 'name email')
+              .populate('affiliate', 'name')
+              .populate('affiliates', 'name');
 
-        console.log('Store updated successfully:', store._id);
-        res.status(200).json({
-            message: 'Store updated successfully',
-            store,
-        });
+            if (!store) {
+                console.error('[storeController] Store not found after update');
+                return res.status(404).json({ message: 'Store not found' });
+            }
+
+            console.log('[storeController] Store updated successfully:', store._id);
+            console.log('[storeController] Updated store name:', store.name);
+            console.log('========================================');
+            res.status(200).json({
+                message: 'Store updated successfully',
+                store,
+            });
+        } catch (updateError) {
+            console.error('[storeController] Database update error:', updateError);
+            console.error('[storeController] Update error name:', updateError.name);
+            console.error('[storeController] Update error message:', updateError.message);
+            if (updateError.errors) {
+                console.error('[storeController] Validation errors:', updateError.errors);
+            }
+            throw updateError; // Re-throw to be caught by outer catch
+        }
     } catch (error) {
-        console.error('Error updating store:', error);
-        console.error('Error stack:', error.stack);
+        console.error('========================================');
+        console.error('[storeController] ERROR in updateStore');
+        console.error('[storeController] Error name:', error.name);
+        console.error('[storeController] Error message:', error.message);
+        console.error('[storeController] Error stack:', error.stack);
+        if (error.errors) {
+            console.error('[storeController] Validation errors:', error.errors);
+        }
+        if (error.code) {
+            console.error('[storeController] Error code:', error.code);
+        }
+        console.error('========================================');
         res.status(500).json({
             message: 'Error updating store',
             error: error.message,

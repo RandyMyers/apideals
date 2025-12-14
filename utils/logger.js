@@ -38,32 +38,72 @@ const logFormat = winston.format.combine(
   )
 );
 
+// Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
+// Vercel sets VERCEL=1, AWS Lambda sets AWS_LAMBDA_FUNCTION_NAME, etc.
+const isServerless = !!(
+  process.env.VERCEL || 
+  process.env.VERCEL_ENV || 
+  process.env.AWS_LAMBDA_FUNCTION_NAME || 
+  process.env.FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT ||
+  // Check if we're in a read-only filesystem (common in serverless)
+  (process.env.HOME === '/var/task' || process.env.HOME === '/tmp')
+);
+
 // Define transports
 const transports = [
-  // Console transport
+  // Console transport (always available)
   new winston.transports.Console({
     format: logFormat,
   }),
-  
-  // File transport for errors
-  new winston.transports.File({
-    filename: path.join(__dirname, '../../logs/error.log'),
-    level: 'error',
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    ),
-  }),
-  
-  // File transport for all logs
-  new winston.transports.File({
-    filename: path.join(__dirname, '../../logs/combined.log'),
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    ),
-  }),
 ];
+
+// Only add file transports if NOT in serverless environment
+// Serverless environments have read-only filesystems (except /tmp)
+if (!isServerless) {
+  const fs = require('fs');
+  const logsDir = path.join(__dirname, '../../logs');
+  
+  // Create logs directory if it doesn't exist
+  try {
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    
+    // File transport for errors
+    transports.push(
+      new winston.transports.File({
+        filename: path.join(logsDir, 'error.log'),
+        level: 'error',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.json()
+        ),
+      })
+    );
+    
+    // File transport for all logs
+    transports.push(
+      new winston.transports.File({
+        filename: path.join(logsDir, 'combined.log'),
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.json()
+        ),
+      })
+    );
+  } catch (error) {
+    // If we can't create log files, just use console transport
+    console.warn('Could not create log files, using console transport only:', error.message);
+  }
+} else {
+  // In serverless environment, only use console transport
+  // File system is read-only except for /tmp, and /tmp is ephemeral
+  // Console logs will be captured by Vercel's logging system
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Serverless environment detected - using console transport only');
+  }
+}
 
 // Create the logger
 const logger = winston.createLogger({

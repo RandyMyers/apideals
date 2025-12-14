@@ -10,6 +10,15 @@ const fs = require('fs');
 
 const fileUpload = require('express-fileupload');
 
+// Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
+const isServerless = !!(
+  process.env.VERCEL || 
+  process.env.VERCEL_ENV || 
+  process.env.AWS_LAMBDA_FUNCTION_NAME || 
+  process.env.FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+);
+
 // Import security middleware
 const { 
   securityHeaders, 
@@ -79,10 +88,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Create logs directory if it doesn't exist
-const logsDir = path.join(__dirname, 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+// Create logs directory if it doesn't exist (only in non-serverless environments)
+// Serverless environments (Vercel, AWS Lambda) have read-only filesystems
+if (!isServerless) {
+  const logsDir = path.join(__dirname, 'logs');
+  try {
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+  } catch (error) {
+    // If we can't create logs directory, just log a warning
+    console.warn('Could not create logs directory, using console logging only:', error.message);
+  }
 }
 
 const systemAlertService = require('./services/systemAlertService');
@@ -287,31 +304,70 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start campaign jobs
-const { startCampaignJobs } = require('./jobs/campaignJobs');
-startCampaignJobs();
+// Only start background jobs if NOT in serverless environment
+// Serverless functions are stateless and short-lived, so background jobs won't work
+if (!isServerless) {
+  // Start campaign jobs
+  try {
+    const { startCampaignJobs } = require('./jobs/campaignJobs');
+    startCampaignJobs();
+  } catch (error) {
+    logger.warn('Failed to start campaign jobs (non-critical):', error.message);
+  }
 
-// Start notification jobs
-const { startNotificationJobs } = require('./jobs/notificationJobs');
-startNotificationJobs();
+  // Start notification jobs
+  try {
+    const { startNotificationJobs } = require('./jobs/notificationJobs');
+    startNotificationJobs();
+  } catch (error) {
+    logger.warn('Failed to start notification jobs (non-critical):', error.message);
+  }
+} else {
+  // In serverless, you might want to use Vercel Cron Jobs or external services
+  // for scheduled tasks instead of node-cron
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info('Background jobs disabled in serverless environment - consider using Vercel Cron Jobs');
+  }
+}
 
-// Create HTTP server for Socket.IO
-const server = http.createServer(app);
+// Only start HTTP server if NOT in serverless environment
+// In serverless (Vercel), the platform handles the HTTP server
+if (!isServerless) {
+  // Create HTTP server for Socket.IO
+  const server = http.createServer(app);
 
-// Initialize Socket.IO
-const socketService = require('./services/socketService');
-socketService.initSocket(server);
+  // Initialize Socket.IO (only in non-serverless environments)
+  try {
+    const socketService = require('./services/socketService');
+    socketService.initSocket(server);
+    logger.info('Socket.IO server initialized', { namespace: '/admin' });
+  } catch (error) {
+    logger.warn('Socket.IO initialization failed (non-critical):', error.message);
+  }
 
-// Start the server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  logger.info(`Server is running on port ${PORT}`, {
-    port: PORT,
-    environment: process.env.NODE_ENV || 'development',
+  // Start the server
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    logger.info(`Server is running on port ${PORT}`, {
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+      timestamp: new Date().toISOString()
+    });
+  });
+} else {
+  // In serverless environment, log that we're ready
+  logger.info('Serverless function initialized', {
+    environment: process.env.NODE_ENV || 'production',
+    platform: process.env.VERCEL ? 'Vercel' : 'Unknown',
     timestamp: new Date().toISOString()
   });
-  logger.info('Socket.IO server initialized', { namespace: '/admin' });
-});
+  
+  // Note: Socket.IO and background jobs won't work in serverless
+  // Consider using external services for real-time features and scheduled tasks
+  if (process.env.NODE_ENV !== 'production') {
+    logger.warn('Running in serverless mode - Socket.IO and background jobs are disabled');
+  }
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -347,3 +403,7 @@ process.on('unhandledRejection', (reason, promise) => {
   });
   process.exit(1);
 });
+
+// Export the app for serverless environments (Vercel, AWS Lambda, etc.)
+// This allows api/index.js to import and use the app
+module.exports = app;

@@ -293,12 +293,14 @@ exports.getAllStores = async (req, res) => {
             stores = await Store.find(query)
                 .populate('userId', 'name email')
                 .populate('categoryId', 'name')
+                .populate('affiliate', 'name')
                 .sort(sortOption)
                 .lean();
         } else {
             stores = await Store.find(query)
                 .populate('userId', 'name email')
                 .populate('categoryId', 'name')
+                .populate('affiliate', 'name')
                 .sort(sortOption)
                 .skip(skip)
                 .limit(parseInt(limit))

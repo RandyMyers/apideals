@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
+    "@vitalets/google-translate-api": "^9.2.1",
     "@woocommerce/woocommerce-rest-api": "^1.0.1",
     "axios": "^1.7.7",
     "bcrypt": "^5.1.1",

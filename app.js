@@ -11,12 +11,15 @@ const fs = require('fs');
 const fileUpload = require('express-fileupload');
 
 // Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
+// Also check for /var/task which is Vercel's runtime directory
 const isServerless = !!(
   process.env.VERCEL || 
   process.env.VERCEL_ENV || 
   process.env.AWS_LAMBDA_FUNCTION_NAME || 
   process.env.FUNCTION_NAME ||
-  process.env.LAMBDA_TASK_ROOT
+  process.env.LAMBDA_TASK_ROOT ||
+  // Check if __dirname is in /var/task (Vercel deployment)
+  (typeof __dirname !== 'undefined' && __dirname.includes('/var/task'))
 );
 
 // Import security middleware
@@ -75,6 +78,7 @@ const shareRoutes = require('./routes/shareRoutes');  // Share Routes
 const couponUsageRoutes = require('./routes/couponUsageRoutes');  // Coupon Usage Routes
 
 dotenv.config();
+
 
 const cloudinary = require('cloudinary').v2;
 const app = express();
@@ -381,6 +385,11 @@ process.on('SIGINT', () => {
 });
 
 process.on('uncaughtException', (err) => {
+  // Log full error to console so it's visible even if Winston formatting hides details
+  // This is especially helpful in development to see the real cause of crashes
+  // eslint-disable-next-line no-console
+  console.error('UNCAUGHT EXCEPTION:', err);
+
   logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
   // Send critical alert before exiting
   systemAlertService.sendCriticalErrorAlert(err, {

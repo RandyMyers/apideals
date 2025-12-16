@@ -40,6 +40,7 @@ const logFormat = winston.format.combine(
 
 // Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
 // Vercel sets VERCEL=1, AWS Lambda sets AWS_LAMBDA_FUNCTION_NAME, etc.
+// Also check for /var/task which is Vercel's runtime directory
 const isServerless = !!(
   process.env.VERCEL || 
   process.env.VERCEL_ENV || 
@@ -47,7 +48,9 @@ const isServerless = !!(
   process.env.FUNCTION_NAME ||
   process.env.LAMBDA_TASK_ROOT ||
   // Check if we're in a read-only filesystem (common in serverless)
-  (process.env.HOME === '/var/task' || process.env.HOME === '/tmp')
+  (process.env.HOME === '/var/task' || process.env.HOME === '/tmp') ||
+  // Check if __dirname is in /var/task (Vercel deployment)
+  (typeof __dirname !== 'undefined' && __dirname.includes('/var/task'))
 );
 
 // Define transports
@@ -60,6 +63,7 @@ const transports = [
 
 // Only add file transports if NOT in serverless environment
 // Serverless environments have read-only filesystems (except /tmp)
+// IMPORTANT: Never create file transports in serverless - winston will try to create directories
 if (!isServerless) {
   const fs = require('fs');
   const logsDir = path.join(__dirname, '../../logs');
@@ -70,6 +74,7 @@ if (!isServerless) {
       fs.mkdirSync(logsDir, { recursive: true });
     }
     
+    // Only create file transports if directory was successfully created
     // File transport for errors
     transports.push(
       new winston.transports.File({
@@ -94,14 +99,22 @@ if (!isServerless) {
     );
   } catch (error) {
     // If we can't create log files, just use console transport
+    // This prevents winston from trying to create directories
     console.warn('Could not create log files, using console transport only:', error.message);
   }
 } else {
-  // In serverless environment, only use console transport
+  // In serverless environment, ONLY use console transport
+  // DO NOT create any file transports - winston will try to create directories
   // File system is read-only except for /tmp, and /tmp is ephemeral
   // Console logs will be captured by Vercel's logging system
   if (process.env.NODE_ENV !== 'production') {
     console.log('Serverless environment detected - using console transport only');
+    console.log('Serverless indicators:', {
+      VERCEL: process.env.VERCEL,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      __dirname: typeof __dirname !== 'undefined' ? __dirname : 'undefined',
+      HOME: process.env.HOME
+    });
   }
 }
 

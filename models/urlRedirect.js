@@ -78,12 +78,19 @@ UrlRedirectSchema.index({ referenceType: 1, referenceId: 1 });
 // Pre-save middleware
 UrlRedirectSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
-  // Normalize oldPath: remove leading/trailing slashes, lowercase
+  // Normalize oldPath: lowercase, ensure starts with /, but preserve trailing slash
+  // This allows us to match both /path and /path/ formats
   if (this.oldPath) {
-    this.oldPath = this.oldPath.toLowerCase().replace(/^\/+|\/+$/g, '');
-    if (!this.oldPath.startsWith('/')) {
-      this.oldPath = '/' + this.oldPath;
+    let normalized = this.oldPath.toLowerCase().trim();
+    // Remove multiple leading slashes, keep single leading slash
+    normalized = normalized.replace(/^\/+/, '/');
+    // Ensure it starts with /
+    if (!normalized.startsWith('/')) {
+      normalized = '/' + normalized;
     }
+    // Store without trailing slash for consistency (we'll match both in queries)
+    // But preserve it if it's part of the original path structure (like /feed/)
+    this.oldPath = normalized.replace(/\/+$/, '');
   }
   next();
 });

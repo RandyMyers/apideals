@@ -77,6 +77,7 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     { path: '/help', priority: '0.7', changefreq: 'weekly' },
     { path: '/faq', priority: '0.7', changefreq: 'weekly' },
     { path: '/pricing', priority: '0.6', changefreq: 'monthly' },
+    { path: '/partners', priority: '0.6', changefreq: 'monthly' },
     { path: '/submit-coupon', priority: '0.6', changefreq: 'monthly' },
     { path: '/privacy', priority: '0.5', changefreq: 'yearly' },
     { path: '/terms', priority: '0.5', changefreq: 'yearly' },
@@ -100,12 +101,12 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     // Dynamic pages - Coupons
     if (models.Coupon) {
       const coupons = await models.Coupon.find({ isActive: true })
-        .select('slug updatedAt')
+        .select('_id updatedAt')
         .limit(10000)
         .lean();
 
       coupons.forEach((coupon) => {
-        const path = `/coupons/${coupon.slug || coupon._id}`;
+        const path = `/coupon/${coupon._id}`;  // FIX: Use singular /coupon/ and _id
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
         url.ele('lastmod', coupon.updatedAt ? new Date(coupon.updatedAt).toISOString() : new Date().toISOString());
@@ -122,12 +123,12 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     // Dynamic pages - Deals
     if (models.Deal) {
       const deals = await models.Deal.find({ isActive: true })
-        .select('slug updatedAt')
+        .select('_id updatedAt')
         .limit(10000)
         .lean();
 
       deals.forEach((deal) => {
-        const path = `/deals/${deal.slug || deal._id}`;
+        const path = `/deal/${deal._id}`;  // FIX: Use singular /deal/ and _id
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
         url.ele('lastmod', deal.updatedAt ? new Date(deal.updatedAt).toISOString() : new Date().toISOString());
@@ -208,6 +209,10 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     }
 
     // Dynamic pages - Help Articles
+    // REMOVED: Help article detail pages don't have routes defined in App.js
+    // Only /help listing page exists. Including these URLs would create 404s.
+    // TODO: Create HelpArticleDetailPage component and add route /help/:slug to enable this
+    /*
     if (models.HelpArticle) {
       const helpArticles = await models.HelpArticle.find({ isPublished: true })
         .select('slug updatedAt')
@@ -228,6 +233,7 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
         }
       });
     }
+    */
   } catch (error) {
     console.error('Error generating dynamic sitemap entries:', error);
     // Continue with static pages even if dynamic pages fail
@@ -273,14 +279,14 @@ const generateImageSitemap = async (models, baseUrl = 'https://dealcouponz.com',
         isActive: true,
         imageUrl: { $exists: true, $ne: '' }
       })
-        .select('slug imageUrl updatedAt')
+        .select('_id imageUrl updatedAt')
         .limit(maxItems)
         .lean();
 
       coupons.forEach((coupon) => {
         if (coupon.imageUrl) {
           const url = root.ele('url');
-          url.ele('loc', `${baseUrl}/coupons/${coupon.slug || coupon._id}`);
+          url.ele('loc', `${baseUrl}/coupon/${coupon._id}`);  // FIX: Use singular /coupon/
           url.ele('lastmod', coupon.updatedAt ? new Date(coupon.updatedAt).toISOString() : new Date().toISOString());
           const image = url.ele('image:image');
           image.ele('image:loc', coupon.imageUrl);

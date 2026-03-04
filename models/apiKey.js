@@ -55,8 +55,10 @@ const ApiKeySchema = new Schema({
 });
 
 // Generate a new API key (static method - returns raw key)
+// Use base64 + replace for Node 12+ compatibility (base64url added in Node 15.13)
 ApiKeySchema.statics.generateKey = function (prefix = 'dc_live_') {
-  const randomPart = crypto.randomBytes(24).toString('base64url');
+  const randomPart = crypto.randomBytes(24).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   return `${prefix}${randomPart}`;
 };
 
@@ -88,5 +90,5 @@ ApiKeySchema.statics.findByRawKey = async function (rawKey) {
   return keyDoc;
 };
 
-const ApiKey = mongoose.model('ApiKey', ApiKeySchema);
+const ApiKey = mongoose.models.ApiKey || mongoose.model('ApiKey', ApiKeySchema);
 module.exports = ApiKey;

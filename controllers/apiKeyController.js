@@ -7,7 +7,10 @@ const ApiKey = require('../models/apiKey');
 exports.createApiKey = async (req, res) => {
   try {
     const { name, expiresAt } = req.body;
-    const userId = req.user._id;
+    const userId = req.user?._id || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated.' });
+    }
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ message: 'Name is required.' });
@@ -39,7 +42,13 @@ exports.createApiKey = async (req, res) => {
     });
   } catch (error) {
     console.error('[apiKeyController] create error:', error);
-    return res.status(500).json({ message: 'Failed to create API key.', error: error.message });
+    const errMsg = error.message || 'Unknown error';
+    const isDev = process.env.NODE_ENV !== 'production';
+    return res.status(500).json({
+      message: 'Failed to create API key.',
+      error: errMsg,
+      ...(isDev && { stack: error.stack }),
+    });
   }
 };
 

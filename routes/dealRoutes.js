@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const dealController = require('../controllers/dealsController'); // Adjust the path to your controller
+const dealController = require('../controllers/dealsController');
+const authOrApiKeyOptionalMiddleware = require('../middleware/authOrApiKeyOptionalMiddleware');
 
-// Create a new deal
-router.post('/create', dealController.createDeal);
+// Create a new deal (userId from body, or from API key/JWT when provided)
+router.post('/create', authOrApiKeyOptionalMiddleware, dealController.createDeal);
 
 // Get all deals
 router.get('/all', dealController.getAllDeals);

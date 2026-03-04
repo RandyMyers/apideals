@@ -13,7 +13,7 @@ const notificationService = require('../services/notificationService');
 
 exports.createCoupon = async (req, res) => {
   try {
-    const { 
+    let { 
       userId, 
       storeId, 
       categoryId, 
@@ -22,6 +22,8 @@ exports.createCoupon = async (req, res) => {
       productId, 
       ...otherCouponData 
     } = req.body;
+
+    userId = userId || (req.user?._id ? req.user._id.toString() : req.user?.id);
 
     console.log(req.body);
 

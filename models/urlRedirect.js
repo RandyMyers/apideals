@@ -82,6 +82,12 @@ UrlRedirectSchema.pre('save', function(next) {
   // This allows us to match both /path and /path/ formats
   if (this.oldPath) {
     let normalized = this.oldPath.toLowerCase().trim();
+    
+    // Validate that we have a non-empty path
+    if (!normalized || normalized === '') {
+      return next(new Error('oldPath cannot be empty'));
+    }
+    
     // Remove multiple leading slashes, keep single leading slash
     normalized = normalized.replace(/^\/+/, '/');
     // Ensure it starts with /
@@ -91,15 +97,31 @@ UrlRedirectSchema.pre('save', function(next) {
     // Store without trailing slash for consistency (we'll match both in queries)
     // But preserve it if it's part of the original path structure (like /feed/)
     this.oldPath = normalized.replace(/\/+$/, '');
+    
+    // Final check: after normalization, path should not be empty or just '/'
+    if (this.oldPath === '' || this.oldPath === '/') {
+      return next(new Error('oldPath must be a valid path (not empty or root)'));
+    }
   }
   next();
 });
 
 // Method to increment hit count
-UrlRedirectSchema.methods.recordHit = function() {
-  this.hitCount += 1;
-  this.lastHitAt = new Date();
-  return this.save();
+UrlRedirectSchema.methods.recordHit = async function() {
+  // Use updateOne to bypass full document validation
+  // This prevents validation errors on potentially malformed documents
+  try {
+    await UrlRedirect.updateOne(
+      { _id: this._id },
+      { 
+        $inc: { hitCount: 1 },
+        $set: { lastHitAt: new Date() }
+      }
+    );
+  } catch (error) {
+    console.error('Error recording redirect hit:', error);
+    // Don't throw - failing to record a hit shouldn't break the redirect
+  }
 };
 
 const UrlRedirect = mongoose.model('UrlRedirect', UrlRedirectSchema);

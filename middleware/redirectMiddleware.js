@@ -74,10 +74,18 @@ const redirectMiddleware = async (req, res, next) => {
     });
     
     if (redirect) {
-      // Record the hit
-      await redirect.recordHit();
+      // Validate redirect has required fields (defensive programming)
+      if (!redirect.newPath || !redirect.redirectType) {
+        console.warn(`[Redirect] Invalid redirect found (missing newPath or redirectType): ${redirect._id}`);
+        return next();
+      }
       
-      // Perform redirect
+      // Record the hit (async, don't await to avoid blocking the redirect)
+      redirect.recordHit().catch(err => {
+        console.error('[Redirect] Error recording hit:', err.message);
+      });
+      
+      // Perform redirect immediately
       return res.redirect(redirect.redirectType, redirect.newPath);
     }
     

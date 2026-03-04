@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const couponController = require('../controllers/couponController'); // Adjust the path as per your project structure
+const couponController = require('../controllers/couponController');
+const authOrApiKeyOptionalMiddleware = require('../middleware/authOrApiKeyOptionalMiddleware');
 
-// Route to create a new coupon
-router.post('/create', couponController.createCoupon);
+// Route to create a new coupon (userId from body, or from API key/JWT when provided)
+router.post('/create', authOrApiKeyOptionalMiddleware, couponController.createCoupon);
 
 // Route to get all coupons (public - only active, non-expired)
 router.get('/all', couponController.getAllCoupons);

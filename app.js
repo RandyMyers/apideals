@@ -76,6 +76,7 @@ const paymentGatewayRoutes = require('./routes/paymentGatewayRoutes');  // Payme
 const analyticsRoutes = require('./routes/analyticsRoutes');  // Analytics Routes
 const shareRoutes = require('./routes/shareRoutes');  // Share Routes
 const couponUsageRoutes = require('./routes/couponUsageRoutes');  // Coupon Usage Routes
+const apiKeyRoutes = require('./routes/apiKeyRoutes');  // API Keys for external apps
 
 dotenv.config();
 
@@ -247,6 +248,7 @@ app.use('/api/v1/notifications', require('./routes/notificationRoutes')); // Not
 app.use('/api/v1/notification-templates', require('./routes/notificationTemplateRoutes')); // Notification Template Management (admin only)
 app.use('/api/v1/share', shareRoutes); // Share routes
 app.use('/api/v1/coupon-usage', couponUsageRoutes); // Coupon Usage routes
+app.use('/api/v1/api-keys', apiKeyRoutes); // API Keys (admin only - create/list/revoke)
 app.use('/api/v1', require('./routes/urlRedirectRoutes')); // URL Redirect routes (admin endpoints)
 
 // URL Redirect Middleware - Check for redirects before serving React app

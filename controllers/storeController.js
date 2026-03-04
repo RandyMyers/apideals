@@ -11,9 +11,9 @@ const notificationService = require('../services/notificationService');
 // Create a new store
 exports.createStore = async (req, res) => {
     try {
-        const {
+        let {
             name,
-            userId, // User creating the store
+            userId, // User creating the store (or from req.user when using API key)
             description,
             affiliateId,
             subscription, // Subscription ID (for regular users)
@@ -26,6 +26,8 @@ exports.createStore = async (req, res) => {
             isWorldwide: isWorldwideRaw,
             storeIndicators: storeIndicatorsRaw,
         } = req.body;
+
+        userId = userId || req.user?.id || req.user?._id?.toString();
 
         console.log(req.body);
 

@@ -30,14 +30,17 @@ exports.createDeal = async (req, res) => {
       delete dealData.category;
     }
 
-    // Fallback userId from auth middleware if available
-    if (!userId && req.user) {
-      userId = req.user._id ? req.user._id.toString() : req.user.id;
-    }
+    // Fallback from API key when using API key auth
+    userId = userId || (req.user?._id ? req.user._id.toString() : req.user?.id);
+    storeId = storeId || req.apiKeyStoreId;
+    categoryId = categoryId || req.apiKeyCategoryId;
 
     // Ensure required fields are provided
     if (!userId || !storeId || !categoryId) {
-      return res.status(400).json({ message: 'UserId, StoreId, and Category are required.' });
+      const hint = req.authType === 'api_key' && (!storeId || !categoryId)
+        ? ' This API key has no store/category linked. Update the key in Admin -> API Keys.'
+        : '';
+      return res.status(400).json({ message: 'UserId, StoreId, and Category are required.' + hint });
     }
 
     // Validate dealType and discount fields

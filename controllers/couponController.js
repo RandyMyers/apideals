@@ -24,12 +24,21 @@ exports.createCoupon = async (req, res) => {
     } = req.body;
 
     userId = userId || (req.user?._id ? req.user._id.toString() : req.user?.id);
+    storeId = storeId || req.apiKeyStoreId;
+    categoryId = categoryId || req.apiKeyCategoryId;
 
     console.log(req.body);
 
     // Ensure required fields are provided
     if (!userId || !storeId || !categoryId) {
-      return res.status(400).json({ message: 'UserId, StoreId, and Category are required.' });
+      const hint = !req.user
+        ? ' Include X-API-Key header. When using API key, storeId and categoryId come from the key (select them when creating the key).'
+        : (!storeId || !categoryId) && req.authType === 'api_key'
+          ? ' This API key has no store/category linked. Update the key in Admin -> API Keys to link a store and category.'
+          : '';
+      return res.status(400).json({
+        message: 'UserId, StoreId, and CategoryId are required.' + hint,
+      });
     }
 
     // Fetch the user details

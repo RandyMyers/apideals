@@ -16,9 +16,13 @@ const authOrApiKeyOptionalMiddleware = async (req, res, next) => {
   const tryApiKey = async (rawKey) => {
     if (!isApiKeyFormat(rawKey)) return null;
     const keyDoc = await ApiKey.findByRawKey(rawKey);
-    if (keyDoc) {
+    if (keyDoc && keyDoc.userId) {
       ApiKey.findByIdAndUpdate(keyDoc._id, { lastUsedAt: new Date() }).catch(() => {});
-      return keyDoc.userId;
+      return {
+        user: keyDoc.userId,
+        storeId: keyDoc.storeId?._id || keyDoc.storeId,
+        categoryId: keyDoc.categoryId?._id || keyDoc.categoryId,
+      };
     }
     return null;
   };
@@ -28,14 +32,21 @@ const authOrApiKeyOptionalMiddleware = async (req, res, next) => {
     return next();
   }
 
+  const setApiKeyAuth = (result) => {
+    const user = result.user;
+    req.user = user;
+    req.user.id = (user._id && user._id.toString) ? user._id.toString() : String(user._id || user.id);
+    req.authType = 'api_key';
+    req.apiKeyStoreId = result.storeId ? (result.storeId.toString ? result.storeId.toString() : result.storeId) : null;
+    req.apiKeyCategoryId = result.categoryId ? (result.categoryId.toString ? result.categoryId.toString() : result.categoryId) : null;
+  };
+
   // X-API-Key header
   if (apiKeyHeader) {
     try {
-      const user = await tryApiKey(apiKeyHeader);
-      if (user) {
-        req.user = user;
-        req.user.id = user._id.toString();
-        req.authType = 'api_key';
+      const result = await tryApiKey(apiKeyHeader);
+      if (result) {
+        setApiKeyAuth(result);
         return next();
       }
       return res.status(401).json({ message: 'Invalid or expired API key.' });
@@ -48,11 +59,9 @@ const authOrApiKeyOptionalMiddleware = async (req, res, next) => {
   // Bearer - API key or JWT
   if (isApiKeyFormat(bearerValue)) {
     try {
-      const user = await tryApiKey(bearerValue);
-      if (user) {
-        req.user = user;
-        req.user.id = user._id.toString();
-        req.authType = 'api_key';
+      const result = await tryApiKey(bearerValue);
+      if (result) {
+        setApiKeyAuth(result);
         return next();
       }
       return res.status(401).json({ message: 'Invalid or expired API key.' });

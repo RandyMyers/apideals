@@ -9,6 +9,7 @@ const allowedTypes = ['superAdmin', 'couponManager'];
 
 router.post('/', authMiddleware, adminMiddleware(allowedTypes), apiKeyController.createApiKey);
 router.get('/', authMiddleware, adminMiddleware(allowedTypes), apiKeyController.listApiKeys);
+router.patch('/:id', authMiddleware, adminMiddleware(allowedTypes), apiKeyController.updateApiKey);
 router.delete('/:id', authMiddleware, adminMiddleware(allowedTypes), apiKeyController.revokeApiKey);
 
 module.exports = router;

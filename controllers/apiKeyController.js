@@ -6,7 +6,7 @@ const ApiKey = require('../models/apiKey');
  */
 exports.createApiKey = async (req, res) => {
   try {
-    const { name, expiresAt } = req.body;
+    const { name, expiresAt, storeId, categoryId } = req.body;
     const userId = req.user?._id || req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated.' });
@@ -14,6 +14,10 @@ exports.createApiKey = async (req, res) => {
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ message: 'Name is required.' });
+    }
+
+    if (!storeId || !categoryId) {
+      return res.status(400).json({ message: 'Store and Category are required. Select the store and category this key will use for coupons/deals.' });
     }
 
     const prefix = process.env.NODE_ENV === 'production' ? 'dc_live_' : 'dc_test_';
@@ -25,6 +29,8 @@ exports.createApiKey = async (req, res) => {
       keyPrefix: prefix,
       userId,
       name: name.trim(),
+      storeId,
+      categoryId,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     });
 
@@ -36,6 +42,8 @@ exports.createApiKey = async (req, res) => {
         id: apiKey._id,
         name: apiKey.name,
         keyPrefix: apiKey.keyPrefix,
+        storeId: apiKey.storeId,
+        categoryId: apiKey.categoryId,
         createdAt: apiKey.createdAt,
       },
       key: rawKey, // Shown only once
@@ -62,6 +70,8 @@ exports.listApiKeys = async (req, res) => {
 
     const keys = await ApiKey.find({ userId })
       .select('-keyHash')
+      .populate('storeId', 'name url')
+      .populate('categoryId', 'name')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -69,6 +79,31 @@ exports.listApiKeys = async (req, res) => {
   } catch (error) {
     console.error('[apiKeyController] list error:', error);
     return res.status(500).json({ message: 'Failed to list API keys.', error: error.message });
+  }
+};
+
+/**
+ * Update API key store/category (admin only)
+ */
+exports.updateApiKey = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { storeId, categoryId } = req.body;
+    const userId = req.user._id;
+
+    const apiKey = await ApiKey.findOne({ _id: id, userId });
+    if (!apiKey) {
+      return res.status(404).json({ message: 'API key not found.' });
+    }
+
+    if (storeId) apiKey.storeId = storeId;
+    if (categoryId) apiKey.categoryId = categoryId;
+    await apiKey.save();
+
+    return res.status(200).json({ message: 'API key updated.', apiKey });
+  } catch (error) {
+    console.error('[apiKeyController] update error:', error);
+    return res.status(500).json({ message: 'Failed to update API key.', error: error.message });
   }
 };
 

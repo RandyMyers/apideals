@@ -32,6 +32,20 @@ const ApiKeySchema = new Schema({
     trim: true,
   },
 
+  // Store linked to this key (coupons/deals use this when not in body)
+  storeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Store',
+    required: false,
+  },
+
+  // Category linked to this key (coupons/deals use this when not in body)
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    required: false,
+  },
+
   // Optional expiry (null = never expires)
   expiresAt: {
     type: Date,
@@ -79,6 +93,8 @@ ApiKeySchema.statics.findByRawKey = async function (rawKey) {
     isActive: true,
   })
     .populate('userId')
+    .populate('storeId', 'name url')
+    .populate('categoryId', 'name')
     .lean();
 
   if (!keyDoc) return null;

@@ -20,12 +20,20 @@ exports.createCoupon = async (req, res) => {
       subscriptionId, 
       imageUrl, 
       productId, 
+      productUrl,
       ...otherCouponData 
     } = req.body;
 
     userId = userId || (req.user?._id ? req.user._id.toString() : req.user?.id);
     storeId = storeId || req.apiKeyStoreId;
     categoryId = categoryId || req.apiKeyCategoryId;
+
+    // Normalize productUrl: empty/placeholder ("...", "N/A") causes duplicate key errors when many coupons share them
+    const isEmptyProductUrl = (v) => !v || (typeof v === 'string' && (v === '' || v === '...' || v === 'N/A' || v.trim() === ''));
+    const code = otherCouponData.code;
+    const effectiveProductUrl = (productUrl && !isEmptyProductUrl(productUrl))
+      ? String(productUrl).trim()
+      : (code ? `__all_products__${code}` : undefined); // unique per code for site-wide coupons
 
     console.log(req.body);
 
@@ -141,12 +149,9 @@ exports.createCoupon = async (req, res) => {
         highlights: highlightsRaw,
         tags: tagsRaw,
         seoKeywords: seoKeywordsRaw,
+        productUrl: _pu,
         ...couponData 
       } = otherCouponData;
-
-      // Avoid duplicate key: don't set productUrl/wooProductId to empty string (sparse indexes)
-      if (couponData.productUrl === '' || couponData.productUrl === null) delete couponData.productUrl;
-      if (couponData.wooProductId === '' || couponData.wooProductId === null) delete couponData.wooProductId;
       
       // Default isPublished based on user type - admins can publish immediately
       const defaultIsPublished = (userType === 'superAdmin' || userType === 'couponManager') 
@@ -160,6 +165,7 @@ exports.createCoupon = async (req, res) => {
         subscriptionId, 
         imageUrl, 
         productId,
+        productUrl: effectiveProductUrl,
         imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
         highlights: highlights.length > 0 ? highlights : undefined,
         tags: tags.length > 0 ? tags : undefined,
@@ -170,23 +176,22 @@ exports.createCoupon = async (req, res) => {
         ...couponData 
       };
 
+      // When using API key: upsert by (code, storeId, productUrl) - update existing instead of duplicate error
       let newCoupon;
-      let wasUpdated = false;
-      // API key: upsert by code+storeId (store-wide only) so re-adding updates instead of duplicate error
-      if (req.authType === 'api_key' && couponPayload.code && !couponPayload.productUrl && !couponPayload.wooProductId) {
+      if (req.authType === 'api_key' && code) {
+        const placeholderProductUrls = ['', '...', 'N/A'];
+        const productUrlQuery = effectiveProductUrl
+          ? { $or: [{ productUrl: effectiveProductUrl }, { productUrl: { $in: placeholderProductUrls } }] }
+          : { $or: [{ productUrl: { $in: placeholderProductUrls } }, { productUrl: { $exists: false } }, { productUrl: null }] };
         const existing = await Coupon.findOne({
-          code: couponPayload.code,
+          code,
           storeId,
-          $and: [
-            { $or: [{ productUrl: { $exists: false } }, { productUrl: null }, { productUrl: '' }] },
-            { $or: [{ wooProductId: { $exists: false } }, { wooProductId: null }] }
-          ]
+          ...productUrlQuery,
         });
         if (existing) {
           Object.assign(existing, couponPayload);
           await existing.save();
           newCoupon = existing;
-          wasUpdated = true;
         } else {
           newCoupon = new Coupon(couponPayload);
           await newCoupon.save();
@@ -223,10 +228,7 @@ exports.createCoupon = async (req, res) => {
       // Don't fail creation if notification fails
     }
 
-    return res.status(wasUpdated ? 200 : 201).json({
-      message: wasUpdated ? 'Coupon updated successfully' : 'Coupon created successfully',
-      coupon: newCoupon,
-    });
+    return res.status(201).json({ message: 'Coupon created successfully', coupon: newCoupon });
     }
 
     // Validate subscription for regular users
@@ -253,12 +255,9 @@ exports.createCoupon = async (req, res) => {
       highlights: highlightsRaw,
       tags: tagsRaw,
       seoKeywords: seoKeywordsRaw,
+      productUrl: _pu2,
       ...couponData 
     } = otherCouponData;
-
-    // Avoid duplicate key: don't set productUrl/wooProductId to empty string (sparse indexes)
-    if (couponData.productUrl === '' || couponData.productUrl === null) delete couponData.productUrl;
-    if (couponData.wooProductId === '' || couponData.wooProductId === null) delete couponData.wooProductId;
     
     // Default isPublished - regular users default to false
     const defaultIsPublished = couponData.isPublished !== undefined ? couponData.isPublished : false;
@@ -270,6 +269,7 @@ exports.createCoupon = async (req, res) => {
       subscriptionId, 
       imageUrl, 
       productId,
+      productUrl: effectiveProductUrl,
       imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
       highlights: highlights.length > 0 ? highlights : undefined,
       tags: tags.length > 0 ? tags : undefined,

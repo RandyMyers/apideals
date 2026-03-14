@@ -150,6 +150,7 @@ exports.createCoupon = async (req, res) => {
         : false;
       
       const newCoupon = new Coupon({ 
+        userId,
         storeId, 
         categoryId, 
         subscriptionId, 
@@ -227,6 +228,7 @@ exports.createCoupon = async (req, res) => {
     const defaultIsPublished = couponData.isPublished !== undefined ? couponData.isPublished : false;
     
     const newCoupon = new Coupon({ 
+      userId,
       storeId, 
       categoryId, 
       subscriptionId, 

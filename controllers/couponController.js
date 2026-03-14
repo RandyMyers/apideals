@@ -143,13 +143,17 @@ exports.createCoupon = async (req, res) => {
         seoKeywords: seoKeywordsRaw,
         ...couponData 
       } = otherCouponData;
+
+      // Avoid duplicate key: don't set productUrl/wooProductId to empty string (sparse indexes)
+      if (couponData.productUrl === '' || couponData.productUrl === null) delete couponData.productUrl;
+      if (couponData.wooProductId === '' || couponData.wooProductId === null) delete couponData.wooProductId;
       
       // Default isPublished based on user type - admins can publish immediately
       const defaultIsPublished = (userType === 'superAdmin' || userType === 'couponManager') 
         ? (couponData.isPublished !== undefined ? couponData.isPublished : true)
         : false;
       
-      const newCoupon = new Coupon({ 
+      const couponPayload = { 
         userId,
         storeId, 
         categoryId, 
@@ -164,8 +168,33 @@ exports.createCoupon = async (req, res) => {
         isWorldwide: isWorldwide !== undefined ? isWorldwide : (availableCountries ? false : true),
         isPublished: defaultIsPublished,
         ...couponData 
-      });
-    await newCoupon.save();
+      };
+
+      let newCoupon;
+      let wasUpdated = false;
+      // API key: upsert by code+storeId (store-wide only) so re-adding updates instead of duplicate error
+      if (req.authType === 'api_key' && couponPayload.code && !couponPayload.productUrl && !couponPayload.wooProductId) {
+        const existing = await Coupon.findOne({
+          code: couponPayload.code,
+          storeId,
+          $and: [
+            { $or: [{ productUrl: { $exists: false } }, { productUrl: null }, { productUrl: '' }] },
+            { $or: [{ wooProductId: { $exists: false } }, { wooProductId: null }] }
+          ]
+        });
+        if (existing) {
+          Object.assign(existing, couponPayload);
+          await existing.save();
+          newCoupon = existing;
+          wasUpdated = true;
+        } else {
+          newCoupon = new Coupon(couponPayload);
+          await newCoupon.save();
+        }
+      } else {
+        newCoupon = new Coupon(couponPayload);
+        await newCoupon.save();
+      }
 
     console.log(newCoupon);
 
@@ -194,7 +223,10 @@ exports.createCoupon = async (req, res) => {
       // Don't fail creation if notification fails
     }
 
-    return res.status(201).json({ message: 'Coupon created successfully', coupon: newCoupon });
+    return res.status(wasUpdated ? 200 : 201).json({
+      message: wasUpdated ? 'Coupon updated successfully' : 'Coupon created successfully',
+      coupon: newCoupon,
+    });
     }
 
     // Validate subscription for regular users
@@ -223,6 +255,10 @@ exports.createCoupon = async (req, res) => {
       seoKeywords: seoKeywordsRaw,
       ...couponData 
     } = otherCouponData;
+
+    // Avoid duplicate key: don't set productUrl/wooProductId to empty string (sparse indexes)
+    if (couponData.productUrl === '' || couponData.productUrl === null) delete couponData.productUrl;
+    if (couponData.wooProductId === '' || couponData.wooProductId === null) delete couponData.wooProductId;
     
     // Default isPublished - regular users default to false
     const defaultIsPublished = couponData.isPublished !== undefined ? couponData.isPublished : false;

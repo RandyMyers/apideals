@@ -124,7 +124,8 @@ const corsOptions = {
       'http://localhost:3002',
       'https://dealcouponz.com',
       'https://www.dealcouponz.com',
-      'https://admin.dealcouponz.com'
+      'https://admin.dealcouponz.com',
+      'https://joyful-kitsune-4ff266.netlify.app'
     ];
     
     if (allowedOrigins.includes(origin)) {

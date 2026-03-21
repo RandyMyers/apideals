@@ -7,8 +7,18 @@ const CategorySchema = new Schema({
   name: {
     type: String,
     required: true,
-    unique: true, // Ensure category names are unique
+    unique: true,
     trim: true,
+  },
+
+  // SEO-friendly slug derived from name
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    index: true,
   },
 
   // Optional description of the category

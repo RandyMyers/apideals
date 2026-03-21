@@ -23,4 +23,7 @@ router.get('/parent/:parentId', categoryController.getCategoriesByParent);
 // Route to get popular categories (for footer, max 6)
 router.get('/popular', categoryController.getPopularCategories);
 
+// Route to get category detail (category + stores + coupons + deals) by slug or ID
+router.get('/detail/:slug', categoryController.getCategoryDetail);
+
 module.exports = router;

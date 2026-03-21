@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const {syncProducts} = require('./productController');
 const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
+const { generateSlug } = require('../utils/seoUtils');
 
 // Create a new store
 exports.createStore = async (req, res) => {
@@ -88,6 +89,7 @@ exports.createStore = async (req, res) => {
             // Create store without subscription limit enforcement
             const adminStore = new Store({
                 name,
+                slug: generateSlug(name),
                 userId,
                 affiliate: affiliateId,
                 description,
@@ -152,6 +154,7 @@ exports.createStore = async (req, res) => {
         // Create the store
         const store = new Store({
             name,
+            slug: generateSlug(name),
             userId,
             description,
             logo: logoUrl,
@@ -516,13 +519,17 @@ exports.updateSponsoredStatus = async (req, res) => {
     }
 };
 
-// Get a single store by ID
+// Get a single store by ID or slug
+// Accepts both MongoDB ObjectId (24-char hex) and URL-friendly slug
 exports.getStoreById = async (req, res) => {
     try {
         const { id } = req.params;
-        const { country } = req.query; // Visitor country for location filtering
+        const { country } = req.query;
 
-        const store = await Store.findById(id)
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+        const query = isObjectId ? Store.findById(id) : Store.findOne({ slug: id });
+
+        const store = await query
             .populate('userId', 'name email')
             .populate('coupons')
             .populate('deals')
@@ -844,6 +851,12 @@ exports.updateStore = async (req, res) => {
                 console.log(`[storeController] ${field}:`, updates[field]);
             }
         });
+
+        // Regenerate slug whenever the store name changes
+        if (updates.name) {
+            updates.slug = generateSlug(updates.name);
+            console.log('[storeController] Generated slug:', updates.slug);
+        }
 
         // Handle ObjectId fields
         if (req.body.categoryId && req.body.categoryId !== '') {

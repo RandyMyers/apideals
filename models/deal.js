@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const { generateSlug } = require('../utils/seoUtils');
 
 const DealSchema = new Schema({
   title: {
@@ -9,6 +10,14 @@ const DealSchema = new Schema({
   name: {
     type: String,
     required: true, // Name of the deal (e.g., "Black Friday Sale")
+  },
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    index: true,
   },
   description: {
     type: String,
@@ -372,6 +381,15 @@ DealSchema.methods.isValid = function () {
     this.usedCount < this.maxUsage
   );
 };
+
+// Auto-generate slug before save if not already set
+DealSchema.pre('save', function (next) {
+  if (!this.slug) {
+    const base = generateSlug(this.title || this.name || 'deal');
+    this.slug = `${base}-${this._id.toString().slice(-6)}`;
+  }
+  next();
+});
 
 // Method to increment the usage count when a deal is used
 DealSchema.methods.incrementUsage = function () {

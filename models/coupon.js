@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const { generateSlug } = require('../utils/seoUtils');
 
 const CouponSchema = new Schema({
   userId: {
@@ -10,6 +11,14 @@ const CouponSchema = new Schema({
   title: {
     type: String,
     required: false, // Coupon title/name for display
+  },
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    index: true,
   },
   imageUrl: {
     type: String,
@@ -385,6 +394,15 @@ CouponSchema.pre('save', function (next) {
     this.savingsPercentage = parseFloat(((this.savingsAmount / this.originalPrice) * 100).toFixed(2));
   }
   
+  next();
+});
+
+// Auto-generate slug before save if not already set
+CouponSchema.pre('save', function (next) {
+  if (!this.slug) {
+    const base = generateSlug(this.title || this.code || 'coupon');
+    this.slug = `${base}-${this._id.toString().slice(-6)}`;
+  }
   next();
 });
 

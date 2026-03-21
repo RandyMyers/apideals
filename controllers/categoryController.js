@@ -1,5 +1,7 @@
-const Category = require('../models/category'); // Import the Category model
-const Store = require('../models/store');
+const Category = require('../models/category');
+const Store    = require('../models/store');
+const Coupon   = require('../models/coupon');
+const Deal     = require('../models/deal');
 const mongoose = require('mongoose');
 const cloudinary = require('cloudinary').v2;
 
@@ -217,6 +219,73 @@ exports.getPopularCategories = async (req, res) => {
     return res.status(200).json({
       success: true,
       categories: categoriesWithCounts.slice(0, limitNum)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * GET /category/detail/:slug
+ * Returns the category, its stores, and those stores' active coupons & deals.
+ * Accepts either a slug or a MongoDB ObjectId.
+ */
+exports.getCategoryDetail = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { type = 'all' } = req.query;
+
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(slug);
+    const category = isObjectId
+      ? await Category.findById(slug).lean()
+      : await Category.findOne({ slug }).lean();
+
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    const stores = await Store.find({ categoryId: category._id, isActive: true })
+      .select('_id name logo slug website')
+      .lean();
+
+    const storeIds = stores.map(s => s._id);
+    const storeMap = {};
+    for (const s of stores) {
+      storeMap[s._id.toString()] = s;
+    }
+
+    let coupons = [];
+    let deals   = [];
+
+    if (type === 'all' || type === 'coupons') {
+      coupons = await Coupon.find({ store: { $in: storeIds }, isActive: true })
+        .select('_id title code slug discountValue discountType expirationDate store successRate verifiedAt imageUrl')
+        .sort({ createdAt: -1 })
+        .limit(60)
+        .lean();
+    }
+
+    if (type === 'all' || type === 'deals') {
+      deals = await Deal.find({ store: { $in: storeIds }, isActive: true })
+        .select('_id title name slug discountValue discountType originalPrice discountedPrice endDate store imageUrl')
+        .sort({ createdAt: -1 })
+        .limit(60)
+        .lean();
+    }
+
+    const attachStore = (items) =>
+      items.map(item => ({
+        ...item,
+        storeInfo: storeMap[item.store?.toString()] || null,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      category,
+      stores,
+      coupons: attachStore(coupons),
+      deals:   attachStore(deals),
     });
   } catch (error) {
     console.error(error);

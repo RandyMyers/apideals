@@ -11,6 +11,16 @@ const StoreSchema = new Schema({
     trim: true,
   },
 
+  // URL-friendly slug derived from the store name (e.g. "Nike" → "nike", "Best Buy" → "best-buy")
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true, // allows null during migration — becomes required after all stores are populated
+    lowercase: true,
+    trim: true,
+    index: true,
+  },
+
   // Store owner (reference to the User model)
   userId: {
     type: mongoose.Schema.Types.ObjectId,

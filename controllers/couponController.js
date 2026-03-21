@@ -490,15 +490,14 @@ exports.getAllCoupons = async (req, res) => {
 // Get a single coupon by ID
 exports.getCouponById = async (req, res) => {
   const { id } = req.params;
-  const { country } = req.query; // Visitor country for location filtering
-  
-  // Validate MongoDB ObjectId format
-  if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
-    return res.status(400).json({ message: 'Invalid coupon ID format' });
-  }
+  const { country } = req.query;
+
+  if (!id) return res.status(400).json({ message: 'Coupon ID or slug is required' });
 
   try {
-    const coupon = await Coupon.findById(id)
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    const query = isObjectId ? Coupon.findById(id) : Coupon.findOne({ slug: id });
+    const coupon = await query
       .populate({
         path: 'affiliateId',
         select: 'name',

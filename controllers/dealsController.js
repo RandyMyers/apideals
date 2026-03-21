@@ -442,9 +442,11 @@ exports.getAllDeals = async (req, res) => {
 // Get a single deal by ID
 exports.getDealById = async (req, res) => {
   const { id } = req.params;
-  const { country } = req.query; // Visitor country for location filtering
+  const { country } = req.query;
   try {
-    const deal = await Deal.findById(id)
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    const query = isObjectId ? Deal.findById(id) : Deal.findOne({ slug: id });
+    const deal = await query
       .populate('store', 'name website logo rating followers')
       .populate('categoryId', 'name slug')
       .populate('affiliate', 'name')

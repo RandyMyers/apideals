@@ -6,6 +6,9 @@ const adminMiddleware = require('../middleware/adminMiddleware');
 const { validate } = require('../utils/validation');
 const { couponValidation } = require('../utils/validation');
 
+// Public route — approved community coupons for a store (no auth needed)
+router.get('/public', couponSubmissionController.getPublicSubmissions);
+
 // User routes (require authentication)
 router.post('/submit',
   authMiddleware,

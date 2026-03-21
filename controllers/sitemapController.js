@@ -17,6 +17,8 @@ const Category = require('../models/category');
 const Blog = require('../models/blog');
 const HelpArticle = require('../models/helpArticle');
 
+const CouponSubmission = require('../models/couponSubmission');
+
 const models = {
   Coupon,
   Deal,
@@ -24,6 +26,7 @@ const models = {
   Category,
   Blog,
   HelpArticle,
+  CouponSubmission,
 };
 
 /**

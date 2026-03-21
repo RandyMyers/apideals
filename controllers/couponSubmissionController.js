@@ -378,15 +378,52 @@ exports.getUserSubmissionStats = async (req, res) => {
   }
 };
 
-// Admin: Get pending submissions
+// Public: Get approved submissions for a store (shown in community coupons section)
+exports.getPublicSubmissions = async (req, res) => {
+  try {
+    const { storeId, page = 1, limit = 10 } = req.query;
+    if (!storeId) {
+      return res.status(400).json({ error: 'storeId is required' });
+    }
+
+    const skip = (page - 1) * limit;
+    const submissions = await CouponSubmission.find({ storeId, status: 'approved' })
+      .select('title code discountType discountValue endDate submittedAt')
+      .sort({ reviewedAt: -1 })
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
+
+    const total = await CouponSubmission.countDocuments({ storeId, status: 'approved' });
+
+    res.json({
+      submissions,
+      pagination: { current: parseInt(page), pages: Math.ceil(total / limit), total }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch community coupons' });
+  }
+};
+
+// Admin: Get submissions with optional filters
 exports.getPendingSubmissions = async (req, res) => {
   try {
-    const { page = 1, limit = 20, sortBy = 'submittedAt', sortOrder = 'asc' } = req.query;
+    const { page = 1, limit = 20, sortBy = 'submittedAt', sortOrder = 'asc', status, storeId, search } = req.query;
 
     const skip = (page - 1) * limit;
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-    const submissions = await CouponSubmission.find({ status: 'pending' })
+    const query = {};
+    query.status = status || 'pending';
+    if (storeId) query.storeId = storeId;
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { code: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const submissions = await CouponSubmission.find(query)
       .populate('userId', 'username email')
       .populate('storeId', 'name logo')
       .populate('categoryId', 'name')
@@ -394,7 +431,7 @@ exports.getPendingSubmissions = async (req, res) => {
       .limit(parseInt(limit))
       .skip(skip);
 
-    const total = await CouponSubmission.countDocuments({ status: 'pending' });
+    const total = await CouponSubmission.countDocuments(query);
 
     res.json({
       submissions,

@@ -186,6 +186,28 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
       });
     }
 
+    // Dynamic pages - Approved community coupon submissions
+    if (models.CouponSubmission) {
+      const approvedSubmissions = await models.CouponSubmission.find({ status: 'approved' })
+        .select('_id storeId reviewedAt updatedAt')
+        .limit(10000)
+        .lean();
+
+      approvedSubmissions.forEach((sub) => {
+        // Point to the store page (anchor to community section) rather than a standalone URL
+        const storeId = sub.storeId?._id || sub.storeId;
+        if (!storeId) return;
+        const path = `/stores/${storeId}#community-coupons`;
+        const url = root.ele('url');
+        url.ele('loc', `${baseUrl}${path}`);
+        url.ele('lastmod', sub.reviewedAt
+          ? new Date(sub.reviewedAt).toISOString()
+          : (sub.updatedAt ? new Date(sub.updatedAt).toISOString() : new Date().toISOString()));
+        url.ele('changefreq', 'weekly');
+        url.ele('priority', '0.6');
+      });
+    }
+
     // Dynamic pages - Blog posts
     if (models.Blog) {
       const blogs = await models.Blog.find({ isPublished: true })

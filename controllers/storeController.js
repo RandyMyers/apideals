@@ -228,11 +228,11 @@ exports.getAllStores = async (req, res) => {
     try {
         const { 
             page = 1, 
-            limit = 20, 
+            limit = 100, 
             sort = 'newest', // newest, views, rating, name
             category, 
             search,
-            isActive = true,
+            isActive,        // undefined by default → no filter applied (show all stores)
             country, // Visitor country for location filtering
             exclude // Comma-separated store IDs to exclude
         } = req.query;

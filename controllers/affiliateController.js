@@ -3,15 +3,23 @@ const Affiliate = require('../models/affiliate');
 // Create a new affiliate
 exports.createAffiliate = async (req, res) => {
     try {
-        const { name, website, description, affiliateId } = req.body;
+        const { name, website, description, affiliateId, authMethod, username, password, notes } = req.body;
 
-        // Check if the affiliate name already exists
         const existingAffiliate = await Affiliate.findOne({ name });
         if (existingAffiliate) {
             return res.status(400).json({ message: 'Affiliate with this name already exists' });
         }
 
-        const affiliate = new Affiliate({ name, website, description, affiliateId });
+        const affiliate = new Affiliate({
+            name,
+            website,
+            description,
+            affiliateId,
+            authMethod: authMethod || 'password',
+            username:   username  || '',
+            password:   password  || '',
+            notes:      notes     || '',
+        });
         await affiliate.save();
 
         res.status(201).json({
@@ -22,7 +30,7 @@ exports.createAffiliate = async (req, res) => {
         console.error('Error creating affiliate:', error);
         res.status(500).json({
             message: 'Error creating affiliate',
-            error,
+            error: error.message,
         });
     }
 };
@@ -30,14 +38,11 @@ exports.createAffiliate = async (req, res) => {
 // Get all affiliates
 exports.getAllAffiliates = async (req, res) => {
     try {
-        const affiliates = await Affiliate.find().sort({ createdAt: -1 }); // Sort by most recently created
+        const affiliates = await Affiliate.find().sort({ createdAt: -1 });
         res.status(200).json(affiliates);
     } catch (error) {
         console.error('Error fetching affiliates:', error);
-        res.status(500).json({
-            message: 'Error fetching affiliates',
-            error,
-        });
+        res.status(500).json({ message: 'Error fetching affiliates', error: error.message });
     }
 };
 
@@ -46,18 +51,13 @@ exports.getAffiliateById = async (req, res) => {
     try {
         const { id } = req.params;
         const affiliate = await Affiliate.findById(id);
-
         if (!affiliate) {
             return res.status(404).json({ message: 'Affiliate not found' });
         }
-
         res.status(200).json(affiliate);
     } catch (error) {
         console.error('Error fetching affiliate by ID:', error);
-        res.status(500).json({
-            message: 'Error fetching affiliate by ID',
-            error,
-        });
+        res.status(500).json({ message: 'Error fetching affiliate by ID', error: error.message });
     }
 };
 
@@ -65,12 +65,28 @@ exports.getAffiliateById = async (req, res) => {
 exports.updateAffiliate = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, website, description, affiliateId } = req.body;
+        const { name, website, description, affiliateId, authMethod, username, password, notes } = req.body;
+
+        const updateData = {
+            name,
+            website,
+            description,
+            affiliateId,
+            authMethod,
+            username,
+            notes,
+            updatedAt: Date.now(),
+        };
+
+        // Only update password if a new one was actually provided
+        if (password && password.trim() !== '') {
+            updateData.password = password;
+        }
 
         const affiliate = await Affiliate.findByIdAndUpdate(
             id,
-            { name, website, description, affiliateId },
-            { new: true, runValidators: true } // Return the updated document and validate input
+            updateData,
+            { new: true, runValidators: true }
         );
 
         if (!affiliate) {
@@ -83,10 +99,7 @@ exports.updateAffiliate = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating affiliate:', error);
-        res.status(500).json({
-            message: 'Error updating affiliate',
-            error,
-        });
+        res.status(500).json({ message: 'Error updating affiliate', error: error.message });
     }
 };
 
@@ -94,19 +107,13 @@ exports.updateAffiliate = async (req, res) => {
 exports.deleteAffiliate = async (req, res) => {
     try {
         const { id } = req.params;
-
         const affiliate = await Affiliate.findByIdAndDelete(id);
-
         if (!affiliate) {
             return res.status(404).json({ message: 'Affiliate not found' });
         }
-
         res.status(200).json({ message: 'Affiliate deleted successfully' });
     } catch (error) {
         console.error('Error deleting affiliate:', error);
-        res.status(500).json({
-            message: 'Error deleting affiliate',
-            error,
-        });
+        res.status(500).json({ message: 'Error deleting affiliate', error: error.message });
     }
 };

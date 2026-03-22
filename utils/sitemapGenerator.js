@@ -101,12 +101,12 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     // Dynamic pages - Coupons
     if (models.Coupon) {
       const coupons = await models.Coupon.find({ isActive: true })
-        .select('_id updatedAt')
+        .select('_id slug updatedAt')
         .limit(10000)
         .lean();
 
       coupons.forEach((coupon) => {
-        const path = `/coupon/${coupon._id}`;  // FIX: Use singular /coupon/ and _id
+        const path = `/coupon/${coupon.slug || coupon._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
         url.ele('lastmod', coupon.updatedAt ? new Date(coupon.updatedAt).toISOString() : new Date().toISOString());
@@ -123,12 +123,12 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     // Dynamic pages - Deals
     if (models.Deal) {
       const deals = await models.Deal.find({ isActive: true })
-        .select('_id updatedAt')
+        .select('_id slug updatedAt')
         .limit(10000)
         .lean();
 
       deals.forEach((deal) => {
-        const path = `/deal/${deal._id}`;  // FIX: Use singular /deal/ and _id
+        const path = `/deal/${deal.slug || deal._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
         url.ele('lastmod', deal.updatedAt ? new Date(deal.updatedAt).toISOString() : new Date().toISOString());
@@ -164,9 +164,9 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
       });
     }
 
-    // Dynamic pages - Categories
+    // Dynamic pages - Categories (no isActive field on Category model — fetch all)
     if (models.Category) {
-      const categories = await models.Category.find({ isActive: true })
+      const categories = await models.Category.find({})
         .select('slug updatedAt')
         .limit(1000)
         .lean();
@@ -190,14 +190,16 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     if (models.CouponSubmission) {
       const approvedSubmissions = await models.CouponSubmission.find({ status: 'approved' })
         .select('_id storeId reviewedAt updatedAt')
+        .populate('storeId', 'slug')
         .limit(10000)
         .lean();
 
       approvedSubmissions.forEach((sub) => {
         // Point to the store page (anchor to community section) rather than a standalone URL
-        const storeId = sub.storeId?._id || sub.storeId;
-        if (!storeId) return;
-        const path = `/stores/${storeId}#community-coupons`;
+        const storeSlug = sub.storeId?.slug;
+        const storeId   = sub.storeId?._id || sub.storeId;
+        if (!storeId && !storeSlug) return;
+        const path = `/stores/${storeSlug || storeId}#community-coupons`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
         url.ele('lastmod', sub.reviewedAt
@@ -301,14 +303,14 @@ const generateImageSitemap = async (models, baseUrl = 'https://dealcouponz.com',
         isActive: true,
         imageUrl: { $exists: true, $ne: '' }
       })
-        .select('_id imageUrl updatedAt')
+        .select('_id slug imageUrl updatedAt')
         .limit(maxItems)
         .lean();
 
       coupons.forEach((coupon) => {
         if (coupon.imageUrl) {
           const url = root.ele('url');
-          url.ele('loc', `${baseUrl}/coupon/${coupon._id}`);  // FIX: Use singular /coupon/
+          url.ele('loc', `${baseUrl}/coupon/${coupon.slug || coupon._id}`);
           url.ele('lastmod', coupon.updatedAt ? new Date(coupon.updatedAt).toISOString() : new Date().toISOString());
           const image = url.ele('image:image');
           image.ele('image:loc', coupon.imageUrl);

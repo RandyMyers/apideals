@@ -4,40 +4,57 @@ const Coupon   = require('../models/coupon');
 const Deal     = require('../models/deal');
 const mongoose = require('mongoose');
 const cloudinary = require('cloudinary').v2;
+const { generateSlug } = require('../utils/seoUtils');
+
+// Helper: ensure slug uniqueness for a category
+async function uniqueCategorySlug(base, excludeId = null) {
+  let slug = generateSlug(base);
+  let candidate = slug;
+  let i = 1;
+  while (true) {
+    const q = { slug: candidate };
+    if (excludeId) q._id = { $ne: excludeId };
+    const exists = await Category.findOne(q);
+    if (!exists) break;
+    candidate = `${slug}-${i++}`;
+  }
+  return candidate;
+}
 
 // Create a new category
 exports.createCategory = async (req, res) => {
   try {
     const { name, description, storeId, parentCategory } = req.body;
 
-    let imageUrl = null;
-
-    // Check if a file was uploaded
-    if (req.files && req.files.image) {
-      const file = req.files.image;
-
-      // Upload file to Cloudinary
-      const result = await cloudinary.uploader.upload(file.tempFilePath, {
-        folder: 'categories', // Folder name in Cloudinary
-        public_id: `category_${Date.now()}`, // Unique public ID
-        overwrite: false,
-      });
-
-      imageUrl = result.secure_url; // Get the secure URL
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Category name is required' });
     }
 
-    // Ensure parentCategory is null if empty or undefined
-    const parentCategoryId = parentCategory && parentCategory.trim() !== '' ? parentCategory : null;
-
     // Check if the category already exists
-    const existingCategory = await Category.findOne({ name });
+    const existingCategory = await Category.findOne({ name: name.trim() });
     if (existingCategory) {
       return res.status(400).json({ message: 'Category already exists' });
     }
 
-    // Create a new category
+    let imageUrl = null;
+
+    // Handle uploaded image (express-fileupload style)
+    if (req.files && req.files.image) {
+      const file = req.files.image;
+      const result = await cloudinary.uploader.upload(file.tempFilePath, {
+        folder: 'categories',
+        public_id: `category_${Date.now()}`,
+        overwrite: false,
+      });
+      imageUrl = result.secure_url;
+    }
+
+    const parentCategoryId = parentCategory && parentCategory.trim() !== '' ? parentCategory : null;
+    const slug = await uniqueCategorySlug(name);
+
     const newCategory = new Category({
-      name,
+      name: name.trim(),
+      slug,
       description,
       imageUrl,
       storeId,
@@ -77,9 +94,8 @@ exports.getCategories = async (req, res) => {
 exports.getCategoryById = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id)
-      .populate('coupons') // Populate coupons if needed
-      .populate('deals') // Populate deals if needed
-      .populate('parentCategory') // Populate parent category if needed
+      .populate('storeId', 'name slug logo')
+      .populate('parentCategory', 'name slug')
       .exec();
 
     if (!category) {
@@ -96,24 +112,45 @@ exports.getCategoryById = async (req, res) => {
 // Update a category
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, description, imageUrl, storeId, parentCategory } = req.body;
-    
-    const category = await Category.findByIdAndUpdate(
-      req.params.id,
-      {
-        name,
-        description,
-        imageUrl,
-        storeId,
-        parentCategory,
-        updatedAt: Date.now(), // Update timestamp
-      },
-      { new: true }
-    );
+    const { id } = req.params;
+    const { name, description, storeId, parentCategory } = req.body;
 
-    if (!category) {
+    const existing = await Category.findById(id);
+    if (!existing) {
       return res.status(404).json({ message: 'Category not found' });
     }
+
+    const updateData = { updatedAt: Date.now() };
+
+    if (name && name.trim() && name.trim() !== existing.name) {
+      // Name changed — regenerate slug
+      updateData.name = name.trim();
+      updateData.slug = await uniqueCategorySlug(name, id);
+    } else if (name) {
+      updateData.name = name.trim();
+    }
+
+    if (description !== undefined) updateData.description = description;
+    if (storeId       !== undefined) updateData.storeId       = storeId;
+    if (parentCategory !== undefined) {
+      updateData.parentCategory = parentCategory && parentCategory.trim() !== '' ? parentCategory : null;
+    }
+
+    // Handle new image upload
+    if (req.files && req.files.image) {
+      const file = req.files.image;
+      const result = await cloudinary.uploader.upload(file.tempFilePath, {
+        folder: 'categories',
+        public_id: `category_${Date.now()}`,
+        overwrite: false,
+      });
+      updateData.imageUrl = result.secure_url;
+    } else if (req.body.imageUrl !== undefined) {
+      // Allow passing a URL directly (e.g. from an existing Cloudinary URL)
+      updateData.imageUrl = req.body.imageUrl;
+    }
+
+    const category = await Category.findByIdAndUpdate(id, updateData, { new: true });
 
     return res.status(200).json({ message: 'Category updated successfully', category });
   } catch (error) {
@@ -142,8 +179,6 @@ exports.deleteCategory = async (req, res) => {
 exports.getCategoriesByParent = async (req, res) => {
   try {
     const categories = await Category.find({ parentCategory: req.params.parentId })
-      .populate('coupons')
-      .populate('deals')
       .populate('parentCategory')
       .exec();
 

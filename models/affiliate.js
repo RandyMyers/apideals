@@ -4,41 +4,55 @@ const Schema = mongoose.Schema;
 const AffiliateSchema = new Schema({
   name: {
     type: String,
-    required: true, // Name of the affiliate network (e.g., "Amazon Associates")
-    unique: true, // Ensure affiliate network names are unique
+    required: true,
+    unique: true,
   },
   website: {
     type: String,
-    required: true, // Official website of the affiliate network
+    required: true,
   },
   description: {
     type: String,
-    default: '', // Optional description of the affiliate network
+    default: '',
   },
   affiliateId: {
     type: String,
-    required: false, // Unique ID assigned to the user by the affiliate network
+    required: false,
   },
+
+  // How you log in to this affiliate network's dashboard
+  authMethod: {
+    type: String,
+    enum: ['password', 'google', 'facebook', 'apple', 'sso', 'none'],
+    default: 'password',
+  },
+
+  // Optional — only relevant when authMethod === 'password'
   username: {
     type: String,
-    required: true, // Username for the affiliate account
+    default: '',
   },
   password: {
     type: String,
-    required: true, // Password for the affiliate account
+    default: '',
   },
-  
+
+  // Extra notes (e.g. "log in via Google account: user@gmail.com")
+  notes: {
+    type: String,
+    default: '',
+  },
+
   createdAt: {
     type: Date,
-    default: Date.now, // Timestamp for when the affiliate network was added
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now, // Timestamp for the last update
+    default: Date.now,
   },
 });
 
-// Automatically update the `updatedAt` field before saving
 AffiliateSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();

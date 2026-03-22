@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed:categories": "node scripts/seedCategories.js",
     "seed:plans": "node scripts/seedSubscriptionPlans.js",
-    "seed:flutterwave": "node scripts/seedFlutterwaveKeys.js"
+    "seed:flutterwave": "node scripts/seedFlutterwaveKeys.js",
+    "seed:loveable": "node scripts/seedLoveableReferralDeal.js",
+    "inspect:loveable": "node scripts/inspectLoveableDeal.js"
   },
   "author": "",
   "license": "ISC",

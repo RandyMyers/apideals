@@ -11,6 +11,79 @@ const cloudinary = require('cloudinary').v2;
 const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
 
+const REFERRAL_DEAL_TYPES = ['referral_credits', 'referral_free_service', 'referral_bonus'];
+
+/** Human-readable line for follower notifications (discount vs referral) */
+function dealDiscountLabelForNotification(deal) {
+  if (!deal) return 'Special offer';
+  if (REFERRAL_DEAL_TYPES.includes(deal.dealType)) {
+    return (
+      deal.referralOffer?.referrerReward?.description ||
+      deal.referralOffer?.refereeReward?.description ||
+      'Referral offer'
+    );
+  }
+  if (deal.dealType === 'discount' && deal.discountType === 'percentage') {
+    return `${deal.discountValue}% off`;
+  }
+  if (deal.dealType === 'discount' && deal.discountType === 'fixed') {
+    return `$${deal.discountValue} off`;
+  }
+  if (deal.dealType === 'free_shipping') {
+    return 'Free shipping';
+  }
+  return deal.title || deal.name || 'Deal';
+}
+
+/**
+ * Admin sends languageData JSON + skips top-level title/description in FormData.
+ * Map primary locale (en first) onto root Deal fields and persist full blob in languageTranslations.
+ */
+function mergeLanguageDataIntoDealUpdate(reqBody, updatedData) {
+  let raw = reqBody.languageData;
+  if (raw === undefined || raw === null || raw === '') return;
+  try {
+    const lang = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!lang || typeof lang !== 'object') return;
+
+    updatedData.languageTranslations = lang;
+
+    const primary =
+      lang.en ||
+      lang['en-US'] ||
+      Object.values(lang).find((v) => v && typeof v === 'object');
+
+    if (primary && typeof primary === 'object') {
+      const keys = [
+        'title',
+        'description',
+        'instructions',
+        'longDescription',
+        'seoTitle',
+        'seoDescription',
+      ];
+      keys.forEach((k) => {
+        if (primary[k] !== undefined && primary[k] !== null) {
+          updatedData[k] = primary[k];
+        }
+      });
+      if (primary.highlights !== undefined && primary.highlights !== null) {
+        if (typeof primary.highlights === 'string') {
+          updatedData.highlights = primary.highlights
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        } else if (Array.isArray(primary.highlights)) {
+          updatedData.highlights = primary.highlights;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('mergeLanguageDataIntoDealUpdate: failed to parse languageData', e.message);
+  }
+  delete updatedData.languageData; // Always remove to avoid passing to Mongoose
+}
+
 // Create a new deal
 exports.createDeal = async (req, res) => {
   try {
@@ -43,7 +116,16 @@ exports.createDeal = async (req, res) => {
       return res.status(400).json({ message: 'UserId, StoreId, and Category are required.' + hint });
     }
 
-    // Validate dealType and discount fields
+    // Parse referralOffer if sent as JSON string (multipart / stringified)
+    if (typeof dealData.referralOffer === 'string' && dealData.referralOffer.trim()) {
+      try {
+        dealData.referralOffer = JSON.parse(dealData.referralOffer);
+      } catch (e) {
+        return res.status(400).json({ message: 'referralOffer must be valid JSON when sent as a string.' });
+      }
+    }
+
+    // Validate dealType and discount / referral fields
     if (dealData.dealType === 'discount') {
       // Clean empty strings to undefined for optional fields
       if (dealData.discountType === '' || !dealData.discountType) {
@@ -60,6 +142,23 @@ exports.createDeal = async (req, res) => {
       dealData.discountValue = Number(dealData.discountValue);
       if (isNaN(dealData.discountValue) || dealData.discountValue <= 0) {
         return res.status(400).json({ message: 'Discount Value must be a positive number.' });
+      }
+    } else if (REFERRAL_DEAL_TYPES.includes(dealData.dealType)) {
+      delete dealData.discountType;
+      delete dealData.discountValue;
+      const ref = dealData.referralOffer;
+      if (!ref || typeof ref !== 'object' || !ref.refereeReward || !ref.referrerReward) {
+        return res.status(400).json({
+          message:
+            'referralOffer with refereeReward and referrerReward is required for referral deal types.',
+        });
+      }
+      for (const field of ['description', 'type']) {
+        if (!ref.refereeReward[field] || !ref.referrerReward[field]) {
+          return res.status(400).json({
+            message: `referralOffer.refereeReward.${field} and referrerReward.${field} are required.`,
+          });
+        }
       }
     } else {
       // Remove discount fields if not a discount deal
@@ -238,10 +337,8 @@ exports.createDeal = async (req, res) => {
         const store = await Store.findById(storeId).select('name followers').lean();
         
         if (store && store.followers && store.followers.length > 0 && newDeal.isActive) {
-          const discountText = newDeal.discountType === 'percentage' 
-            ? `${newDeal.discountValue}% off`
-            : `$${newDeal.discountValue} off`;
-          
+          const discountText = dealDiscountLabelForNotification(newDeal);
+
           await notificationService.sendBulkNotifications(
             store.followers.map(f => f.toString()),
             'deal_available',
@@ -319,10 +416,8 @@ exports.createDeal = async (req, res) => {
       const store = await Store.findById(storeId).select('name followers').lean();
       
       if (store && store.followers && store.followers.length > 0 && newDeal.isActive) {
-        const discountText = newDeal.discountType === 'percentage' 
-          ? `${newDeal.discountValue}% off`
-          : `$${newDeal.discountValue} off`;
-        
+        const discountText = dealDiscountLabelForNotification(newDeal);
+
         await notificationService.sendBulkNotifications(
           store.followers.map(f => f.toString()),
           'deal_available',
@@ -548,18 +643,7 @@ exports.updateDeal = async (req, res) => {
   try {
     // Handle FormData - if content-type is multipart/form-data, parse it
     if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-      // FormData parsing is handled by multer middleware
-      // Extract JSON fields if they exist
-      if (req.body.languageData) {
-        try {
-          updatedData.languageTranslations = typeof req.body.languageData === 'string' 
-            ? JSON.parse(req.body.languageData) 
-            : req.body.languageData;
-        } catch (e) {
-          console.warn('Failed to parse languageData:', e);
-        }
-      }
-      
+      // FormData parsing is handled by express-fileupload
       // Process array fields
       if (req.body.highlights && typeof req.body.highlights === 'string') {
         try {
@@ -638,6 +722,17 @@ exports.updateDeal = async (req, res) => {
         updatedData.categoryId = updatedData.category;
       }
       delete updatedData.category;
+    }
+
+    // Map language sidebar JSON onto root title/description/etc. (admin DealEditForm)
+    mergeLanguageDataIntoDealUpdate(req.body, updatedData);
+
+    if (typeof updatedData.referralOffer === 'string' && updatedData.referralOffer.trim()) {
+      try {
+        updatedData.referralOffer = JSON.parse(updatedData.referralOffer);
+      } catch (e) {
+        return res.status(400).json({ message: 'referralOffer must be valid JSON when sent as a string.' });
+      }
     }
     
     // Convert date strings to Date objects
@@ -775,10 +870,8 @@ exports.updateDeal = async (req, res) => {
         const store = await Store.findById(updatedDeal.store).select('name followers').lean();
         
         if (store && store.followers && store.followers.length > 0) {
-          const discountText = updatedDeal.discountType === 'percentage' 
-            ? `${updatedDeal.discountValue}% off`
-            : `$${updatedDeal.discountValue} off`;
-          
+          const discountText = dealDiscountLabelForNotification(updatedDeal);
+
           await notificationService.sendBulkNotifications(
             store.followers.map(f => f.toString()),
             'deal_available',

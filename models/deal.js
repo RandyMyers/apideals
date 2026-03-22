@@ -2,6 +2,32 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const { generateSlug } = require('../utils/seoUtils');
 
+/** Rewards for referee vs referrer (credits, free delivery, etc.) — see REFERRAL_OFFER_TYPES_IMPLEMENTATION_PLAN.md */
+const ReferralParticipantRewardSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ['credits', 'free_service', 'free_trial', 'custom'],
+      required: true,
+    },
+    value: { type: Number, required: false },
+    unit: { type: String, required: false },
+    condition: { type: String, required: false },
+    conditionDescription: { type: String, required: false },
+    description: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const ReferralOfferSchema = new Schema(
+  {
+    refereeReward: { type: ReferralParticipantRewardSchema, required: false },
+    referrerReward: { type: ReferralParticipantRewardSchema, required: false },
+    inviteLinkPlaceholder: { type: String, required: false },
+  },
+  { _id: false }
+);
+
 const DealSchema = new Schema({
   title: {
     type: String,
@@ -41,8 +67,25 @@ const DealSchema = new Schema({
   },
   dealType: {
     type: String,
-    enum: ['discount', 'bundle', 'free_shipping'], // Type of the deal (e.g., discount, bundle, free shipping)
+    enum: [
+      'discount',
+      'bundle',
+      'free_shipping',
+      'referral_credits',
+      'referral_free_service',
+      'referral_bonus',
+    ],
     required: true,
+  },
+  /** Populated when dealType is referral_* */
+  referralOffer: {
+    type: ReferralOfferSchema,
+    required: false,
+  },
+  /** Admin multi-language sidebar payload (optional); primary locale still maps to root title/description fields */
+  languageTranslations: {
+    type: mongoose.Schema.Types.Mixed,
+    required: false,
   },
   discountType: {
     type: String,

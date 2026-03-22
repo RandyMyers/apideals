@@ -109,11 +109,16 @@ if (!isServerless) {
 
 const systemAlertService = require('./services/systemAlertService');
 
+// Disable Mongoose command buffering globally — operations fail fast instead of
+// silently queuing until the Vercel function timeout is hit.
+mongoose.set('bufferCommands', false);
+
 // ─── MongoDB connection with caching for serverless environments ──────────────
 // In serverless (Vercel) each cold-start re-imports this module, so we cache
 // the connection on the global object so it survives across warm invocations.
 let cachedConnection = global._mongoConnection || null;
 let connectionPromise = global._mongoConnectionPromise || null;
+
 
 async function connectToDatabase() {
   // Already connected — reuse
@@ -140,12 +145,18 @@ async function connectToDatabase() {
       const connectionOptions = {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000,
+        // Fail fast so we don't silently hang until Vercel's function timeout
+        serverSelectionTimeoutMS: isServerless ? 8000 : 10000,
+        connectTimeoutMS: isServerless ? 8000 : 15000,
         socketTimeoutMS: 45000,
-        connectTimeoutMS: 10000,
+        // Never buffer operations — throw immediately if not connected
+        bufferCommands: false,
+        // Keep pool tiny in serverless (each instance only handles one request at a time)
         maxPoolSize: isServerless ? 1 : 10,
-        minPoolSize: isServerless ? 1 : 2,
-        heartbeatFrequencyMS: 10000,
+        minPoolSize: 0,
+        // Close idle connections faster in serverless to avoid Atlas IP-block issues
+        maxIdleTimeMS: isServerless ? 10000 : 30000,
+        heartbeatFrequencyMS: isServerless ? 30000 : 10000,
         retryWrites: true,
         retryReads: true,
       };

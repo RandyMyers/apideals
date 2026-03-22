@@ -109,142 +109,25 @@ if (!isServerless) {
 
 const systemAlertService = require('./services/systemAlertService');
 
-// ─── MongoDB connection with caching for serverless environments ──────────────
-// In serverless (Vercel) each cold-start re-imports this module, so we cache
-// the connection on the global object so it survives across warm invocations.
-let cachedConnection = global._mongoConnection || null;
-let connectionPromise = global._mongoConnectionPromise || null;
-
-async function connectToDatabase() {
-  // Already connected — reuse
-  if (cachedConnection && mongoose.connection.readyState === 1) {
-    return cachedConnection;
-  }
-
-  // Connection already in progress — wait for it
-  if (connectionPromise) {
-    return connectionPromise;
-  }
-
-  connectionPromise = (async () => {
+mongoose.connect(process.env.MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(async () => {
+    logger.info('Connected to MongoDB');
+    
+    // Run vote index migration (drop unique constraints to allow multiple votes)
     try {
-      // Close stale connection before reconnecting
-      if (mongoose.connection.readyState !== 0) {
-        try {
-          await mongoose.connection.close();
-        } catch (err) {
-          logger.warn('Error closing stale MongoDB connection:', err.message);
-        }
-      }
-
-      const connectionOptions = {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-        connectTimeoutMS: 10000,
-        maxPoolSize: isServerless ? 1 : 10,
-        minPoolSize: isServerless ? 1 : 2,
-        heartbeatFrequencyMS: 10000,
-        retryWrites: true,
-        retryReads: true,
-      };
-
-      await mongoose.connect(process.env.MONGO_URL, connectionOptions);
-
-      // Reset caches on error / disconnect so the next request reconnects
-      mongoose.connection.on('error', (err) => {
-        logger.error('MongoDB connection error', { error: err.message });
-        cachedConnection = null;
-        connectionPromise = null;
-        global._mongoConnection = null;
-        global._mongoConnectionPromise = null;
-      });
-
-      mongoose.connection.on('disconnected', () => {
-        logger.warn('MongoDB disconnected');
-        cachedConnection = null;
-        connectionPromise = null;
-        global._mongoConnection = null;
-        global._mongoConnectionPromise = null;
-      });
-
-      cachedConnection = mongoose.connection;
-      global._mongoConnection = cachedConnection;
-
-      logger.info('Connected to MongoDB', {
-        environment: isServerless ? 'serverless' : 'traditional',
-        readyState: cachedConnection.readyState,
-      });
-
-      // Run vote index migration (non-critical)
-      try {
-        const Vote = require('./models/vote');
-        await Vote.migrateIndexes();
-      } catch (error) {
-        logger.warn('Vote index migration failed (non-critical):', error.message);
-      }
-
-      return cachedConnection;
+      const Vote = require('./models/vote');
+      await Vote.migrateIndexes();
     } catch (error) {
-      logger.error('Failed to connect to MongoDB', { error: error.message });
-      connectionPromise = null;
-      global._mongoConnectionPromise = null;
-      try {
-        await systemAlertService.sendDatabaseAlert(error);
-      } catch (alertError) {
-        logger.error('Failed to send database alert', { error: alertError.message });
-      }
-      throw error;
+      logger.warn('Vote index migration failed (non-critical):', error.message);
     }
-  })();
-
-  global._mongoConnectionPromise = connectionPromise;
-  return connectionPromise;
-}
-
-// Retry wrapper — useful for one-off operations, not needed for normal routes
-// because the middleware below already ensures a connection before each request.
-async function withDbConnection(operation, retries = 2) {
-  let lastError;
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await connectToDatabase();
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      logger.warn(`DB operation failed (attempt ${attempt}/${retries})`, {
-        error: error.message,
-        code: error.code,
-      });
-      if (
-        error.message?.includes('buffering timed out') ||
-        error.message?.includes('topology was destroyed') ||
-        error.code === 'ETIMEOUT'
-      ) {
-        cachedConnection = null;
-        connectionPromise = null;
-        global._mongoConnection = null;
-        global._mongoConnectionPromise = null;
-      }
-      if (attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
-      }
-    }
-  }
-  throw lastError;
-}
-
-// ─── Connect / register DB middleware ────────────────────────────────────────
-if (isServerless) {
-  logger.info('Serverless mode — MongoDB will connect on first request');
-} else {
-  // Traditional server: connect eagerly at startup
-  connectToDatabase().catch((error) => {
-    logger.error('Failed to connect to MongoDB at startup', { error: error.message });
-    process.exit(1);
+  })
+  .catch((error) => {
+    logger.error('Failed to connect to MongoDB', { error: error.message });
+    // Send system alert for database connection failure
+    systemAlertService.sendDatabaseAlert(error).catch(err => {
+      logger.error('Failed to send database alert', { error: err.message });
+    });
   });
-}
 
 // Trust proxy (for accurate IP addresses behind reverse proxy)
 app.set('trust proxy', 1);
@@ -308,25 +191,6 @@ app.use('/api/v1/admin', adminIPWhitelist, strictRateLimit);
 // Higher rate limit for notifications (frequent polling)
 app.use('/api/v1/notifications', notificationRateLimit);
 app.use('/api/v1', generalRateLimit);
-
-// ─── DB connection middleware (serverless: connect before every API request) ──
-app.use(async (req, res, next) => {
-  // Skip the health-check — it must respond even when DB is down
-  if (req.path === '/health' || req.path === '/robots.txt' || req.path.startsWith('/sitemap')) {
-    return next();
-  }
-  try {
-    await connectToDatabase();
-    next();
-  } catch (error) {
-    logger.error('DB connection middleware error', { error: error.message });
-    return res.status(503).json({
-      error: 'Database Unavailable',
-      message: 'Service temporarily unavailable. Please try again shortly.',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 // Using imported routes
 app.use('/api/v1/auth', authRoutes);
@@ -551,8 +415,6 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Export app + connection helpers for serverless entry-points (api/index.js)
-module.exports = { app, connectToDatabase, withDbConnection };
-
-// Keep backward-compat: some files do `require('../app')` and call it directly
-module.exports.default = app;
+// Export the app for serverless environments (Vercel, AWS Lambda, etc.)
+// This allows api/index.js to import and use the app
+module.exports = app;

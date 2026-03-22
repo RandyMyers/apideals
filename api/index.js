@@ -7,11 +7,10 @@
 process.env.VERCEL = '1';
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
-// Import the Express app
-const app = require('../app');
+// Import the Express app (app.js now exports { app, connectToDatabase, withDbConnection })
+const { app } = require('../app');
 
-// Export the app as a serverless function
-// Vercel will handle the HTTP server
+// Export the Express app as the Vercel serverless handler
 module.exports = app;
 
 

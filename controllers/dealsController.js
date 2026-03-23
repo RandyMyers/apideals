@@ -791,6 +791,11 @@ exports.updateDeal = async (req, res) => {
     console.log('🔍 Before boolean conversion - isPublished:', updatedData.isPublished, 'type:', typeof updatedData.isPublished);
     
     const parseBool = (value) => {
+      // Multipart/FormData can send duplicate fields as arrays (e.g. ['true', 'true']).
+      if (Array.isArray(value)) {
+        if (value.length === 0) return undefined;
+        return parseBool(value[value.length - 1]);
+      }
       if (typeof value === 'boolean') return value;
       if (typeof value === 'number') return value === 1;
       if (typeof value === 'string') {

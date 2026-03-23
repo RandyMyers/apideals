@@ -5,6 +5,15 @@ const Store = require('../models/store');
 const Category = require('../models/category');
 const Blog = require('../models/blog');
 
+/** Resolve entity identifier (slug or ObjectId) to canonical ObjectId. */
+async function resolveEntityId(model, idOrSlug, slugField = 'slug') {
+    if (!idOrSlug) return null;
+    const raw = String(idOrSlug).trim();
+    if (/^[0-9a-fA-F]{24}$/.test(raw)) return raw;
+    const doc = await model.findOne({ [slugField]: raw }).select('_id').lean();
+    return doc?._id || null;
+}
+
 /**
  * Extract language code from page path
  * @param {string} path - Page path (e.g., '/sv/coupons/all')
@@ -67,30 +76,37 @@ exports.createView = async (req, res) => {
             }
         }
 
+        // Resolve incoming IDs (slug or ObjectId) to canonical ObjectIds
+        const resolvedStoreId = storeId ? await resolveEntityId(Store, storeId) : null;
+        const resolvedCouponId = couponId ? await resolveEntityId(Coupon, couponId) : null;
+        const resolvedDealId = dealId ? await resolveEntityId(Deal, dealId) : null;
+        const resolvedCategoryId = categoryId ? await resolveEntityId(Category, categoryId) : null;
+        const resolvedBlogId = blogId ? await resolveEntityId(Blog, blogId) : null;
+
         // Determine entity type and ID
         let entityType = null;
         let entityId = null;
         let entityModel = null;
 
-        if (storeId) {
+        if (resolvedStoreId) {
             entityType = 'store';
-            entityId = storeId;
+            entityId = resolvedStoreId;
             entityModel = 'Store';
-        } else if (couponId) {
+        } else if (resolvedCouponId) {
             entityType = 'coupon';
-            entityId = couponId;
+            entityId = resolvedCouponId;
             entityModel = 'Coupon';
-        } else if (dealId) {
+        } else if (resolvedDealId) {
             entityType = 'deal';
-            entityId = dealId;
+            entityId = resolvedDealId;
             entityModel = 'Deal';
-        } else if (categoryId) {
+        } else if (resolvedCategoryId) {
             entityType = 'category';
-            entityId = categoryId;
+            entityId = resolvedCategoryId;
             entityModel = 'Category';
-        } else if (blogId) {
+        } else if (resolvedBlogId) {
             entityType = 'blog';
-            entityId = blogId;
+            entityId = resolvedBlogId;
             entityModel = 'Blog';
         }
 
@@ -141,11 +157,11 @@ exports.createView = async (req, res) => {
             entityType: entityType || null,
             entityId: entityId || null,
             entityModel: entityModel || null,
-            storeId: storeId || null, // Keep for backward compatibility
-            couponId: couponId || null, // Keep for backward compatibility
-            dealId: dealId || null, // Keep for backward compatibility
-            categoryId: categoryId || null, // Keep for backward compatibility
-            blogId: blogId || null, // Keep for backward compatibility
+            storeId: resolvedStoreId || null, // Keep for backward compatibility
+            couponId: resolvedCouponId || null, // Keep for backward compatibility
+            dealId: resolvedDealId || null, // Keep for backward compatibility
+            categoryId: resolvedCategoryId || null, // Keep for backward compatibility
+            blogId: resolvedBlogId || null, // Keep for backward compatibility
             pagePath: pagePath || null, // Full URL path
             languageCode: finalLanguageCode || null, // Language prefix
             referrer: finalReferrer || null, // HTTP referrer
@@ -202,16 +218,16 @@ exports.createView = async (req, res) => {
 
         // Also increment the views counter on the entity (for quick queries and trending)
         try {
-            if (couponId) {
-                await Coupon.findByIdAndUpdate(couponId, { $inc: { views: 1 } });
-            } else if (dealId) {
-                await Deal.findByIdAndUpdate(dealId, { $inc: { views: 1 } });
-            } else if (storeId) {
-                await Store.findByIdAndUpdate(storeId, { $inc: { views: 1 } });
-            } else if (categoryId) {
-                await Category.findByIdAndUpdate(categoryId, { $inc: { views: 1 } });
-            } else if (blogId) {
-                await Blog.findByIdAndUpdate(blogId, { $inc: { views: 1 } });
+            if (resolvedCouponId) {
+                await Coupon.findByIdAndUpdate(resolvedCouponId, { $inc: { views: 1 } });
+            } else if (resolvedDealId) {
+                await Deal.findByIdAndUpdate(resolvedDealId, { $inc: { views: 1 } });
+            } else if (resolvedStoreId) {
+                await Store.findByIdAndUpdate(resolvedStoreId, { $inc: { views: 1 } });
+            } else if (resolvedCategoryId) {
+                await Category.findByIdAndUpdate(resolvedCategoryId, { $inc: { views: 1 } });
+            } else if (resolvedBlogId) {
+                await Blog.findByIdAndUpdate(resolvedBlogId, { $inc: { views: 1 } });
             }
         } catch (incrementError) {
             // Log but don't fail the view tracking if increment fails

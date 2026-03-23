@@ -3,6 +3,15 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const { calculateStoreRating } = require('../services/storeRatingService');
 
+/** Resolve coupon slug or ObjectId to ObjectId for DB queries. */
+async function resolveCouponId(couponIdOrSlug) {
+  if (!couponIdOrSlug) return null;
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(String(couponIdOrSlug).trim());
+  if (isObjectId) return couponIdOrSlug;
+  const coupon = await Coupon.findOne({ slug: couponIdOrSlug }).select('_id').lean();
+  return coupon?._id || null;
+}
+
 /** Resolve deal slug or ObjectId to ObjectId for DB queries. */
 async function resolveDealId(dealIdOrSlug) {
   if (!dealIdOrSlug) return null;
@@ -34,13 +43,18 @@ exports.createRateAndReview = async (req, res) => {
 
         // Get storeId from coupon or deal; resolve deal slug to ObjectId if needed
         let storeId = null;
+        let resolvedCouponId = null;
         let resolvedDealId = null;
         if (couponId) {
-            const coupon = await Coupon.findById(couponId).select('storeId').lean();
+            resolvedCouponId = await resolveCouponId(couponId);
+            const coupon = await Coupon.findOne(resolvedCouponId ? { _id: resolvedCouponId } : { slug: couponId })
+                .select('storeId _id')
+                .lean();
             if (!coupon) {
                 return res.status(404).json({ message: 'Coupon not found.' });
             }
             storeId = coupon.storeId;
+            resolvedCouponId = coupon._id;
         } else if (dealId) {
             resolvedDealId = await resolveDealId(dealId);
             const deal = await Deal.findOne(resolvedDealId ? { _id: resolvedDealId } : { slug: dealId })
@@ -54,7 +68,7 @@ exports.createRateAndReview = async (req, res) => {
 
         const rateAndReview = new RateAndReview({
             userId,
-            couponId,
+            couponId: resolvedCouponId,
             dealId: resolvedDealId,
             rating,
             reviewText,
@@ -105,8 +119,12 @@ exports.getAllRatingsAndReviews = async (req, res) => {
 exports.getRatingsAndReviewsByCoupon = async (req, res) => {
     try {
         const { couponId } = req.params;
+        const resolvedCouponId = await resolveCouponId(couponId);
+        if (!resolvedCouponId) {
+            return res.status(404).json({ message: 'Coupon not found.' });
+        }
 
-        const ratingsAndReviews = await RateAndReview.find({ couponId })
+        const ratingsAndReviews = await RateAndReview.find({ couponId: resolvedCouponId })
             .populate('userId', 'username') // Populate only username (privacy: no email)
             .sort({ createdAt: -1 });
 

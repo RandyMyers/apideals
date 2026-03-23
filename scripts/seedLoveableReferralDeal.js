@@ -1,6 +1,7 @@
 /**
- * Migrate/update the existing Loveable AI referral deal to the new referral offer schema.
- * Preserves existing content; updates dealType and adds referralOffer.
+ * Migrate/update the existing Loveable AI referral deal.
+ * Client-facing only: visitors use the invite link to get 10 credits on sign-up.
+ * Referrer rewards (e.g. 100 credits) are private and not stored in the deal.
  *
  * Usage:
  *   node scripts/seedLoveableReferralDeal.js
@@ -15,22 +16,15 @@ const mongoose = require('mongoose');
 const Deal = require('../models/deal');
 const Store = require('../models/store');
 
+/** Only referee reward – what the visitor gets when they use an invite link to sign up. */
 const REFERRAL_OFFER = {
   refereeReward: {
     type: 'credits',
     value: 10,
     unit: 'credits',
-    description: 'Extra 10 credits on sign-up',
+    description: 'Get 10 credits when you sign up with an invite link and start using Loveable',
   },
-  referrerReward: {
-    type: 'credits',
-    value: 100,
-    unit: 'credits',
-    condition: 'subscribe_pro',
-    conditionDescription: 'When they subscribe to Pro (100 credits/month or above)',
-    description: '100 credits when they subscribe to Pro',
-  },
-  inviteLinkPlaceholder: 'Share your invite link to earn',
+  inviteLinkPlaceholder: 'Use an invite link when signing up to get your bonus',
 };
 
 async function run() {
@@ -75,7 +69,7 @@ async function run() {
 
     const update = {
       dealType: 'referral_credits',
-      referralOffer: REFERRAL_OFFER,
+      referralOffer: REFERRAL_OFFER, // Only referee reward; no referrer reward
       $unset: { discountType: 1, discountValue: 1 },
       updatedAt: new Date(),
     };
@@ -89,8 +83,7 @@ async function run() {
     console.log('\nUpdated deal:', updated._id);
     console.log('  dealType:', updated.dealType);
     console.log('  referralOffer.refereeReward:', updated.referralOffer?.refereeReward?.description);
-    console.log('  referralOffer.referrerReward:', updated.referralOffer?.referrerReward?.description);
-    console.log('\nDone. Content (title, description, highlights, etc.) was preserved.');
+    console.log('\nDone. Client will only show: use invite link to get 10 credits on sign-up.');
   } catch (err) {
     console.error('Seed failed:', err);
     process.exit(1);

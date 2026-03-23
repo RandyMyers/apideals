@@ -3,6 +3,15 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const { calculateStoreRating } = require('../services/storeRatingService');
 
+/** Resolve deal slug or ObjectId to ObjectId for DB queries. */
+async function resolveDealId(dealIdOrSlug) {
+  if (!dealIdOrSlug) return null;
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(String(dealIdOrSlug).trim());
+  if (isObjectId) return dealIdOrSlug;
+  const deal = await Deal.findOne({ slug: dealIdOrSlug }).select('_id').lean();
+  return deal?._id || null;
+}
+
 // Create a new rating and review
 exports.createRateAndReview = async (req, res) => {
     try {
@@ -23,8 +32,9 @@ exports.createRateAndReview = async (req, res) => {
             return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
         }
 
-        // Get storeId from coupon or deal
+        // Get storeId from coupon or deal; resolve deal slug to ObjectId if needed
         let storeId = null;
+        let resolvedDealId = null;
         if (couponId) {
             const coupon = await Coupon.findById(couponId).select('storeId').lean();
             if (!coupon) {
@@ -32,17 +42,20 @@ exports.createRateAndReview = async (req, res) => {
             }
             storeId = coupon.storeId;
         } else if (dealId) {
-            const deal = await Deal.findById(dealId).select('store').lean();
+            resolvedDealId = await resolveDealId(dealId);
+            const deal = await Deal.findOne(resolvedDealId ? { _id: resolvedDealId } : { slug: dealId })
+                .select('store _id').lean();
             if (!deal) {
                 return res.status(404).json({ message: 'Deal not found.' });
             }
             storeId = deal.store;
+            resolvedDealId = deal._id;
         }
 
         const rateAndReview = new RateAndReview({
             userId,
             couponId,
-            dealId,
+            dealId: resolvedDealId,
             rating,
             reviewText,
         });
@@ -107,12 +120,16 @@ exports.getRatingsAndReviewsByCoupon = async (req, res) => {
     }
 };
 
-// Get ratings and reviews for a specific deal
+// Get ratings and reviews for a specific deal (accepts slug or ObjectId)
 exports.getRatingsAndReviewsByDeal = async (req, res) => {
     try {
         const { dealId } = req.params;
+        const resolvedDealId = await resolveDealId(dealId);
+        if (!resolvedDealId) {
+            return res.status(404).json({ message: 'Deal not found.' });
+        }
 
-        const ratingsAndReviews = await RateAndReview.find({ dealId })
+        const ratingsAndReviews = await RateAndReview.find({ dealId: resolvedDealId })
             .populate('userId', 'username') // Populate only username (privacy: no email)
             .sort({ createdAt: -1 });
 

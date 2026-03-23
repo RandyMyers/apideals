@@ -464,7 +464,7 @@ exports.getTrendingStoresByCategory = async (req, res) => {
             .populate('categoryId', 'name slug')
             .sort({ views: -1, rating: -1, followers: -1, createdAt: -1 })
             .limit(parseInt(limit))
-            .select('name logo website rating followers categoryId views')
+            .select('name slug logo website rating followers categoryId views')
             .lean();
 
         res.status(200).json(stores);

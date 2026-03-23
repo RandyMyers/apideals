@@ -9,7 +9,8 @@
     "seed:plans": "node scripts/seedSubscriptionPlans.js",
     "seed:flutterwave": "node scripts/seedFlutterwaveKeys.js",
     "seed:loveable": "node scripts/seedLoveableReferralDeal.js",
-    "inspect:loveable": "node scripts/inspectLoveableDeal.js"
+    "inspect:loveable": "node scripts/inspectLoveableDeal.js",
+    "seed:dealcouponz": "node scripts/seedDealcouponzSite.js"
   },
   "author": "",
   "license": "ISC",

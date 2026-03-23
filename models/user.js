@@ -3,6 +3,13 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const UserSchema = new Schema({
+  // Multi-site: tenant scope
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false, // optional until migration backfill
+    index: true,
+  },
     username: {
         type: String,
         required: true,

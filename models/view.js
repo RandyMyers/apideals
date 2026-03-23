@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const ViewSchema = new Schema({
+    siteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Site', index: true },
     visitorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Visitor' }, // Reference to the visitor (optional for logged-in users)
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, // Reference to the user (for logged-in users)
     entityType: { type: String, enum: ['store', 'coupon', 'deal', 'category', 'blog', 'page'], default: null }, // Type of entity viewed

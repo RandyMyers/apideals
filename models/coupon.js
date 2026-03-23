@@ -3,6 +3,13 @@ const Schema = mongoose.Schema;
 const { generateSlug } = require('../utils/seoUtils');
 
 const CouponSchema = new Schema({
+  // Multi-site: tenant scope (categories remain global)
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false, // optional until migration backfill
+    index: true,
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User', // Reference to the User model

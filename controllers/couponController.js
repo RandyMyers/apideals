@@ -364,6 +364,7 @@ exports.getAllCoupons = async (req, res) => {
       };
     }
     // If admin=true, query is empty (show all)
+    if (req.siteId) query.siteId = req.siteId;
     
     console.log('🔍 getAllCoupons - Query:', JSON.stringify(query, null, 2));
     console.log('🔍 getAllCoupons - Admin flag:', admin);
@@ -496,8 +497,9 @@ exports.getCouponById = async (req, res) => {
 
   try {
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    const query = isObjectId ? Coupon.findById(id) : Coupon.findOne({ slug: id });
-    const coupon = await query
+    const findFilter = isObjectId ? { _id: id } : { slug: id };
+    if (req.siteId) findFilter.siteId = req.siteId;
+    const coupon = await Coupon.findOne(findFilter)
       .populate({
         path: 'affiliateId',
         select: 'name',

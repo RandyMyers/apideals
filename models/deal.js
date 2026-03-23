@@ -29,6 +29,13 @@ const ReferralOfferSchema = new Schema(
 );
 
 const DealSchema = new Schema({
+  // Multi-site: tenant scope (categories remain global)
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false, // optional until migration backfill
+    index: true,
+  },
   title: {
     type: String,
     required: false, // Deal title for display

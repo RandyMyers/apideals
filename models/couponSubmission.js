@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const CouponSubmissionSchema = new Schema({
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false,
+    index: true,
+  },
   // User who submitted the coupon
   userId: {
     type: mongoose.Schema.Types.ObjectId,

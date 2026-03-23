@@ -272,6 +272,8 @@ exports.getAllStores = async (req, res) => {
                 { description: { $regex: search, $options: 'i' } }
             ];
         }
+
+        if (req.siteId) query.siteId = req.siteId;
         
         // Sorting
         let sortOption = {};
@@ -362,9 +364,10 @@ exports.getTopStores = async (req, res) => {
             dateFilter = { viewedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } };
         }
         
-        // Aggregate views by store
+        const viewMatch = { ...dateFilter, storeId: { $exists: true, $ne: null } };
+        if (req.siteId) viewMatch.siteId = req.siteId;
         const viewAggregation = await View.aggregate([
-            { $match: { ...dateFilter, storeId: { $exists: true, $ne: null } } },
+            { $match: viewMatch },
             { $group: { _id: '$storeId', viewCount: { $sum: 1 } } },
             { $sort: { viewCount: -1 } },
             { $limit: parseInt(limit) * 2 } // Get more to filter by location
@@ -372,8 +375,9 @@ exports.getTopStores = async (req, res) => {
         
         const storeIds = viewAggregation.map(v => v._id);
         
-        // Get stores with view counts
-        let stores = await Store.find({ _id: { $in: storeIds }, isActive: true })
+        const storeFilter = { _id: { $in: storeIds }, isActive: true };
+        if (req.siteId) storeFilter.siteId = req.siteId;
+        let stores = await Store.find(storeFilter)
             .populate('userId', 'name email')
             .populate('categoryId', 'name')
             .lean();
@@ -415,7 +419,7 @@ exports.getSponsoredStores = async (req, res) => {
     try {
         const { limit = 10 } = req.query;
         
-        const stores = await Store.find({
+        const sponsoredQuery = {
             isSponsored: true,
             isActive: true,
             // Optional: Only show active sponsored campaigns
@@ -424,7 +428,9 @@ exports.getSponsoredStores = async (req, res) => {
                 { sponsoredEndDate: null },
                 { sponsoredEndDate: { $gte: new Date() } }
             ]
-        })
+        };
+        if (req.siteId) sponsoredQuery.siteId = req.siteId;
+        const stores = await Store.find(sponsoredQuery)
             .populate('userId', 'name email')
             .populate('categoryId', 'name')
             .sort({ sponsoredPriority: -1, createdAt: -1 }) // Sort by priority first, then date
@@ -527,9 +533,9 @@ exports.getStoreById = async (req, res) => {
         const { country } = req.query;
 
         const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-        const query = isObjectId ? Store.findById(id) : Store.findOne({ slug: id });
-
-        const store = await query
+        const findFilter = isObjectId ? { _id: id } : { slug: id };
+        if (req.siteId) findFilter.siteId = req.siteId;
+        const store = await Store.findOne(findFilter)
             .populate('userId', 'name email')
             .populate('coupons')
             .populate('deals')
@@ -566,8 +572,9 @@ exports.getStoresByUserId = async (req, res) => {
         const { userId } = req.params;
         console.log(req.params);
 
-        // Fetch stores created by the specified user
-        const stores = await Store.find({ userId })
+        const userStoreQuery = { userId };
+        if (req.siteId) userStoreQuery.siteId = req.siteId;
+        const stores = await Store.find(userStoreQuery)
             .populate('userId', 'name email') // Populate user details
             .populate('coupons') // Populate coupon details
             .populate('deals') // Populate deal details

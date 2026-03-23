@@ -317,6 +317,7 @@ exports.createDeal = async (req, res) => {
       const newDeal = new Deal({ 
         store: storeId, 
         categoryId, 
+        ...(req.siteId && { siteId: req.siteId }),
         imageUrl,
         subscriptionId,
         imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
@@ -392,6 +393,7 @@ exports.createDeal = async (req, res) => {
     const newDeal = new Deal({ 
       store: storeId, 
       categoryId, 
+      ...(req.siteId && { siteId: req.siteId }),
       imageUrl,
       subscriptionId,
       imageGallery: imageGallery.length > 0 ? imageGallery : undefined,
@@ -509,7 +511,8 @@ exports.getAllDeals = async (req, res) => {
             { endDate: { $exists: false } }
           ]
         };
-    
+    if (req.siteId) query.siteId = req.siteId;
+
     let deals = await Deal.find(query)
     .populate('store', 'name website logo')
     .sort({ createdAt: -1 })
@@ -540,8 +543,9 @@ exports.getDealById = async (req, res) => {
   const { country } = req.query;
   try {
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    const query = isObjectId ? Deal.findById(id) : Deal.findOne({ slug: id });
-    const deal = await query
+    const findFilter = isObjectId ? { _id: id } : { slug: id };
+    if (req.siteId) findFilter.siteId = req.siteId;
+    const deal = await Deal.findOne(findFilter)
       .populate('store', 'name website logo rating followers')
       .populate('categoryId', 'name slug')
       .populate('affiliate', 'name')

@@ -280,7 +280,9 @@ exports.getCategoryDetail = async (req, res) => {
       return res.status(404).json({ message: 'Category not found' });
     }
 
-    const stores = await Store.find({ categoryId: category._id, isActive: true })
+    const storeFilter = { categoryId: category._id, isActive: true };
+    if (req.siteId) storeFilter.siteId = req.siteId;
+    const stores = await Store.find(storeFilter)
       .select('_id name logo slug website')
       .lean();
 

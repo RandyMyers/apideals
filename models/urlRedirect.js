@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const UrlRedirectSchema = new Schema({
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false,
+    index: true,
+  },
   // Old WordPress URL (the path part, e.g., /blog/my-post or /category/tech)
   oldPath: {
     type: String,

@@ -77,6 +77,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');  // Analytics Route
 const shareRoutes = require('./routes/shareRoutes');  // Share Routes
 const couponUsageRoutes = require('./routes/couponUsageRoutes');  // Coupon Usage Routes
 const apiKeyRoutes = require('./routes/apiKeyRoutes');  // API Keys for external apps
+const siteRoutes = require('./routes/siteRoutes');  // Sites (multi-tenant)
 
 dotenv.config();
 
@@ -339,6 +340,10 @@ app.use(async (req, res, next) => {
   }
 });
 
+// ─── Tenant resolution (multi-site) ────────────────────────────────────────
+const { resolveTenant } = require('./middleware/tenantMiddleware');
+app.use('/api/v1', resolveTenant);
+
 // Using imported routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/auth', enhancedAuthRoutes); // Enhanced auth routes
@@ -358,6 +363,7 @@ app.use('/api/v1/coupons', couponRoutes);  // New route for Coupons
 app.use('/api/v1/coupon-submissions', couponSubmissionRoutes);  // User Coupon Submissions
 app.use('/api/v1/coupon-boosts', couponBoostRoutes);  // Coupon Boosts
 app.use('/api/v1/deals', dealRoutes);
+app.use('/api/v1/sites', siteRoutes);
 app.use('/api/v1/store', storeRoutes);
 app.use('/api/v1/stores', savingTipsRoutes);
 app.use('/api/v1/products', productRoutes);
@@ -382,6 +388,7 @@ app.use('/api/payment-gateways', paymentGatewayRoutes); // Public alias for paym
 
 // SEO Routes (sitemap and robots.txt)
 app.use('/', require('./routes/sitemapRoutes')); // Sitemap at /sitemap.xml
+app.get('/api/v1/sitemap/slugs', require('./controllers/sitemapController').getSitemapSlugs);
 app.use('/', require('./routes/robotsRoutes')); // Robots.txt at /robots.txt
 app.use('/api/v1/seo-settings', require('./routes/seoSettingsRoutes')); // SEO Settings (admin only)
 app.use('/api/v1/search-console', require('./routes/searchConsoleRoutes')); // Google Search Console (admin only)

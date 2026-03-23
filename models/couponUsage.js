@@ -7,6 +7,12 @@ const Schema = mongoose.Schema;
  * Used to calculate total savings, monthly savings, and usage statistics
  */
 const CouponUsageSchema = new Schema({
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false,
+    index: true,
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

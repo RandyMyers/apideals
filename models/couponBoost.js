@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const CouponBoostSchema = new Schema({
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false,
+    index: true,
+  },
   // Coupon being boosted
   couponId: {
     type: mongoose.Schema.Types.ObjectId,

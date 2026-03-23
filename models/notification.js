@@ -6,6 +6,12 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
+  siteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false,
+    index: true,
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const VoteSchema = new Schema({
+  siteId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Site',
+    required: false,
+    index: true,
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',

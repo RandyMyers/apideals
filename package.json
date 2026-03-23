@@ -10,6 +10,8 @@
     "seed:flutterwave": "node scripts/seedFlutterwaveKeys.js",
     "seed:loveable": "node scripts/seedLoveableReferralDeal.js",
     "inspect:loveable": "node scripts/inspectLoveableDeal.js",
+    "list:stores-offers": "node scripts/listStoresWithOffers.js",
+    "fix:trendykool-category": "node scripts/fixTrendykoolCategory.js",
     "seed:dealcouponz": "node scripts/seedDealcouponzSite.js"
   },
   "author": "",

@@ -9,6 +9,9 @@ router.post('/create', authOrApiKeyOptionalMiddleware, dealController.createDeal
 // Get all deals
 router.get('/all', dealController.getAllDeals);
 
+// Get all deals for admin (includes inactive/unpublished/expired)
+router.get('/admin/all', dealController.getAllDealsAdmin);
+
 // Get a single deal by ID
 router.get('/get/:id', dealController.getDealById);
 

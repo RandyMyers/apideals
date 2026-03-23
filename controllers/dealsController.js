@@ -537,6 +537,42 @@ exports.getAllDeals = async (req, res) => {
   }
 };
 
+// Get all deals for admin (includes inactive/unpublished/expired)
+exports.getAllDealsAdmin = async (req, res) => {
+  try {
+    const { storeId, categoryId, isActive, isPublished, search } = req.query;
+    const query = {};
+
+    if (storeId) query.store = storeId;
+    if (categoryId) query.categoryId = categoryId;
+    if (isActive !== undefined) query.isActive = isActive === 'true';
+    if (isPublished !== undefined) query.isPublished = isPublished === 'true';
+    if (req.siteId) query.siteId = req.siteId;
+
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const deals = await Deal.find(query)
+      .populate('store', 'name website logo')
+      .populate('categoryId', 'name slug')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json(deals);
+  } catch (error) {
+    console.error('Error fetching admin deals:', error);
+    res.status(500).json({
+      message: 'Error fetching admin deals',
+      error: error.message,
+    });
+  }
+};
+
 // Get a single deal by ID
 exports.getDealById = async (req, res) => {
   const { id } = req.params;
@@ -754,11 +790,23 @@ exports.updateDeal = async (req, res) => {
     console.log('🔍 Before boolean conversion - isActive:', updatedData.isActive, 'type:', typeof updatedData.isActive);
     console.log('🔍 Before boolean conversion - isPublished:', updatedData.isPublished, 'type:', typeof updatedData.isPublished);
     
+    const parseBool = (value) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value === 1;
+      if (typeof value === 'string') {
+        const v = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(v)) return true;
+        if (['false', '0', 'no', 'off'].includes(v)) return false;
+      }
+      return undefined;
+    };
     if (updatedData.isActive !== undefined && updatedData.isActive !== null) {
-      updatedData.isActive = updatedData.isActive === 'true' || updatedData.isActive === true;
+      const parsed = parseBool(updatedData.isActive);
+      if (parsed !== undefined) updatedData.isActive = parsed;
     }
     if (updatedData.isPublished !== undefined && updatedData.isPublished !== null) {
-      updatedData.isPublished = updatedData.isPublished === 'true' || updatedData.isPublished === true;
+      const parsed = parseBool(updatedData.isPublished);
+      if (parsed !== undefined) updatedData.isPublished = parsed;
     }
     
     console.log('✅ After boolean conversion - isActive:', updatedData.isActive, 'type:', typeof updatedData.isActive);

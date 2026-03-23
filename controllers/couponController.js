@@ -827,12 +827,24 @@ exports.updateCoupon = async (req, res) => {
       updatedData.endDate = new Date(updatedData.endDate);
     }
 
-    // Convert boolean strings
+    // Convert boolean-like values from form payloads
+    const parseBool = (value) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value === 1;
+      if (typeof value === 'string') {
+        const v = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(v)) return true;
+        if (['false', '0', 'no', 'off'].includes(v)) return false;
+      }
+      return undefined;
+    };
     if (updatedData.isActive !== undefined) {
-      updatedData.isActive = updatedData.isActive === 'true' || updatedData.isActive === true;
+      const parsed = parseBool(updatedData.isActive);
+      if (parsed !== undefined) updatedData.isActive = parsed;
     }
     if (updatedData.isPublished !== undefined) {
-      updatedData.isPublished = updatedData.isPublished === 'true' || updatedData.isPublished === true;
+      const parsed = parseBool(updatedData.isPublished);
+      if (parsed !== undefined) updatedData.isPublished = parsed;
     }
 
     // Convert numeric fields

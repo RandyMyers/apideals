@@ -263,7 +263,11 @@ exports.getPopularCategories = async (req, res) => {
 
 /**
  * GET /category/detail/:slug
- * Returns the category, its stores, and those stores' active coupons & deals.
+ * Returns the category, stores assigned to this category, and active coupons & deals
+ * whose **categoryId** matches this category (not merely “all offers from stores in this category”).
+ * WooCommerce sync sets each deal/coupon categoryId from the admin flow; listing by categoryId
+ * keeps category pages aligned with those assignments.
+ *
  * Accepts either a slug or a MongoDB ObjectId.
  */
 exports.getCategoryDetail = async (req, res) => {
@@ -280,49 +284,92 @@ exports.getCategoryDetail = async (req, res) => {
       return res.status(404).json({ message: 'Category not found' });
     }
 
-    const storeFilter = { categoryId: category._id, isActive: true };
+    const categoryId = category._id;
+
+    const storeFilter = { categoryId, isActive: true };
     if (req.siteId) storeFilter.siteId = req.siteId;
     const stores = await Store.find(storeFilter)
       .select('_id name logo slug website')
       .lean();
 
-    const storeIds = stores.map(s => s._id);
     const storeMap = {};
     for (const s of stores) {
       storeMap[s._id.toString()] = s;
     }
 
+    // List by each document’s categoryId (not “all offers from stores tagged with this category”).
+    // siteId is not required here — same as before; store list above already scopes tenants when needed.
+    const offerBase = { categoryId, isActive: true };
+
     let coupons = [];
-    let deals   = [];
+    let deals = [];
 
     if (type === 'all' || type === 'coupons') {
-      coupons = await Coupon.find({ store: { $in: storeIds }, isActive: true })
-        .select('_id title code slug discountValue discountType expirationDate store successRate verifiedAt imageUrl')
+      coupons = await Coupon.find(offerBase)
+        .select('_id title code slug discountValue discountType expirationDate storeId successRate verifiedAt imageUrl')
+        .populate('storeId', 'name logo slug website isActive')
         .sort({ createdAt: -1 })
         .limit(60)
         .lean();
+      coupons = coupons.filter((c) => {
+        const st = c.storeId;
+        return st && typeof st === 'object' && st.isActive !== false;
+      });
     }
 
     if (type === 'all' || type === 'deals') {
-      deals = await Deal.find({ store: { $in: storeIds }, isActive: true })
+      deals = await Deal.find(offerBase)
         .select('_id title name slug discountValue discountType originalPrice discountedPrice endDate store imageUrl')
+        .populate('store', 'name logo slug website isActive')
         .sort({ createdAt: -1 })
         .limit(60)
         .lean();
+      deals = deals.filter((d) => {
+        const st = d.store;
+        return st && typeof st === 'object' && st.isActive !== false;
+      });
     }
 
-    const attachStore = (items) =>
-      items.map(item => ({
-        ...item,
-        storeInfo: storeMap[item.store?.toString()] || null,
-      }));
+    const storeInfoFromCoupon = (item) => {
+      const st = item.storeId;
+      if (st && typeof st === 'object' && st._id) {
+        return {
+          _id: st._id,
+          name: st.name,
+          logo: st.logo,
+          slug: st.slug,
+          website: st.website,
+        };
+      }
+      return storeMap[String(item.storeId)] || null;
+    };
+
+    const storeInfoFromDeal = (item) => {
+      const st = item.store;
+      if (st && typeof st === 'object' && st._id) {
+        return {
+          _id: st._id,
+          name: st.name,
+          logo: st.logo,
+          slug: st.slug,
+          website: st.website,
+        };
+      }
+      return storeMap[item.store?.toString()] || null;
+    };
 
     return res.status(200).json({
       success: true,
       category,
       stores,
-      coupons: attachStore(coupons),
-      deals:   attachStore(deals),
+      coupons: coupons.map((item) => ({
+        ...item,
+        storeInfo: storeInfoFromCoupon(item),
+      })),
+      deals: deals.map((item) => ({
+        ...item,
+        storeInfo: storeInfoFromDeal(item),
+      })),
     });
   } catch (error) {
     console.error(error);

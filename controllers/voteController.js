@@ -3,11 +3,34 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const CouponUsage = require('../models/couponUsage');
 
+function isObjectIdLike(value) {
+  return /^[0-9a-fA-F]{24}$/.test(String(value || '').trim());
+}
+
+async function resolveCouponId(couponIdOrSlug) {
+  if (!couponIdOrSlug) return null;
+  if (isObjectIdLike(couponIdOrSlug)) return String(couponIdOrSlug).trim();
+  const coupon = await Coupon.findOne({ slug: String(couponIdOrSlug).trim() }).select('_id').lean();
+  return coupon?._id || null;
+}
+
+async function resolveDealId(dealIdOrSlug) {
+  if (!dealIdOrSlug) return null;
+  if (isObjectIdLike(dealIdOrSlug)) return String(dealIdOrSlug).trim();
+  const deal = await Deal.findOne({ slug: String(dealIdOrSlug).trim() }).select('_id').lean();
+  return deal?._id || null;
+}
+
 // Create or update a vote
 exports.createOrUpdateVote = async (req, res) => {
+  let userId = null;
+  let couponId = null;
+  let dealId = null;
   try {
-    const userId = req.user?.id || req.user?._id || req.user?.userId || req.body.userId;
-    const { couponId, dealId, type } = req.body;
+    userId = req.user?.id || req.user?._id || req.user?.userId || req.body.userId;
+    const { couponId: couponIdInput, dealId: dealIdInput, type } = req.body;
+    couponId = couponIdInput;
+    dealId = dealIdInput;
 
     if (!userId) {
       return res.status(401).json({ message: 'User authentication required.' });
@@ -24,21 +47,31 @@ exports.createOrUpdateVote = async (req, res) => {
     // Verify that coupon or deal exists and get entity data
     let entity = null;
     let storeId = null;
+    let resolvedCouponId = null;
+    let resolvedDealId = null;
     
     if (couponId) {
-      entity = await Coupon.findById(couponId);
+      resolvedCouponId = await resolveCouponId(couponId);
+      entity = await Coupon.findOne(
+        resolvedCouponId ? { _id: resolvedCouponId } : { slug: couponId }
+      );
       if (!entity) {
         return res.status(404).json({ message: 'Coupon not found.' });
       }
       storeId = entity.storeId || entity.store;
+      resolvedCouponId = entity._id;
     }
 
     if (dealId) {
-      entity = await Deal.findById(dealId);
+      resolvedDealId = await resolveDealId(dealId);
+      entity = await Deal.findOne(
+        resolvedDealId ? { _id: resolvedDealId } : { slug: dealId }
+      );
       if (!entity) {
         return res.status(404).json({ message: 'Deal not found.' });
       }
       storeId = entity.storeId || entity.store;
+      resolvedDealId = entity._id;
     }
     
     if (!storeId) {
@@ -49,8 +82,8 @@ exports.createOrUpdateVote = async (req, res) => {
     // This allows users to vote multiple times if they use the deal/coupon multiple times
     const vote = new Vote({
       userId,
-      couponId,
-      dealId,
+      couponId: resolvedCouponId,
+      dealId: resolvedDealId,
       type,
     });
     await vote.save();
@@ -67,9 +100,9 @@ exports.createOrUpdateVote = async (req, res) => {
       // Always create a new usage record (allow multiple uses)
       const usage = new CouponUsage({
         userId,
-        entityType: couponId ? 'coupon' : 'deal',
-        entityId: couponId || dealId,
-        entityModel: couponId ? 'Coupon' : 'Deal',
+        entityType: resolvedCouponId ? 'coupon' : 'deal',
+        entityId: resolvedCouponId || resolvedDealId,
+        entityModel: resolvedCouponId ? 'Coupon' : 'Deal',
         storeId,
         discountType: entity.discountType,
         discountValue: entity.discountValue,
@@ -82,7 +115,7 @@ exports.createOrUpdateVote = async (req, res) => {
     // Thumbs down only indicates the deal didn't work, but doesn't remove previous successful uses
 
     // Get updated vote counts
-    const voteCounts = await getVoteCounts(couponId, dealId);
+    const voteCounts = await getVoteCounts(resolvedCouponId, resolvedDealId);
 
     res.status(200).json({
       message: vote ? 'Vote saved successfully.' : 'Vote removed successfully.',
@@ -99,14 +132,16 @@ exports.createOrUpdateVote = async (req, res) => {
     if (error.code === 11000) {
       // Duplicate vote - this shouldn't happen with our logic, but handle gracefully
       // Try to find the existing vote and return it
-      const query = couponId 
-        ? { userId, couponId }
-        : { userId, dealId };
+      const resolvedCouponId = couponId ? await resolveCouponId(couponId) : null;
+      const resolvedDealId = dealId ? await resolveDealId(dealId) : null;
+      const query = resolvedCouponId
+        ? { userId, couponId: resolvedCouponId }
+        : { userId, dealId: resolvedDealId };
       const existingVote = await Vote.findOne(query);
       
       if (existingVote) {
         // Return the existing vote as if it was successful
-        const voteCounts = await getVoteCounts(couponId, dealId);
+        const voteCounts = await getVoteCounts(resolvedCouponId, resolvedDealId);
         return res.status(200).json({
           message: 'Vote already exists.',
           vote: existingVote,
@@ -136,8 +171,15 @@ exports.getVoteCounts = async (req, res) => {
       return res.status(400).json({ message: 'Entity type must be "coupon" or "deal".' });
     }
 
-    const couponId = entityType === 'coupon' ? entityId : null;
-    const dealId = entityType === 'deal' ? entityId : null;
+    const couponId = entityType === 'coupon' ? await resolveCouponId(entityId) : null;
+    const dealId = entityType === 'deal' ? await resolveDealId(entityId) : null;
+
+    if (entityType === 'coupon' && !couponId) {
+      return res.status(404).json({ message: 'Coupon not found.' });
+    }
+    if (entityType === 'deal' && !dealId) {
+      return res.status(404).json({ message: 'Deal not found.' });
+    }
 
     const voteCounts = await getVoteCounts(couponId, dealId);
 

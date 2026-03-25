@@ -6,6 +6,18 @@
 const Store = require('../models/store');
 const adminMiddleware = require('../middleware/adminMiddleware');
 
+function isObjectIdLike(value) {
+  return /^[0-9a-fA-F]{24}$/.test(String(value || '').trim());
+}
+
+async function resolveStore(storeIdOrSlug, siteId) {
+  if (!storeIdOrSlug) return null;
+  const raw = String(storeIdOrSlug).trim();
+  const query = isObjectIdLike(raw) ? { _id: raw } : { slug: raw.toLowerCase() };
+  if (siteId) query.siteId = siteId;
+  return Store.findOne(query);
+}
+
 /**
  * Get saving tips for a store
  * GET /api/v1/stores/:storeId/saving-tips
@@ -14,7 +26,7 @@ exports.getSavingTips = async (req, res) => {
   try {
     const { storeId } = req.params;
     
-    const store = await Store.findById(storeId).select('savingTips').lean();
+    const store = await resolveStore(storeId, req.siteId);
     
     if (!store) {
       return res.status(404).json({ message: 'Store not found.' });
@@ -59,7 +71,7 @@ exports.addSavingTip = async (req, res) => {
       return res.status(400).json({ message: 'Tip text must be 500 characters or less.' });
     }
     
-    const store = await Store.findById(storeId);
+    const store = await resolveStore(storeId, req.siteId);
     
     if (!store) {
       return res.status(404).json({ message: 'Store not found.' });
@@ -111,7 +123,7 @@ exports.updateSavingTip = async (req, res) => {
     const { tip, order, isActive } = req.body;
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     
-    const store = await Store.findById(storeId);
+    const store = await resolveStore(storeId, req.siteId);
     
     if (!store) {
       return res.status(404).json({ message: 'Store not found.' });
@@ -174,7 +186,7 @@ exports.deleteSavingTip = async (req, res) => {
     const { storeId, tipId } = req.params;
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     
-    const store = await Store.findById(storeId);
+    const store = await resolveStore(storeId, req.siteId);
     
     if (!store) {
       return res.status(404).json({ message: 'Store not found.' });
@@ -222,7 +234,7 @@ exports.reorderSavingTips = async (req, res) => {
       return res.status(400).json({ message: 'tipIds must be an array.' });
     }
     
-    const store = await Store.findById(storeId);
+    const store = await resolveStore(storeId, req.siteId);
     
     if (!store) {
       return res.status(404).json({ message: 'Store not found.' });

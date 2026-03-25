@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const storeController = require('../controllers/storeController');
+const storeLandingPageController = require('../controllers/storeLandingPageController');
 const authMiddleware = require('../middleware/authMiddleware');
 const authOrApiKeyMiddleware = require('../middleware/authOrApiKeyMiddleware');
 
@@ -18,6 +19,9 @@ router.get('/sponsored', storeController.getSponsoredStores);
 
 // Route to get trending stores by category (MUST come before /:id)
 router.get('/trending/category/:categoryId', storeController.getTrendingStoresByCategory);
+
+// Public store landing pages (MUST come before /:id)
+router.get('/:storeSlug/landing/:landingSlug', storeLandingPageController.getPublicLanding);
 
 // Route to get a store by its ID
 router.get('/:id', storeController.getStoreById);

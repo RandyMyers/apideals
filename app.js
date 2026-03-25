@@ -78,6 +78,7 @@ const shareRoutes = require('./routes/shareRoutes');  // Share Routes
 const couponUsageRoutes = require('./routes/couponUsageRoutes');  // Coupon Usage Routes
 const apiKeyRoutes = require('./routes/apiKeyRoutes');  // API Keys for external apps
 const siteRoutes = require('./routes/siteRoutes');  // Sites (multi-tenant)
+const storeLandingPageRoutes = require('./routes/storeLandingPageRoutes'); // Store landing pages (filtered pages)
 
 dotenv.config();
 
@@ -365,6 +366,7 @@ app.use('/api/v1/coupon-boosts', couponBoostRoutes);  // Coupon Boosts
 app.use('/api/v1/deals', dealRoutes);
 app.use('/api/v1/sites', siteRoutes);
 app.use('/api/v1/store', storeRoutes);
+app.use('/api/v1/store-landing-pages', storeLandingPageRoutes);
 app.use('/api/v1/stores', savingTipsRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/category', categoryRoutes);  // New route for Categories

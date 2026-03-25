@@ -29,6 +29,7 @@ const mongoose = require('mongoose');
 const Store = require('../models/store');
 const Category = require('../models/category');
 const User = require('../models/user');
+const Site = require('../models/site');
 
 // ---------------------------------------------------------------------------
 // Logo URL builder
@@ -385,6 +386,13 @@ const STORES = [
       'Tax preparation software. Seasonal high demand — users share discount codes during tax season.',
   },
   {
+    name: 'Hostinger',
+    category: 'Software & Apps',
+    url: 'https://www.hostinger.com?REFERRALCODE=1GAEL52',
+    description:
+      'Web hosting and website builder platform. Users actively share referral discounts and promotional hosting deals.',
+  },
+  {
     name: 'H&R Block',
     category: 'Software & Apps',
     url: 'https://www.hrblock.com',
@@ -539,6 +547,9 @@ async function seedPopularStores() {
     const adminUserId = await findAdminUser();
     const categoryMap = await resolveCategories(STORES);
 
+    /** Multi-tenant: public API filters by siteId — attach default site so new stores appear on dealcouponz.com */
+    const tenantSite = await Site.findOne({ slug: 'dealcouponz', isActive: true }).select('_id').lean();
+
     const existingNames = new Set(
       (await Store.find({}).select('name')).map((s) => s.name.toLowerCase())
     );
@@ -564,6 +575,7 @@ async function seedPopularStores() {
         isSponsored: false,
         isWorldwide: true,
         availableCountries: ['WORLDWIDE'],
+        ...(tenantSite && { siteId: tenantSite._id }),
       });
     }
 

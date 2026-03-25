@@ -827,6 +827,12 @@ exports.updateDeal = async (req, res) => {
     if (updatedData.discountedPrice !== undefined) {
       updatedData.discountedPrice = Number(updatedData.discountedPrice) || 0;
     }
+    if (updatedData.maxUsage !== undefined) {
+      const parsedMaxUsage = Number(updatedData.maxUsage);
+      if (!Number.isNaN(parsedMaxUsage)) {
+        updatedData.maxUsage = parsedMaxUsage;
+      }
+    }
     
     // Process image upload if present
     if (req.files && req.files.image) {

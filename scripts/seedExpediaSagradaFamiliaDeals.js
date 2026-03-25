@@ -22,6 +22,7 @@ const Store = require('../models/store');
 const Category = require('../models/category');
 const User = require('../models/user');
 const Site = require('../models/site');
+const StoreLandingPage = require('../models/storeLandingPage');
 
 function daysFromNow(days) {
   const d = new Date();
@@ -210,6 +211,32 @@ async function run() {
       console.log('Created:', doc.name, '->', doc.slug);
       created += 1;
     }
+
+    // Stable public URL: /stores/expedia/sagrada-familia → API GET /api/v1/store/expedia/landing/sagrada-familia
+    const landingSlug = 'sagrada-familia';
+    await StoreLandingPage.findOneAndUpdate(
+      { storeId: expedia._id, slug: landingSlug },
+      {
+        $set: {
+          siteId: siteId || undefined,
+          storeId: expedia._id,
+          title: 'Hotels & stays near Sagrada Familia (Barcelona)',
+          slug: landingSlug,
+          description:
+            'Latest Expedia hotel deals near Sagrada Familia and the Eixample. Filtered by location and tags for stable backlinks.',
+          seoTitle: 'Expedia deals near Sagrada Familia | Barcelona',
+          seoDescription: 'Browse active hotel deals near Sagrada Familia on Expedia.',
+          isActive: true,
+          isPublished: true,
+          offerTypes: ['deals'],
+          entityType: 'hotel',
+          entityLocation: 'Barcelona, ES',
+          entityTags: ['sagrada-familia', 'barcelona', 'eixample'],
+        },
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`\nStore landing page upserted: slug=${landingSlug}`);
 
     console.log(`\nDone. Created ${created}, skipped ${skipped}.`);
     console.log('Images intentionally left for admin update.');

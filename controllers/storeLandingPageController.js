@@ -19,10 +19,13 @@ function buildKeywordRegex(keyword) {
 }
 
 async function resolveStoreBySlugOrId(storeSlugOrId, siteId) {
-  const filter = isObjectIdLike(storeSlugOrId)
+  const base = isObjectIdLike(storeSlugOrId)
     ? { _id: storeSlugOrId }
     : { slug: String(storeSlugOrId).trim().toLowerCase() };
-  if (siteId) filter.siteId = siteId;
+  // Tenant: prefer stores scoped to this site, but still resolve if siteId was never backfilled.
+  const filter = siteId
+    ? { ...base, $or: [{ siteId }, { siteId: { $exists: false } }, { siteId: null }] }
+    : base;
   return Store.findOne(filter).select('_id name slug logo url website isActive categoryId siteId storeIndicators').lean();
 }
 
@@ -37,7 +40,8 @@ function buildEntityFilters(landing) {
 }
 
 // ---------------------------------------------------------------------------
-// Public: GET /api/v1/stores/:storeSlug/landing/:landingSlug
+// Public: GET /api/v1/store/:storeSlug/landing/:landingSlug
+// (app mounts storeRoutes at /api/v1/store — singular.)
 // ---------------------------------------------------------------------------
 exports.getPublicLanding = async (req, res) => {
   try {
@@ -55,7 +59,14 @@ exports.getPublicLanding = async (req, res) => {
       isActive: true,
       isPublished: true,
     };
-    if (req.siteId) landingFilter.siteId = req.siteId;
+    // Match tenant-scoped landings, or legacy rows created before siteId backfill.
+    if (req.siteId) {
+      landingFilter.$or = [
+        { siteId: req.siteId },
+        { siteId: { $exists: false } },
+        { siteId: null },
+      ];
+    }
 
     const landing = await StoreLandingPage.findOne(landingFilter).lean();
     if (!landing) return res.status(404).json({ message: 'Landing page not found' });

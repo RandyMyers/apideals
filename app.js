@@ -262,16 +262,16 @@ if (isServerless) {
 // Trust proxy (for accurate IP addresses behind reverse proxy)
 app.set('trust proxy', 1);
 
+// CORS must run before middleware that can end the response (e.g. 413 body limit),
+// otherwise browsers report a misleading "CORS" error with no Allow-Origin header.
+app.use(cors(corsOptions));
+
 // Security middleware (order matters!)
 app.use(securityHeaders);
 app.use(compressResponse);
 app.use(requestSizeLimit);
 app.use(sanitizeData);
 app.use(preventParameterPollution);
-
-
-// CORS configuration
-app.use(cors(corsOptions));
 
 // Body parsing middleware
 // Keep raw body for webhook verification; for general JSON use body-parser

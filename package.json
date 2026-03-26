@@ -14,7 +14,10 @@
     "fix:trendykool-category": "node scripts/fixTrendykoolCategory.js",
     "seed:dealcouponz": "node scripts/seedDealcouponzSite.js",
     "seed:hostinger-deals": "node scripts/seedHostingerHostingDeals.js",
-    "seed:expedia-sagrada": "node scripts/seedExpediaSagradaFamiliaDeals.js"
+    "seed:expedia-sagrada": "node scripts/seedExpediaSagradaFamiliaDeals.js",
+    "verify:store-landings": "node scripts/verifyAndFixStoreLandingPages.js",
+    "fix:store-landings": "node scripts/verifyAndFixStoreLandingPages.js --fix",
+    "fix:store-landings:publish": "node scripts/verifyAndFixStoreLandingPages.js --fix --publish-landings"
   },
   "author": "",
   "license": "ISC",

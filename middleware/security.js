@@ -151,15 +151,16 @@ const corsOptions = {
 // Request size limiter
 const requestSizeLimit = (req, res, next) => {
   const contentLength = parseInt(req.get('content-length') || '0');
-  const maxSize = 10 * 1024 * 1024; // 10MB
-  
+  // Per-request cap (Vercel also enforces ~4.5MB on many plans — use sequential uploads for many images).
+  const maxSize = 25 * 1024 * 1024; // 25MB
+
   if (contentLength > maxSize) {
     return res.status(413).json({
       error: 'Request entity too large',
-      message: 'Request size exceeds 10MB limit'
+      message: 'Request size exceeds limit. Try uploading gallery images one at a time or use smaller files.',
     });
   }
-  
+
   next();
 };
 

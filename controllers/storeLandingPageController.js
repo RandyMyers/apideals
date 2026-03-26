@@ -166,6 +166,50 @@ exports.getPublicLanding = async (req, res) => {
 };
 
 // ---------------------------------------------------------------------------
+// Public: GET /api/v1/store/:storeSlug/landings
+// List published/active landing pages for a store (for dropdown navigation).
+// ---------------------------------------------------------------------------
+exports.listPublicLandings = async (req, res) => {
+  try {
+    const { storeSlug } = req.params;
+    const { country } = req.query;
+
+    const store = await resolveStoreBySlugOrId(storeSlug, req.siteId);
+    if (!store) return res.status(404).json({ message: 'Store not found' });
+    if (store.isActive === false) return res.status(404).json({ message: 'Store not found' });
+
+    const query = {
+      storeId: store._id,
+      isActive: true,
+      isPublished: true,
+    };
+    if (req.siteId) {
+      query.$or = [
+        { siteId: req.siteId },
+        { siteId: { $exists: false } },
+        { siteId: null },
+      ];
+    }
+
+    let landings = await StoreLandingPage.find(query)
+      .select('title slug description offerTypes entityType entityLocation entityTags availableCountries isWorldwide')
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
+
+    if (country) {
+      landings = landings.filter((l) =>
+        isCountryAvailable(country, l.availableCountries || [], l.isWorldwide !== false)
+      );
+    }
+
+    return res.status(200).json({ store, landings });
+  } catch (error) {
+    console.error('Error listing public store landings:', error);
+    return res.status(500).json({ message: 'Error listing landing pages', error: error.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Admin CRUD (JWT + adminMiddleware)
 // Base: /api/v1/store-landing-pages
 // ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ router.get('/sponsored', storeController.getSponsoredStores);
 router.get('/trending/category/:categoryId', storeController.getTrendingStoresByCategory);
 
 // Public store landing pages (MUST come before /:id)
+router.get('/:storeSlug/landings', storeLandingPageController.listPublicLandings);
 router.get('/:storeSlug/landing/:landingSlug', storeLandingPageController.getPublicLanding);
 
 // Route to get a store by its ID

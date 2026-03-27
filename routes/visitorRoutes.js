@@ -7,6 +7,7 @@ const router = express.Router();
 router.post('/create', VisitorController.createVisitor); // Create a new visitor
 router.get('/all', VisitorController.getAllVisitors); // Get all visitors
 router.get('/countries', VisitorController.getVisitorCountries); // Get list of countries from visitor data
+router.get('/:id/activity', VisitorController.getVisitorActivityById); // Get timeline + pages visited for one visitor
 router.get('/:id', VisitorController.getVisitorById); // Get a specific visitor by ID
 router.delete('/delete/:id', VisitorController.deleteVisitor); // Delete visitor and related data
 

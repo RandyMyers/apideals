@@ -46,7 +46,22 @@ exports.createView = async (req, res) => {
             languageCode: req.body.languageCode
         });
         
-        const { visitorId, userId, storeId, couponId, dealId, categoryId, blogId, pagePath, languageCode, referrer } = req.body;
+        const {
+            visitorId,
+            userId,
+            storeId,
+            couponId,
+            dealId,
+            categoryId,
+            blogId,
+            pagePath,
+            languageCode,
+            referrer,
+            userAgent: bodyUserAgent,
+            browserLanguage,
+            platform,
+            trackingKey,
+        } = req.body;
         const Visitor = require('../models/visitor');
 
         // Get userId from authenticated user if available
@@ -54,15 +69,36 @@ exports.createView = async (req, res) => {
 
         // Auto-link to visitor if not provided: find visitor by IP and userAgent
         let finalVisitorId = visitorId;
+        if (!finalVisitorId && trackingKey) {
+            const trackedVisitor = await Visitor.findOne({ trackingKey }).select('_id userId').lean();
+            if (trackedVisitor?._id) {
+                finalVisitorId = trackedVisitor._id;
+                if (authenticatedUserId && !trackedVisitor.userId) {
+                    await Visitor.findByIdAndUpdate(trackedVisitor._id, { userId: authenticatedUserId }, { upsert: false });
+                }
+            }
+        }
         if (!finalVisitorId) {
-            const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress;
-            const userAgent = req.headers['user-agent'] || req.body.userAgent;
+            const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection.remoteAddress;
+            const userAgent = bodyUserAgent || req.headers['user-agent'] || null;
             
             if (clientIp && userAgent) {
-                const visitor = await Visitor.findOne({ ip: clientIp, userAgent })
+                // First try exact IP + UA match, then progressively relax.
+                let visitor = await Visitor.findOne({ ip: clientIp, userAgent })
                     .sort({ visitedAt: -1 })
                     .select('_id')
                     .lean();
+
+                if (!visitor) {
+                    visitor = await Visitor.findOne({
+                        userAgent,
+                        ...(browserLanguage ? { browserLanguage } : {}),
+                        ...(platform ? { platform } : {}),
+                    })
+                        .sort({ visitedAt: -1 })
+                        .select('_id')
+                        .lean();
+                }
                 
                 if (visitor) {
                     finalVisitorId = visitor._id;
@@ -71,6 +107,34 @@ exports.createView = async (req, res) => {
                         await Visitor.findByIdAndUpdate(visitor._id, { 
                             userId: authenticatedUserId 
                         }, { upsert: false });
+                    }
+                } else {
+                    // Ensure every view is linked to a visitor record.
+                    try {
+                        const fallbackVisitor = await Visitor.create({
+                            userId: authenticatedUserId || undefined,
+                            trackingKey: trackingKey || undefined,
+                            ip: clientIp,
+                            country: 'Unknown',
+                            userAgent,
+                            browserLanguage: browserLanguage || undefined,
+                            platform: platform || undefined,
+                            deviceType: platform || undefined,
+                            city: null,
+                            region: null,
+                            timezone: null,
+                        });
+                        finalVisitorId = fallbackVisitor._id;
+                    } catch (createErr) {
+                        // If unique index races, grab latest matching record and continue.
+                        const fallbackExisting = await Visitor.findOne({
+                            ip: clientIp,
+                            userAgent,
+                        })
+                            .sort({ visitedAt: -1 })
+                            .select('_id')
+                            .lean();
+                        finalVisitorId = fallbackExisting?._id || null;
                     }
                 }
             }

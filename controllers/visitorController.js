@@ -6,10 +6,14 @@ const CouponUsage = require('../models/couponUsage');
 
 exports.createVisitor = async (req, res) => {
     try {
-        const { userId, ip, userAgent, referralCode } = req.body;
+        const { userId, ip, userAgent, referralCode, trackingKey } = req.body;
 
-        // Check if a visitor with the same IP and User-Agent exists
-        let visitor = await Visitor.findOne({ ip, userAgent });
+        // Strongest identity first: stable client tracking key.
+        let visitor = trackingKey ? await Visitor.findOne({ trackingKey }) : null;
+        // Fallback identity if no tracking-key match.
+        if (!visitor) {
+            visitor = await Visitor.findOne({ ip, userAgent });
+        }
 
         if (visitor) {
             // Update visit count and timestamp
@@ -23,6 +27,9 @@ exports.createVisitor = async (req, res) => {
 
             if (referralCode && !visitor.referralCode) {
                 visitor.referralCode = referralCode; // Update referral code if it's not already set
+            }
+            if (trackingKey && !visitor.trackingKey) {
+                visitor.trackingKey = trackingKey;
             }
 
             await visitor.save();
@@ -54,6 +61,7 @@ exports.createVisitor = async (req, res) => {
 
         const newVisitor = new Visitor({
             userId,
+            trackingKey,
             ip,
             city,
             region,
@@ -135,15 +143,19 @@ exports.getVisitorActivityById = async (req, res) => {
 
         const cap = Math.max(1, Math.min(parseInt(limit, 10) || 100, 500));
 
+        const visitorOrUserFilter = visitor.userId
+            ? { $or: [{ visitorId: id }, { userId: visitor.userId }] }
+            : { visitorId: id };
+
         const [views, interactions] = await Promise.all([
-            View.find({ visitorId: id })
+            View.find(visitorOrUserFilter)
                 .populate('storeId', 'name')
                 .populate('couponId', 'title code')
                 .populate('dealId', 'title name')
                 .sort({ viewedAt: -1 })
                 .limit(cap)
                 .lean(),
-            Interaction.find({ visitorId: id })
+            Interaction.find(visitorOrUserFilter)
                 .populate('storeId', 'name')
                 .populate('couponId', 'title code')
                 .populate('dealId', 'title name')

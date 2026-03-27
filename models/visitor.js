@@ -4,6 +4,7 @@ const Schema = mongoose.Schema;
 const VisitorSchema = new Schema({
     siteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Site', index: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    trackingKey: { type: String, index: true },
     ip: { type: String, required: true },
     city: { type: String },
     region: { type: String },
@@ -28,6 +29,7 @@ const VisitorSchema = new Schema({
 
 // Create a compound index for unique IP and userAgent combination
 VisitorSchema.index({ ip: 1, userAgent: 1 }, { unique: true });
+VisitorSchema.index({ trackingKey: 1 }, { unique: true, sparse: true });
 
 const Visitor = mongoose.model('Visitor', VisitorSchema);
 module.exports = Visitor;

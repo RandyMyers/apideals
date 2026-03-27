@@ -5,6 +5,15 @@ const Store = require('../models/store');
 const Category = require('../models/category');
 const Blog = require('../models/blog');
 
+function detectDeviceType(userAgent = '', platform = '') {
+    const ua = String(userAgent || '').toLowerCase();
+    const pf = String(platform || '').toLowerCase();
+    if (ua.includes('ipad') || ua.includes('tablet')) return 'Tablet';
+    if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone') || ua.includes('ipod')) return 'Mobile';
+    if (pf.includes('mac') || pf.includes('win') || pf.includes('linux') || ua.includes('desktop')) return 'Desktop';
+    return 'Desktop';
+}
+
 /** Resolve entity identifier (slug or ObjectId) to canonical ObjectId. */
 async function resolveEntityId(model, idOrSlug, slugField = 'slug') {
     if (!idOrSlug) return null;
@@ -119,7 +128,7 @@ exports.createView = async (req, res) => {
                             userAgent,
                             browserLanguage: browserLanguage || undefined,
                             platform: platform || undefined,
-                            deviceType: platform || undefined,
+                            deviceType: detectDeviceType(userAgent, platform),
                             city: null,
                             region: null,
                             timezone: null,

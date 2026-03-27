@@ -3,6 +3,15 @@ const View = require('../models/view');
 const Interaction = require('../models/interaction');
 const CouponUsage = require('../models/couponUsage');
 
+function detectDeviceType(userAgent = '', platform = '') {
+    const ua = String(userAgent || '').toLowerCase();
+    const pf = String(platform || '').toLowerCase();
+    if (ua.includes('ipad') || ua.includes('tablet')) return 'Tablet';
+    if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone') || ua.includes('ipod')) return 'Mobile';
+    if (pf.includes('mac') || pf.includes('win') || pf.includes('linux') || ua.includes('desktop')) return 'Desktop';
+    return 'Desktop';
+}
+
 
 exports.createVisitor = async (req, res) => {
     try {
@@ -31,6 +40,15 @@ exports.createVisitor = async (req, res) => {
             if (trackingKey && !visitor.trackingKey) {
                 visitor.trackingKey = trackingKey;
             }
+            if (!visitor.deviceType) {
+                visitor.deviceType = req.body.deviceType || detectDeviceType(userAgent, req.body.platform);
+            }
+            if (!visitor.platform && req.body.platform) {
+                visitor.platform = req.body.platform;
+            }
+            if (!visitor.browserLanguage && req.body.browserLanguage) {
+                visitor.browserLanguage = req.body.browserLanguage;
+            }
 
             await visitor.save();
             return res.status(200).json({
@@ -55,9 +73,10 @@ exports.createVisitor = async (req, res) => {
             timezone,
             browserLanguage,
             platform,
-            deviceType,
+            deviceType: incomingDeviceType,
             
         } = req.body;
+        const resolvedDeviceType = incomingDeviceType || detectDeviceType(userAgent, platform);
 
         const newVisitor = new Visitor({
             userId,
@@ -78,7 +97,7 @@ exports.createVisitor = async (req, res) => {
             userAgent,
             browserLanguage,
             platform,
-            deviceType,
+            deviceType: resolvedDeviceType,
             referralCode
         });
 

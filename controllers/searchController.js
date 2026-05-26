@@ -7,6 +7,14 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const Store = require('../models/store');
 const Category = require('../models/category');
+const { isCountryAvailable } = require('../utils/countryUtils');
+
+function buildSearchRegex(q) {
+  const trimmed = String(q || '').trim();
+  if (!trimmed) return null;
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(escaped, 'i');
+}
 
 /**
  * Get search suggestions based on query
@@ -153,6 +161,117 @@ exports.getSearchSuggestions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching search suggestions',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Full search across stores, coupons, and deals (scoped, server-side)
+ * GET /api/v1/search?q=&limit=30&country=
+ */
+exports.search = async (req, res) => {
+  try {
+    const { q, country } = req.query;
+    const regex = buildSearchRegex(q);
+    if (!regex) {
+      return res.json({ success: true, coupons: [], deals: [], stores: [], count: 0 });
+    }
+
+    const totalLimit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 60);
+    const perType = Math.ceil(totalLimit / 3);
+    const now = new Date();
+
+    const storeFilter = {
+      isActive: true,
+      $or: [{ name: regex }, { description: regex }],
+    };
+    if (req.siteId) {
+      storeFilter.$and = [
+        { $or: [{ siteId: req.siteId }, { siteId: { $exists: false } }, { siteId: null }] },
+      ];
+    }
+
+    const couponFilter = {
+      isPublished: true,
+      isActive: true,
+      $and: [
+        { $or: [{ title: regex }, { description: regex }, { code: regex }] },
+        {
+          $or: [
+            { endDate: { $gte: now } },
+            { endDate: null },
+            { endDate: { $exists: false } },
+          ],
+        },
+      ],
+    };
+    if (req.siteId) couponFilter.siteId = req.siteId;
+
+    const dealFilter = {
+      isPublished: true,
+      isActive: true,
+      $and: [
+        { $or: [{ title: regex }, { name: regex }, { description: regex }] },
+        {
+          $or: [
+            { endDate: { $gte: now } },
+            { endDate: null },
+            { endDate: { $exists: false } },
+          ],
+        },
+      ],
+    };
+    if (req.siteId) dealFilter.siteId = req.siteId;
+
+    const [stores, coupons, deals] = await Promise.all([
+      Store.find(storeFilter)
+        .select('name slug logo description categoryId averageRating')
+        .sort({ averageRating: -1, createdAt: -1 })
+        .limit(perType)
+        .lean(),
+      Coupon.find(couponFilter)
+        .select('_id title code slug discountValue discountType endDate storeId description')
+        .populate('storeId', 'name slug logo')
+        .sort({ createdAt: -1 })
+        .limit(perType)
+        .lean(),
+      Deal.find(dealFilter)
+        .select('_id title name slug discountValue discountType endDate store description')
+        .populate('store', 'name slug logo')
+        .sort({ createdAt: -1 })
+        .limit(perType)
+        .lean(),
+    ]);
+
+    let filteredStores = stores;
+    let filteredCoupons = coupons;
+    let filteredDeals = deals;
+
+    if (country) {
+      filteredStores = stores.filter((s) =>
+        isCountryAvailable(country, s.availableCountries || [], s.isWorldwide !== false)
+      );
+      filteredCoupons = coupons.filter((c) =>
+        isCountryAvailable(country, c.availableCountries || [], c.isWorldwide !== false)
+      );
+      filteredDeals = deals.filter((d) =>
+        isCountryAvailable(country, d.availableCountries || [], d.isWorldwide !== false)
+      );
+    }
+
+    return res.json({
+      success: true,
+      coupons: filteredCoupons,
+      deals: filteredDeals,
+      stores: filteredStores,
+      count: filteredCoupons.length + filteredDeals.length + filteredStores.length,
+    });
+  } catch (error) {
+    console.error('Error performing search:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error performing search',
       error: error.message,
     });
   }

@@ -9,6 +9,9 @@ router.post('/create', authOrApiKeyOptionalMiddleware, dealController.createDeal
 // Get all deals
 router.get('/all', dealController.getAllDeals);
 
+// Store-scoped deals (must be before /get/:id)
+router.get('/by-store/:storeId', dealController.getDealsByStore);
+
 // Get all deals for admin (includes inactive/unpublished/expired)
 router.get('/admin/all', dealController.getAllDealsAdmin);
 

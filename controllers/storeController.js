@@ -534,12 +534,25 @@ exports.getStoreById = async (req, res) => {
         const { country } = req.query;
 
         const findFilter = buildStoreLookupFilter(id, req.siteId);
+        const offerSelect =
+            '_id title name code slug discountValue discountType originalPrice discountedPrice endDate store storeId imageUrl entityType entityLocation entityTags createdAt dealType currency priceUnit successRate verifiedAt description';
         const store = await Store.findOne(findFilter)
+            .select('-apiKey -secretKey -webhookSecret')
             .populate('userId', 'name email')
-            .populate('coupons')
-            .populate('deals')
+            .populate({
+                path: 'coupons',
+                match: { isPublished: true, isActive: true },
+                select: offerSelect,
+                options: { sort: { createdAt: -1 }, limit: 100 },
+            })
+            .populate({
+                path: 'deals',
+                match: { isPublished: true, isActive: true },
+                select: offerSelect,
+                options: { sort: { createdAt: -1 }, limit: 100 },
+            })
             .populate('subscription')
-            .populate('categoryId', 'name')
+            .populate('categoryId', 'name slug')
             .populate('affiliate', 'name')
             .lean();
 

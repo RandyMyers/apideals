@@ -197,7 +197,7 @@ exports.getCategoriesByParent = async (req, res) => {
 exports.getPopularCategories = async (req, res) => {
   try {
     const { limit = 6 } = req.query;
-    const limitNum = Math.min(parseInt(limit, 10) || 6, 6); // Max 6 for footer
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 6, 1), 50);
     
     // Aggregate stores by categoryId to count stores per category
     const storeCounts = await Store.aggregate([

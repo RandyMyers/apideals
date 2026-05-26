@@ -346,6 +346,61 @@ exports.bulkUpsert = async (req, res) => {
   }
 };
 
+// Public list fields for store-scoped coupon queries
+const COUPON_LIST_SELECT =
+  '_id title code slug discountValue discountType endDate storeId successRate verifiedAt imageUrl entityType entityLocation entityTags createdAt description availableCountries isWorldwide';
+
+// GET /coupons/by-store/:storeId?limit=&country=&exclude=
+exports.getCouponsByStore = async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const { country, exclude } = req.query;
+    const maxLimit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const now = new Date();
+
+    const query = {
+      storeId,
+      isPublished: true,
+      isActive: true,
+      $or: [
+        { endDate: { $gte: now } },
+        { endDate: null },
+        { endDate: { $exists: false } },
+      ],
+    };
+    if (req.siteId) query.siteId = req.siteId;
+    if (exclude && /^[0-9a-fA-F]{24}$/.test(String(exclude))) {
+      query._id = { $ne: exclude };
+    }
+
+    let coupons = await Coupon.find(query)
+      .select(COUPON_LIST_SELECT)
+      .populate('storeId', 'name slug logo website isActive')
+      .sort({ createdAt: -1 })
+      .limit(maxLimit)
+      .lean();
+
+    if (country) {
+      coupons = coupons.filter((c) =>
+        isCountryAvailable(country, c.availableCountries || [], c.isWorldwide !== false)
+      );
+    }
+    coupons = coupons.filter(
+      (c) => (c.storeId && typeof c.storeId === 'object' ? c.storeId.isActive !== false : true)
+    );
+
+    const mapped = coupons.map((coupon) => {
+      const isExpired = coupon.endDate && new Date(coupon.endDate) < now;
+      return { ...coupon, isExpired: !!isExpired };
+    });
+
+    return res.status(200).json({ coupons: mapped, count: mapped.length });
+  } catch (error) {
+    console.error('Error fetching coupons by store:', error);
+    return res.status(500).json({ message: 'Error fetching coupons', error: error.message });
+  }
+};
+
 // Get all coupons (public - only active coupons, or all for admin)
 exports.getAllCoupons = async (req, res) => {
   try {
@@ -366,19 +421,31 @@ exports.getAllCoupons = async (req, res) => {
     // If admin=true, query is empty (show all)
     if (req.siteId) query.siteId = req.siteId;
 
-    let coupons = await Coupon.find(query)
-      .populate({
-        path: 'storeId',
-        select: 'name website logo',
-        strictPopulate: false // Don't throw error if storeId is invalid
-      })
-      .populate({
-        path: 'categoryId',
-        select: 'name',
-        strictPopulate: false // Don't throw error if categoryId is invalid
-      })
-      .sort({ createdAt: -1 })
-      .lean();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const skip = (page - 1) * limit;
+
+    const [totalBeforeCountry, couponRows] = await Promise.all([
+      Coupon.countDocuments(query),
+      Coupon.find(query)
+        .select(`${COUPON_LIST_SELECT} imageUrl imageGallery`)
+        .populate({
+          path: 'storeId',
+          select: 'name website logo slug',
+          strictPopulate: false,
+        })
+        .populate({
+          path: 'categoryId',
+          select: 'name slug',
+          strictPopulate: false,
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    let coupons = couponRows;
 
     // Filter by location if country is provided
     if (country) {
@@ -429,7 +496,17 @@ exports.getAllCoupons = async (req, res) => {
       };
     });
 
-    res.status(200).json(coupons);
+    const totalPages = Math.ceil(totalBeforeCountry / limit) || 1;
+    res.status(200).json({
+      coupons,
+      pagination: {
+        page,
+        limit,
+        total: totalBeforeCountry,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    });
   } catch (error) {
     console.error('Error in getAllCoupons:', error);
     res.status(500).json({ message: 'Error fetching coupons', error: error.message });

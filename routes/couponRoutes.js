@@ -15,6 +15,9 @@ router.get('/admin/all', couponController.getAllCouponsAdmin);
 // Get trending coupons (must be before /:id route)
 router.get('/trending', couponController.getTrendingCoupons);
 
+// Store-scoped coupons (must be before /:id route)
+router.get('/by-store/:storeId', couponController.getCouponsByStore);
+
 // Route to get all coupons by userId (must be before /:id route)
 router.get('/user/:userId', couponController.getCouponsByUserId);
 

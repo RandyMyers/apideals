@@ -493,6 +493,53 @@ exports.bulkUpsert = async (req, res) => {
 };
 
 // Get all deals (public - only active deals)
+const DEAL_LIST_SELECT =
+  '_id title name slug discountValue discountType originalPrice discountedPrice endDate store imageUrl entityType entityLocation entityTags createdAt description dealType availableCountries isWorldwide currency priceUnit';
+
+// GET /deals/by-store/:storeId?limit=&country=&exclude=
+exports.getDealsByStore = async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const { country, exclude } = req.query;
+    const maxLimit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const now = new Date();
+
+    const query = {
+      store: storeId,
+      isPublished: true,
+      isActive: true,
+      $or: [
+        { endDate: { $gte: now } },
+        { endDate: null },
+        { endDate: { $exists: false } },
+      ],
+    };
+    if (req.siteId) query.siteId = req.siteId;
+    if (exclude && /^[0-9a-fA-F]{24}$/.test(String(exclude))) {
+      query._id = { $ne: exclude };
+    }
+
+    let deals = await Deal.find(query)
+      .select(DEAL_LIST_SELECT)
+      .populate('store', 'name slug logo website isActive')
+      .sort({ createdAt: -1 })
+      .limit(maxLimit)
+      .lean();
+
+    if (country) {
+      deals = deals.filter((d) =>
+        isCountryAvailable(country, d.availableCountries || [], d.isWorldwide !== false)
+      );
+    }
+    deals = deals.filter((d) => (d.store && typeof d.store === 'object' ? d.store.isActive !== false : true));
+
+    return res.status(200).json({ deals, count: deals.length });
+  } catch (error) {
+    console.error('Error fetching deals by store:', error);
+    return res.status(500).json({ message: 'Error fetching deals', error: error.message });
+  }
+};
+
 exports.getAllDeals = async (req, res) => {
   try {
     const { country, admin } = req.query; // Visitor country for location filtering, admin flag to show all
@@ -513,11 +560,23 @@ exports.getAllDeals = async (req, res) => {
         };
     if (req.siteId) query.siteId = req.siteId;
 
-    let deals = await Deal.find(query)
-    .populate('store', 'name website logo')
-    .sort({ createdAt: -1 })
-    .lean();
-    
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const skip = (page - 1) * limit;
+
+    const [totalBeforeCountry, dealRows] = await Promise.all([
+      Deal.countDocuments(query),
+      Deal.find(query)
+        .select(DEAL_LIST_SELECT)
+        .populate('store', 'name website logo slug')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    let deals = dealRows;
+
     // Filter by location if country is provided
     if (country) {
       deals = deals.filter(deal => 
@@ -525,7 +584,17 @@ exports.getAllDeals = async (req, res) => {
       );
     }
 
-    res.status(200).json(deals);
+    const totalPages = Math.ceil(totalBeforeCountry / limit) || 1;
+    res.status(200).json({
+      deals,
+      pagination: {
+        page,
+        limit,
+        total: totalBeforeCountry,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    });
   } catch (error) {
     console.error('Error fetching deals:', error);
     console.error('Error stack:', error.stack);

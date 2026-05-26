@@ -4,6 +4,7 @@
  * Falls back to dealcouponz (first site) when no site context for backward compatibility.
  */
 const Site = require('../models/site');
+const tenantCache = require('../utils/tenantCache');
 
 async function resolveTenant(req, res, next) {
   try {
@@ -11,9 +12,10 @@ async function resolveTenant(req, res, next) {
     const siteSlug = req.headers['x-site-slug'];
     const host = (req.headers['host'] || req.headers['x-forwarded-host'] || '').split(':')[0].toLowerCase();
 
-    let site = null;
+    const key = tenantCache.cacheKey(siteId, siteSlug, host);
+    let site = tenantCache.get(key);
 
-    if (siteId) {
+    if (!site && siteId) {
       site = await Site.findOne({ _id: siteId, isActive: true }).lean();
     }
     if (!site && siteSlug) {
@@ -22,9 +24,11 @@ async function resolveTenant(req, res, next) {
     if (!site && host) {
       site = await Site.findOne({ domains: host, isActive: true }).lean();
     }
-    // Fallback: first active site (dealcouponz) for backward compatibility
     if (!site) {
       site = await Site.findOne({ isActive: true }).sort({ createdAt: 1 }).lean();
+    }
+    if (site) {
+      tenantCache.set(key, site);
     }
 
     req.site = site;

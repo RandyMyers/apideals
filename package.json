@@ -19,6 +19,7 @@
     "seed:expedia-seo": "node scripts/seedExpediaStoreSeoContent.js",
     "check:hostinger": "node scripts/checkHostingerStore.js",
     "seed:hostinger-seo": "node scripts/seedHostingerStoreSeoContent.js",
+    "db:perf-indexes": "node scripts/ensurePerformanceIndexes.js",
     "verify:store-landings": "node scripts/verifyAndFixStoreLandingPages.js",
     "fix:store-landings": "node scripts/verifyAndFixStoreLandingPages.js --fix",
     "fix:store-landings:publish": "node scripts/verifyAndFixStoreLandingPages.js --fix --publish-landings"

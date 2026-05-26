@@ -7,6 +7,9 @@ const express = require('express');
 const router = express.Router();
 const searchController = require('../controllers/searchController');
 
+// GET /api/v1/search?q={query}&limit=30
+router.get('/', searchController.search);
+
 // GET /api/v1/search/suggestions?q={query}&limit=8
 router.get('/suggestions', searchController.getSearchSuggestions);
 

@@ -52,6 +52,19 @@ const StoreSchema = new Schema({
     keywords: [{ type: String, trim: true }],
   },
 
+  /**
+   * Per-locale store content overrides (optional).
+   * Shape example:
+   * {
+   *   "es-MX": { seo: {...}, description: "...", savingTips: [...], faqs: [...], editorial: {...}, logoAlt: "..." }
+   * }
+   */
+  languageTranslations: {
+    type: mongoose.Schema.Types.Mixed,
+    required: false,
+    default: {},
+  },
+
   faqs: [{
     question: { type: String, required: true, trim: true },
     answer: { type: String, required: true, trim: true },

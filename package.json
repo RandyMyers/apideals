@@ -17,6 +17,8 @@
     "seed:expedia-sagrada": "node scripts/seedExpediaSagradaFamiliaDeals.js",
     "check:expedia": "node scripts/checkExpediaStore.js",
     "seed:expedia-seo": "node scripts/seedExpediaStoreSeoContent.js",
+    "check:hostinger": "node scripts/checkHostingerStore.js",
+    "seed:hostinger-seo": "node scripts/seedHostingerStoreSeoContent.js",
     "verify:store-landings": "node scripts/verifyAndFixStoreLandingPages.js",
     "fix:store-landings": "node scripts/verifyAndFixStoreLandingPages.js --fix",
     "fix:store-landings:publish": "node scripts/verifyAndFixStoreLandingPages.js --fix --publish-landings"

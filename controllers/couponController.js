@@ -365,44 +365,7 @@ exports.getAllCoupons = async (req, res) => {
     }
     // If admin=true, query is empty (show all)
     if (req.siteId) query.siteId = req.siteId;
-    
-    console.log('🔍 getAllCoupons - Query:', JSON.stringify(query, null, 2));
-    console.log('🔍 getAllCoupons - Admin flag:', admin);
-    
-    // First, check what coupons exist in the database (for debugging)
-    const totalCoupons = await Coupon.countDocuments({});
-    console.log(`📊 Total coupons in database: ${totalCoupons}`);
-    
-    if (totalCoupons > 0) {
-      // Sample a few coupons to see their status
-      const sampleCoupons = await Coupon.find({})
-        .limit(5)
-        .select('_id title code isPublished isActive endDate createdAt')
-        .lean();
-      console.log('📋 Sample coupons from database:', JSON.stringify(sampleCoupons, null, 2));
-      
-      // Count by status
-      const publishedCount = await Coupon.countDocuments({ isPublished: true });
-      const activeCount = await Coupon.countDocuments({ isActive: true });
-      const publishedAndActiveCount = await Coupon.countDocuments({ isPublished: true, isActive: true });
-      console.log(`📊 Published: ${publishedCount}, Active: ${activeCount}, Published+Active: ${publishedAndActiveCount}`);
-      
-      // Check the published coupons to see why they're not matching
-      if (publishedCount > 0) {
-        const publishedCoupons = await Coupon.find({ isPublished: true })
-          .select('_id title code isPublished isActive endDate createdAt')
-          .lean();
-        console.log('📋 All published coupons:', JSON.stringify(publishedCoupons, null, 2));
-        
-        // Check which ones are expired
-        const now = new Date();
-        publishedCoupons.forEach(coupon => {
-          const isExpired = coupon.endDate && new Date(coupon.endDate) < now;
-          console.log(`  - ${coupon.title || coupon.code}: isActive=${coupon.isActive}, isExpired=${isExpired}, endDate=${coupon.endDate}`);
-        });
-      }
-    }
-    
+
     let coupons = await Coupon.find(query)
       .populate({
         path: 'storeId',
@@ -417,16 +380,6 @@ exports.getAllCoupons = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    console.log(`✅ Found ${coupons.length} coupons matching query`);
-    if (coupons.length > 0) {
-      console.log('📋 Sample coupon isPublished values:', coupons.slice(0, 5).map(c => ({ 
-        id: c._id, 
-        title: c.title || c.code, 
-        isPublished: c.isPublished, 
-        isActive: c.isActive 
-      })));
-    }
-
     // Filter by location if country is provided
     if (country) {
       coupons = coupons.filter(coupon => 
@@ -436,11 +389,6 @@ exports.getAllCoupons = async (req, res) => {
 
     // Map coupons to ensure consistent structure (handle null populated fields)
     coupons = coupons.map(coupon => {
-      // Log each coupon's isPublished status for debugging
-      if (admin !== 'true' && coupon.isPublished !== true) {
-        console.warn(`⚠️ Coupon ${coupon._id} (${coupon.title || coupon.code}) has isPublished: ${coupon.isPublished}, but should be true for public view`);
-      }
-      
       // Calculate if coupon is expired
       const isExpired = coupon.endDate && new Date(coupon.endDate) < now;
       coupon.isExpired = isExpired;

@@ -22,7 +22,6 @@ async function resolveStoreBySlugOrId(storeSlugOrId, siteId) {
   const base = isObjectIdLike(storeSlugOrId)
     ? { _id: storeSlugOrId }
     : { slug: String(storeSlugOrId).trim().toLowerCase() };
-  // Tenant: prefer stores scoped to this site, but still resolve if siteId was never backfilled.
   const filter = siteId
     ? { ...base, $or: [{ siteId }, { siteId: { $exists: false } }, { siteId: null }] }
     : base;

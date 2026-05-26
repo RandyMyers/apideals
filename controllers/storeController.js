@@ -8,6 +8,7 @@ const {syncProducts} = require('./productController');
 const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
 const { generateSlug } = require('../utils/seoUtils');
+const { buildStoreLookupFilter } = require('../utils/storeResolver');
 
 // Create a new store
 exports.createStore = async (req, res) => {
@@ -532,9 +533,7 @@ exports.getStoreById = async (req, res) => {
         const { id } = req.params;
         const { country } = req.query;
 
-        const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-        const findFilter = isObjectId ? { _id: id } : { slug: id };
-        if (req.siteId) findFilter.siteId = req.siteId;
+        const findFilter = buildStoreLookupFilter(id, req.siteId);
         const store = await Store.findOne(findFilter)
             .populate('userId', 'name email')
             .populate('coupons')
@@ -851,13 +850,40 @@ exports.updateStore = async (req, res) => {
         }
 
         // Handle string fields (only update if provided)
-        const stringFields = ['name', 'description', 'url', 'apiKey', 'secretKey', 'storeType'];
+        const stringFields = ['name', 'description', 'url', 'apiKey', 'secretKey', 'storeType', 'seoSlug', 'logoAlt'];
         stringFields.forEach(field => {
             if (req.body[field] !== undefined) {
                 updates[field] = req.body[field];
                 console.log(`[storeController] ${field}:`, updates[field]);
             }
         });
+
+        const parseJsonField = (raw, label) => {
+            if (raw === undefined || raw === null || raw === '') return undefined;
+            if (typeof raw === 'object') return raw;
+            try {
+                return JSON.parse(raw);
+            } catch (e) {
+                console.warn(`[storeController] Could not parse ${label}:`, e.message);
+                return undefined;
+            }
+        };
+
+        const seoPayload = parseJsonField(req.body.seo, 'seo');
+        if (seoPayload) updates.seo = seoPayload;
+
+        const faqsPayload = parseJsonField(req.body.faqs, 'faqs');
+        if (Array.isArray(faqsPayload)) updates.faqs = faqsPayload;
+
+        const editorialPayload = parseJsonField(req.body.editorial, 'editorial');
+        if (editorialPayload) updates.editorial = editorialPayload;
+
+        if (req.body.contentUpdatedAt) {
+            updates.contentUpdatedAt = new Date(req.body.contentUpdatedAt);
+        }
+        if (req.body.lastVerifiedAt) {
+            updates.lastVerifiedAt = new Date(req.body.lastVerifiedAt);
+        }
 
         // Regenerate slug whenever the store name changes
         if (updates.name) {

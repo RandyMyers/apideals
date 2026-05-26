@@ -397,6 +397,7 @@ app.use('/api/v1/search-console', require('./routes/searchConsoleRoutes')); // G
 app.use('/api/v1/performance', require('./routes/performanceRoutes')); // Performance Metrics
 app.use('/api/v1/language-settings', require('./routes/languageSettingsRoutes')); // Language Settings
 app.use('/api/v1/translations', require('./routes/translationRoutes')); // Translation Management
+app.use('/api/v1/geo', require('./routes/geoRoutes')); // Geolocation proxy (public)
 app.use('/api/v1/search', require('./routes/searchRoutes')); // Search endpoints (suggestions, trending)
 app.use('/api/v1/stats', require('./routes/statsRoutes')); // Statistics endpoints
 app.use('/api/v1/activities', require('./routes/activityRoutes')); // Activity endpoints (admin only)

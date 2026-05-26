@@ -15,6 +15,8 @@
     "seed:dealcouponz": "node scripts/seedDealcouponzSite.js",
     "seed:hostinger-deals": "node scripts/seedHostingerHostingDeals.js",
     "seed:expedia-sagrada": "node scripts/seedExpediaSagradaFamiliaDeals.js",
+    "check:expedia": "node scripts/checkExpediaStore.js",
+    "seed:expedia-seo": "node scripts/seedExpediaStoreSeoContent.js",
     "verify:store-landings": "node scripts/verifyAndFixStoreLandingPages.js",
     "fix:store-landings": "node scripts/verifyAndFixStoreLandingPages.js --fix",
     "fix:store-landings:publish": "node scripts/verifyAndFixStoreLandingPages.js --fix --publish-landings"

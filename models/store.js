@@ -28,6 +28,67 @@ const StoreSchema = new Schema({
     index: true,
   },
 
+  // Optional SEO-friendly public path segment (e.g. expedia-coupon-codes)
+  seoSlug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    index: true,
+  },
+
+  logoAlt: {
+    type: String,
+    trim: true,
+  },
+
+  seo: {
+    primaryKeyword: { type: String, trim: true },
+    title: { type: String, trim: true },
+    metaDescription: { type: String, trim: true },
+    h1: { type: String, trim: true },
+    intro: { type: String, trim: true },
+    keywords: [{ type: String, trim: true }],
+  },
+
+  faqs: [{
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
+    group: {
+      type: String,
+      enum: ['faq', 'paa', 'troubleshooting'],
+      default: 'faq',
+    },
+    order: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+  }],
+
+  editorial: {
+    howToSteps: [{ type: String, trim: true }],
+    comparisonRows: [{
+      type: { type: String, trim: true },
+      worksBestFor: { type: String, trim: true },
+      typicalDiscount: { type: String, trim: true },
+      notes: { type: String, trim: true },
+    }],
+    stackingNote: { type: String, trim: true },
+    exclusionsNote: { type: String, trim: true },
+    externalLinks: [{
+      label: { type: String, trim: true },
+      url: { type: String, trim: true },
+    }],
+    internalLinks: [{
+      label: { type: String, trim: true },
+      path: { type: String, trim: true },
+      anchorText: { type: String, trim: true },
+    }],
+    authorByline: { type: String, trim: true },
+  },
+
+  contentUpdatedAt: { type: Date },
+  lastVerifiedAt: { type: Date },
+
   // Store owner (reference to the User model)
   userId: {
     type: mongoose.Schema.Types.ObjectId,

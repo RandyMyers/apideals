@@ -4,6 +4,9 @@ const urlRedirectController = require('../controllers/urlRedirectController');
 const authMiddleware = require('../middleware/authMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
 
+// Public — SPA fallback for WordPress / legacy paths
+router.get('/redirects/resolve', urlRedirectController.resolveRedirect);
+
 // Admin routes - Manage redirects
 router.post('/admin/redirects', authMiddleware, adminMiddleware, urlRedirectController.createRedirect);
 router.get('/admin/redirects', authMiddleware, adminMiddleware, urlRedirectController.getAllRedirects);

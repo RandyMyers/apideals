@@ -18,6 +18,114 @@ function daysFromNow(days) {
   return d;
 }
 
+/** German locale body — keeps exact phrase "Expedia coupon codes" for SEO */
+function buildGermanExpediaLocale(keyword, regionSuffix = '') {
+  const titleSuffix = regionSuffix ? ` (${regionSuffix})` : '';
+  return {
+    seo: {
+      primaryKeyword: 'expedia coupon codes',
+      title: `${keyword} und Deals: verifizierte Angebote & Promo-Codes${titleSuffix}`,
+      metaDescription:
+        `Finde ${keyword} für Hotels und Pakete. Wöchentliche Updates mit geprüften Deals, FAQs und Checkout-Hilfe (DealCouponz).`,
+      h1: `${keyword} und Deals`,
+      intro:
+        `Du suchst ${keyword}? Wir aktualisieren diese Seite regelmäßig und entfernen abgelaufene Angebote. ` +
+        `Wenn ein echter Code verfügbar ist, kannst du ihn kopieren – sonst nutze unsere Get-Deal-Links für geprüfte Expedia-Sparangebote.`,
+      keywords: ['expedia coupon codes', 'expedia promo codes', 'expedia deals', 'hotel deals'],
+    },
+    logoAlt: `Expedia Logo — ${keyword} (DealCouponz)`,
+    description:
+      `DealCouponz listet verifizierte ${keyword}, Hotel-Deals und Reiseangebote. Wöchentlich aktualisiert.`,
+    savingTips: [
+      { tip: `Vergleiche ${keyword} für Hotels – Hotelrabatte sind häufiger als Flug-Prozentcodes.`, order: 1, isActive: true },
+      { tip: `Buche Flug + Hotel als Paket, wenn kein reiner Flug-${keyword} verfügbar ist.`, order: 2, isActive: true },
+      { tip: `Prüfe die Expedia-App: manche Angebote gibt es nur mobil.`, order: 3, isActive: true },
+      { tip: `Expedia erlaubt meist nur einen Promo-Code pro Buchung – kombiniere mit Cashback (z. B. Rakuten), nicht mehrere Codes.`, order: 4, isActive: true },
+      { tip: `Lies Ablaufdaten bei jedem ${keyword}; wir aktualisieren wöchentlich und blenden abgelaufene Angebote aus.`, order: 5, isActive: true },
+      { tip: `Wochentags-Hotelaufenthalte passen oft gut zu ${keyword} für extra Nachtrabatte.`, order: 6, isActive: true },
+    ],
+    faqs: [
+      {
+        question: `Sind ${keyword} seriös?`,
+        answer:
+          `Ja, wenn sie von Expedia oder autorisierten Partnern wie DealCouponz stammen. Wir listen geprüfte Angebote und entfernen abgelaufene Codes.`,
+        group: 'faq',
+        order: 1,
+        isActive: true,
+      },
+      {
+        question: `Gelten ${keyword} für alle Hotels?`,
+        answer:
+          `Nein. Einige Ketten und Member-Only-Tarife sind ausgeschlossen. Lies die Bedingungen des Angebots vor der Zahlung.`,
+        group: 'faq',
+        order: 2,
+        isActive: true,
+      },
+      {
+        question: `Funktionieren ${keyword} für Flüge?`,
+        answer:
+          `Manchmal, aber selten als Prozent-Rabatt auf Flüge. Die meisten ${keyword} gelten für Hotels und Pakete. Paketbuchungen sind oft die beste Alternative.`,
+        group: 'paa',
+        order: 1,
+        isActive: true,
+      },
+      {
+        question: `Kann ich mehr als einen Expedia-Promo-Code pro Buchung nutzen?`,
+        answer:
+          `In der Regel nein – ein Promo-Code pro Buchung. Du kannst oft Expedia Rewards Punkte oder Cashback-Programme zusätzlich nutzen, wenn die Bedingungen es erlauben.`,
+        group: 'paa',
+        order: 2,
+        isActive: true,
+      },
+      {
+        question: `Warum funktioniert mein ${keyword} nicht?`,
+        answer:
+          `Häufige Gründe: Mindestbestellwert nicht erreicht, falsches Produkt (Hotel vs. Flug), Code abgelaufen, nur-App-Angebot oder bereits ein anderer Rabatt aktiv. Teste Inkognito-Modus oder die Expedia-App.`,
+        group: 'troubleshooting',
+        order: 1,
+        isActive: true,
+      },
+      {
+        question: `Mein Code funktioniert in der App, aber nicht am Desktop – warum?`,
+        answer:
+          `Einige ${keyword} sind nur in der Expedia-App gültig. Öffne das Angebot über unseren Get-Deal-Link auf dem Handy oder installiere die App und versuche es erneut.`,
+        group: 'troubleshooting',
+        order: 2,
+        isActive: true,
+      },
+    ],
+    editorial: {
+      howToSteps: [
+        `Klicke auf einen Gutschein oder Get Deal auf dieser Seite, um Expedia zu öffnen.`,
+        `Suche Hotel, Flug, Paket oder Mietwagen und wähle deine Option.`,
+        `Gehe zur Kasse, bis du „Promo code“, „Coupon“ oder „Gutschein“ siehst.`,
+        `Füge den ${keyword} ein (Strg+V / Cmd+V) und klicke auf Anwenden.`,
+        `Prüfe, ob der Rabatt in der Preisübersicht erscheint, bevor du bezahlst.`,
+        `Schließe die Buchung erst ab, wenn die Ersparnis sichtbar ist.`,
+      ],
+      comparisonRows: [
+        { type: 'Hotel', worksBestFor: 'Aufenthalte ab 2 Nächten, Städtereisen', typicalDiscount: '% oder Nachtrabatt', notes: 'Häufigste Angebote auf DealCouponz.' },
+        { type: 'Flug', worksBestFor: 'Inlands- oder international', typicalDiscount: '$ Rabatt (begrenzt)', notes: 'Viele Codes schließen Flüge aus; Pakete können gelten.' },
+        { type: 'Paket', worksBestFor: 'Flug + Hotel', typicalDiscount: '$ ab Mindestbetrag', notes: 'Gute Option ohne reinen Flug-Code.' },
+        { type: 'Mietwagen', worksBestFor: 'Avis, Budget & Partner', typicalDiscount: '% auf ausgewählte Angebote', notes: 'Partner und Sperrtermine prüfen.' },
+      ],
+      stackingNote:
+        `Expedia erlaubt normalerweise nicht mehrere Promo-Codes pro Buchung. Du kannst einen ${keyword} mit Expedia Rewards und Cashback (z. B. Rakuten) kombinieren, wenn die Bedingungen es erlauben.`,
+      exclusionsNote:
+        `Prozent-Codes nur für Flüge sind selten. Resortgebühren, Steuern und Member-Only-Unterkünfte können ausgeschlossen sein. Lies die Angebotsbedingungen vor dem Checkout.`,
+      externalLinks: [
+        { label: 'Expedia Kundenservice', url: 'https://www.expedia.com/service/' },
+        { label: 'Expedia Newsletter (offiziell)', url: 'https://www.expedia.com/newsletter' },
+      ],
+      internalLinks: [
+        { label: 'Reise-Kategorie', path: '/categories/travel', anchorText: 'Reise-Deals und Gutscheine' },
+        { label: 'Alle Geschäfte', path: '/stores/all', anchorText: 'Alle Gutscheincodes durchsuchen' },
+      ],
+      authorByline: 'Geprüft vom DealCouponz Reise-Deals-Team',
+    },
+  };
+}
+
 function buildSeoPayload(now) {
   const keyword = 'Expedia coupon codes'; // keep exact phrase across locales
 
@@ -180,10 +288,10 @@ function buildSeoPayload(now) {
       'We test offers regularly and remove expired deals so you see working savings—not outdated lists.',
     seo: {
       primaryKeyword: 'expedia coupon codes',
-      title: 'Expedia Coupon Codes (2026): Verified Deals & Promo Codes',
+      title: 'Expedia Coupon Codes and Deals: Verified Promo Codes',
       metaDescription:
         'Find working Expedia coupon codes for hotels, flights, and packages. Updated weekly with tested deals, FAQs, and step-by-step checkout help on DealCouponz.',
-      h1: 'Expedia Coupon Codes 2026',
+      h1: 'Expedia Coupon Codes and Deals',
       intro:
         'Looking for active Expedia coupon codes that actually lower your trip price? This page lists verified Expedia coupon codes and hotel deals our team checks regularly. ' +
         'When a true promo code is available, copy it below; otherwise use our Get Deal links for tested hotel and package savings on Expedia.',
@@ -206,10 +314,10 @@ function buildSeoPayload(now) {
       'en-GB': {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): Verified Deals & Promo Codes (UK)`,
+          title: `${keyword} and Deals: Verified Promo Codes (UK)`,
           metaDescription:
             `Find ${keyword} for hotels and packages. Updated weekly with tested offers, FAQs, and checkout help (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Looking for ${keyword}? This page lists verified deals we refresh weekly. ` +
             `Copy a real code when available, or use our Get Deal links for tested Expedia savings.`,
@@ -222,10 +330,10 @@ function buildSeoPayload(now) {
       'en-AU': {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): Verified Deals & Promo Codes (AU)`,
+          title: `${keyword} and Deals: Verified Deals & Promo Codes (AU)`,
           metaDescription:
             `Find ${keyword} for hotels and packages. Updated weekly with verified offers and step-by-step checkout help (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Need ${keyword} for your next trip? We keep this page updated and remove expired offers. ` +
             `Use a code when available, or click Get Deal for tested savings on Expedia.`,
@@ -240,10 +348,10 @@ function buildSeoPayload(now) {
       ga: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): lascainí fíoraithe & treoir céim ar chéim`,
+          title: `${keyword} and Deals: lascainí fíoraithe & treoir céim ar chéim`,
           metaDescription:
             `Faigh ${keyword} do óstáin agus pacáistí. Nuashonraithe gach seachtain le tairiscintí fíoraithe agus cabhair ag an tseiceáil amach (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Ag lorg ${keyword}? Coinnímid an leathanach seo cothrom le dáta agus bainimid tairiscintí imithe in éag. ` +
             `Cóipeáil cód nuair atá sé ar fáil, nó úsáid Get Deal chun coigilteas tástáilte ar Expedia a fheiceáil.`,
@@ -254,48 +362,18 @@ function buildSeoPayload(now) {
           `Liostaíonn DealCouponz ${keyword} fíoraithe agus tairiscintí taistil. Nuashonraithe gach seachtain.`,
       },
 
-      // German / Austrian German
-      de: {
-        seo: {
-          primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): verifizierte Angebote & Promo-Codes`,
-          metaDescription:
-            `Finde ${keyword} für Hotels und Pakete. Wöchentliche Updates mit geprüften Deals, FAQs und Checkout-Hilfe (DealCouponz).`,
-          h1: `${keyword} 2026`,
-          intro:
-            `Du suchst ${keyword}? Wir aktualisieren diese Seite regelmäßig und entfernen abgelaufene Angebote. ` +
-            `Wenn ein echter Code verfügbar ist, kannst du ihn kopieren – sonst nutze unsere Get-Deal-Links für geprüfte Expedia-Sparangebote.`,
-          keywords: ['expedia coupon codes', 'expedia promo codes', 'expedia deals', 'hotel deals'],
-        },
-        logoAlt: `Expedia Logo — ${keyword} (DealCouponz)`,
-        description:
-          `DealCouponz listet verifizierte ${keyword}, Hotel-Deals und Reiseangebote. Wöchentlich aktualisiert.`,
-      },
-      'de-AT': {
-        seo: {
-          primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): verifizierte Deals & Promo-Codes (AT)`,
-          metaDescription:
-            `Finde ${keyword} für Hotels und Pakete. Wöchentliche Updates mit geprüften Angeboten und Schritt-für-Schritt Hilfe (DealCouponz).`,
-          h1: `${keyword} 2026`,
-          intro:
-            `Auf der Suche nach ${keyword}? Wir halten diese Seite aktuell und entfernen abgelaufene Deals. ` +
-            `Code kopieren, falls verfügbar – sonst Get Deal für geprüfte Expedia-Angebote.`,
-          keywords: ['expedia coupon codes', 'expedia promo codes'],
-        },
-        logoAlt: `Expedia Logo — ${keyword} (DealCouponz)`,
-        description:
-          `Verifizierte ${keyword} und Reise-Deals, wöchentlich aktualisiert.`,
-      },
+      // German / Austrian German — full FAQs, editorial, tips (not English fallback)
+      de: buildGermanExpediaLocale(keyword),
+      'de-AT': buildGermanExpediaLocale(keyword, 'AT'),
 
       // Spanish (Spain) — MX has separate richer copy below
       es: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): ofertas verificadas y ayuda paso a paso`,
+          title: `${keyword} and Deals: ofertas verificadas y ayuda paso a paso`,
           metaDescription:
             `Encuentra ${keyword} para hoteles y paquetes. Actualizamos semanalmente con ofertas verificadas, FAQs y pasos para aplicar códigos en Expedia (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `¿Buscas ${keyword}? Mantenemos esta página actualizada y retiramos ofertas caducadas. ` +
             `Copia un código real cuando esté disponible o usa Get Deal para ver ahorros verificados en Expedia.`,
@@ -310,10 +388,10 @@ function buildSeoPayload(now) {
       it: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): offerte verificate e guida passo-passo`,
+          title: `${keyword} and Deals: offerte verificate e guida passo-passo`,
           metaDescription:
             `Trova ${keyword} per hotel e pacchetti. Aggiornamenti settimanali con offerte verificate, FAQ e istruzioni per il checkout (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Cerchi ${keyword}? Aggiorniamo questa pagina regolarmente e rimuoviamo le offerte scadute. ` +
             `Copia un codice quando disponibile oppure usa Get Deal per risparmi verificati su Expedia.`,
@@ -328,10 +406,10 @@ function buildSeoPayload(now) {
       fr: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026) : offres vérifiées et guide étape par étape`,
+          title: `${keyword} et offres : guide vérifié étape par étape`,
           metaDescription:
             `Trouvez ${keyword} pour hôtels et forfaits. Mises à jour hebdomadaires avec offres testées, FAQ et aide au paiement (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Vous cherchez ${keyword} ? Nous mettons cette page à jour et supprimons les offres expirées. ` +
             `Copiez un code lorsqu’il est disponible, sinon utilisez nos liens Get Deal pour des économies vérifiées sur Expedia.`,
@@ -346,10 +424,10 @@ function buildSeoPayload(now) {
       pt: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): ofertas verificadas e guia passo a passo`,
+          title: `${keyword} and Deals: ofertas verificadas e guia passo a passo`,
           metaDescription:
             `Encontre ${keyword} para hotéis e pacotes. Atualização semanal com ofertas testadas, FAQ e ajuda no checkout (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `À procura de ${keyword}? Mantemos esta página atualizada e removemos ofertas expiradas. ` +
             `Copie um código quando disponível ou use Get Deal para poupanças verificadas na Expedia.`,
@@ -364,10 +442,10 @@ function buildSeoPayload(now) {
       nl: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): geverifieerde deals en stap-voor-stap hulp`,
+          title: `${keyword} and Deals: geverifieerde deals en stap-voor-stap hulp`,
           metaDescription:
             `Vind ${keyword} voor hotels en pakketten. Wekelijks bijgewerkt met geteste aanbiedingen, FAQ en checkout-hulp (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Op zoek naar ${keyword}? We werken deze pagina regelmatig bij en verwijderen verlopen aanbiedingen. ` +
             `Kopieer een echte code wanneer beschikbaar of gebruik Get Deal voor geteste Expedia-besparingen.`,
@@ -382,10 +460,10 @@ function buildSeoPayload(now) {
       no: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): verifiserte tilbud og trinnvis guide`,
+          title: `${keyword} and Deals: verifiserte tilbud og trinnvis guide`,
           metaDescription:
             `Finn ${keyword} for hotell og pakker. Ukentlige oppdateringer med testede tilbud, FAQ og utsjekk-hjelp (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Ser du etter ${keyword}? Vi oppdaterer siden jevnlig og fjerner utløpte tilbud. ` +
             `Kopier en kode når den finnes, eller bruk Get Deal for verifiserte Expedia-besparelser.`,
@@ -398,10 +476,10 @@ function buildSeoPayload(now) {
       fi: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): varmennetut tarjoukset ja vaiheittainen opas`,
+          title: `${keyword} and Deals: varmennetut tarjoukset ja vaiheittainen opas`,
           metaDescription:
             `Löydä ${keyword} hotelleihin ja paketteihin. Päivitämme viikoittain varmennetuilla tarjouksilla, FAQ:lla ja ohjeilla (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Etsitkö ${keyword}? Päivitämme sivua säännöllisesti ja poistamme vanhentuneet tarjoukset. ` +
             `Kopioi koodi, kun se on saatavilla, tai käytä Get Deal -linkkejä varmennettuihin Expedia-säästöihin.`,
@@ -414,10 +492,10 @@ function buildSeoPayload(now) {
       da: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): verificerede tilbud og trin-for-trin hjælp`,
+          title: `${keyword} and Deals: verificerede tilbud og trin-for-trin hjælp`,
           metaDescription:
             `Find ${keyword} til hoteller og pakker. Ugentlige opdateringer med testede tilbud, FAQ og checkout-hjælp (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Leder du efter ${keyword}? Vi opdaterer siden løbende og fjerner udløbne tilbud. ` +
             `Kopiér en kode når den findes, eller brug Get Deal for verificerede Expedia-besparelser.`,
@@ -430,10 +508,10 @@ function buildSeoPayload(now) {
       sv: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): verifierade erbjudanden och steg-för-steg hjälp`,
+          title: `${keyword} and Deals: verifierade erbjudanden och steg-för-steg hjälp`,
           metaDescription:
             `Hitta ${keyword} för hotell och paket. Veckovisa uppdateringar med testade erbjudanden, FAQ och hjälp i kassan (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `Letar du efter ${keyword}? Vi uppdaterar sidan regelbundet och tar bort utgångna erbjudanden. ` +
             `Kopiera en kod när den finns, eller använd Get Deal för verifierade Expedia-besparingar.`,
@@ -447,10 +525,10 @@ function buildSeoPayload(now) {
       'es-MX': {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): ofertas verificadas y ayuda paso a paso`,
+          title: `${keyword} and Deals: ofertas verificadas y ayuda paso a paso`,
           metaDescription:
             `Encuentra ${keyword} para hoteles y paquetes. Actualizamos semanalmente con ofertas verificadas, preguntas frecuentes y pasos para aplicar el código en Expedia (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} and Deals`,
           intro:
             `¿Buscas ${keyword} que realmente bajen el precio de tu viaje? Aquí encontrarás ofertas verificadas y descuentos de hotel que revisamos con frecuencia. ` +
             `Si hay un código real disponible, podrás copiarlo; si no, usa nuestros enlaces de “Get Deal” para ver ahorros probados en Expedia.`,
@@ -519,10 +597,10 @@ function buildSeoPayload(now) {
       ja: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026)：検証済みの旅行割引・プロモコード`,
+          title: `${keyword} とお得情報：検証済みの旅行割引・プロモコード`,
           metaDescription:
             `${keyword} をホテル・パッケージ向けに掲載。毎週更新し、検証済みオファー、FAQ、適用手順をまとめています（DealCouponz）。`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} とお得情報`,
           intro:
             `${keyword} を探していますか？このページでは、定期的に確認している検証済みのオファーを掲載しています。` +
             `実際のプロモコードがある場合はコピーして利用でき、コードがない場合でも “Get Deal” リンクで割引条件を確認できます。`,
@@ -584,10 +662,10 @@ function buildSeoPayload(now) {
       ko: {
         seo: {
           primaryKeyword: 'expedia coupon codes',
-          title: `${keyword} (2026): 검증된 할인/프로모 코드 & 이용 가이드`,
+          title: `${keyword} and Deals: 검증된 할인/프로모 코드 & 이용 가이드`,
           metaDescription:
             `호텔/패키지에 적용 가능한 ${keyword} 및 검증된 딜을 매주 업데이트합니다. 적용 방법, FAQ, 이용 팁까지 한 번에 확인하세요 (DealCouponz).`,
-          h1: `${keyword} 2026`,
+          h1: `${keyword} 및 딜`,
           intro:
             `${keyword} 를 찾고 계신가요? 이 페이지에는 정기적으로 확인한 검증된 오퍼를 모았습니다. ` +
             `실제 프로모 코드가 있으면 아래에서 복사해 적용하고, 코드가 없을 때도 “Get Deal” 링크로 가능한 할인 조건을 확인할 수 있습니다.`,

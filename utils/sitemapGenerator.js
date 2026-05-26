@@ -5,16 +5,7 @@
 
 const xmlbuilder = require('xmlbuilder');
 const LanguageSettings = require('../models/languageSettings');
-
-/**
- * Helper function to generate language-specific URL
- */
-const generateLanguageUrl = (path, langCode, defaultLang, baseUrl) => {
-  if (langCode === defaultLang) {
-    return `${baseUrl}${path}`;
-  }
-  return `${baseUrl}/${langCode}${path}`;
-};
+const { generateLanguageUrl } = require('./languagePathUtils');
 
 /**
  * Add hreflang links to a URL element
@@ -24,7 +15,7 @@ const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl) => 
     const link = urlElement.ele('xhtml:link');
     link.att('rel', 'alternate');
     link.att('hreflang', lang.locale || lang.code);
-    link.att('href', generateLanguageUrl(path, lang.code, defaultLang, baseUrl));
+    link.att('href', generateLanguageUrl(path, lang.code || lang, defaultLang, baseUrl));
   });
   
   // Add x-default

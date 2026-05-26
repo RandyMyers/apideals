@@ -1,4 +1,5 @@
 const UrlRedirect = require('../models/urlRedirect');
+const { stripLanguagePrefix } = require('../utils/languagePathUtils');
 
 /**
  * Common WordPress URL patterns that should redirect to homepage if not specifically mapped
@@ -62,17 +63,30 @@ const redirectMiddleware = async (req, res, next) => {
     const pathWithoutTrailingSlash = cleanPath.replace(/\/+$/, '');
     const pathWithTrailingSlash = pathWithoutTrailingSlash + '/';
     
+    const lookupPaths = [
+      pathWithoutTrailingSlash,
+      pathWithTrailingSlash,
+      cleanPath,
+      pathLower,
+      stripLanguagePrefix(cleanPath),
+      stripLanguagePrefix(pathWithoutTrailingSlash),
+    ].filter((p, i, arr) => p && arr.indexOf(p) === i);
+
     // Step 1: Check database for specific redirect (highest priority)
-    // Try multiple variations to handle database entries stored in different formats
-    const redirect = await UrlRedirect.findOne({
-      $or: [
-        { oldPath: pathWithoutTrailingSlash, isActive: true },
-        { oldPath: pathWithTrailingSlash, isActive: true },
-        { oldPath: cleanPath, isActive: true },
-        { oldPath: pathLower, isActive: true }
-      ]
-    });
-    
+    let redirect = null;
+    for (const tryPath of lookupPaths) {
+      const pathVariations = [
+        tryPath,
+        tryPath.replace(/\/+$/, '') || '/',
+        `${tryPath.replace(/\/+$/, '')}/`,
+      ].filter((p, i, arr) => p && arr.indexOf(p) === i);
+
+      redirect = await UrlRedirect.findOne({
+        $or: pathVariations.map((p) => ({ oldPath: p, isActive: true })),
+      });
+      if (redirect) break;
+    }
+
     if (redirect) {
       // Validate redirect has required fields (defensive programming)
       if (!redirect.newPath || !redirect.redirectType) {

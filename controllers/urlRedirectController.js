@@ -1,5 +1,79 @@
 const UrlRedirect = require('../models/urlRedirect');
 const Blog = require('../models/blog');
+const { stripLanguagePrefix } = require('../utils/languagePathUtils');
+
+const WORDPRESS_PATTERNS = [
+  /^\/wp-/i,
+  /^\/wp\.php$/i,
+  /^\/feed/i,
+  /\/feed\/?$/i,
+  /^\/author\//i,
+  /^\/tag\//i,
+  /^\/date\//i,
+  /^\/page\/\d+/i,
+  /^\/attachment\//i,
+  /^\/?index\.php/i,
+  /^\/?wp-login\.php/i,
+  /^\/?xmlrpc\.php/i,
+  /^\/category\//i,
+  /^\/rss/i,
+  /^\/atom/i,
+];
+
+function isWordPressPath(path) {
+  return WORDPRESS_PATTERNS.some((pattern) => pattern.test(path));
+}
+
+async function lookupRedirect(path) {
+  const pathLower = String(path || '').toLowerCase().trim();
+  let cleanPath = pathLower.replace(/^\/+/, '/');
+  if (!cleanPath.startsWith('/')) cleanPath = `/${cleanPath}`;
+  const pathWithoutTrailingSlash = cleanPath.replace(/\/+$/, '') || '/';
+  const pathWithTrailingSlash = pathWithoutTrailingSlash === '/' ? '/' : `${pathWithoutTrailingSlash}/`;
+
+  return UrlRedirect.findOne({
+    $or: [
+      { oldPath: pathWithoutTrailingSlash, isActive: true },
+      { oldPath: pathWithTrailingSlash, isActive: true },
+      { oldPath: cleanPath, isActive: true },
+      { oldPath: pathLower, isActive: true },
+    ],
+  });
+}
+
+/**
+ * Public JSON lookup for SPA fallback (WordPress migration redirects).
+ * GET /api/v1/redirects/resolve?path=/old-wordpress-slug
+ */
+exports.resolveRedirect = async (req, res) => {
+  try {
+    const raw = req.query.path || req.path || '';
+    const candidates = [
+      raw,
+      stripLanguagePrefix(raw),
+    ].filter((p, i, arr) => p && arr.indexOf(p) === i);
+
+    for (const candidate of candidates) {
+      const redirect = await lookupRedirect(candidate);
+      if (redirect?.newPath) {
+        redirect.recordHit().catch(() => {});
+        return res.json({
+          found: true,
+          newPath: redirect.newPath,
+          redirectType: redirect.redirectType || 301,
+        });
+      }
+      if (isWordPressPath(candidate)) {
+        return res.json({ found: true, newPath: '/', redirectType: 301 });
+      }
+    }
+
+    return res.json({ found: false });
+  } catch (error) {
+    console.error('Error resolving redirect:', error);
+    return res.status(500).json({ found: false, message: 'Internal server error' });
+  }
+};
 
 /**
  * Find and execute a redirect

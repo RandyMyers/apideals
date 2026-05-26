@@ -51,12 +51,20 @@ const generateRobotsTxt = (options = {}) => {
     robots += `\nSitemap: ${baseUrl}/sitemap.xml\n`;
   }
 
-  // Specific user agents
+  const appendDisallows = () => {
+    disallowPaths.forEach((path) => {
+      robots += `Disallow: ${path}\n`;
+    });
+  };
+
+  // Mirror disallow rules for major crawlers (blanket Allow: / was letting Google index auth flows)
   robots += '\nUser-agent: Googlebot\n';
   robots += 'Allow: /\n';
+  appendDisallows();
 
   robots += '\nUser-agent: Bingbot\n';
   robots += 'Allow: /\n';
+  appendDisallows();
 
   // Block bad bots
   robots += '\nUser-agent: AhrefsBot\n';
@@ -86,6 +94,15 @@ const getDefaultRobotsConfig = () => {
       '/auth/',
       '/login',
       '/register',
+      '/forgot-password',
+      '/reset-password',
+      '/submit-coupon',
+      '/*/login',
+      '/*/register',
+      '/*/forgot-password',
+      '/*/reset-password',
+      '/*/submit-coupon',
+      '/billing/',
       '/_next/',
       '/static/',
     ],

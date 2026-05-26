@@ -1,4 +1,6 @@
 const Store = require('../models/store');
+const Coupon = require('../models/coupon');
+const Deal = require('../models/deal');
 const Subscription = require('../models/subscriptions');
 const User = require('../models/user');
 const RateAndReview = require('../models/rateAndReview');
@@ -9,6 +11,39 @@ const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
 const { generateSlug } = require('../utils/seoUtils');
 const { buildStoreLookupFilter } = require('../utils/storeResolver');
+
+/** Offers are linked on Coupon/Deal docs (storeId / store), not only Store.coupons/deals arrays. */
+function buildPublishedOfferFilter(siteId) {
+    const base = { isPublished: true, isActive: true };
+    if (!siteId) return base;
+    return {
+        ...base,
+        $or: [
+            { siteId },
+            { siteId: { $exists: false } },
+            { siteId: null },
+        ],
+    };
+}
+
+async function loadStoreOffers(storeId, siteId, offerSelect) {
+    const offerFilter = buildPublishedOfferFilter(siteId);
+    const sort = { createdAt: -1 };
+    const limit = 100;
+    const [coupons, deals] = await Promise.all([
+        Coupon.find({ storeId, ...offerFilter })
+            .select(offerSelect)
+            .sort(sort)
+            .limit(limit)
+            .lean(),
+        Deal.find({ store: storeId, ...offerFilter })
+            .select(offerSelect)
+            .sort(sort)
+            .limit(limit)
+            .lean(),
+    ]);
+    return { coupons, deals };
+}
 
 // Create a new store
 exports.createStore = async (req, res) => {
@@ -535,22 +570,10 @@ exports.getStoreById = async (req, res) => {
 
         const findFilter = buildStoreLookupFilter(id, req.siteId);
         const offerSelect =
-            '_id title name code slug discountValue discountType originalPrice discountedPrice endDate store storeId imageUrl entityType entityLocation entityTags createdAt dealType currency priceUnit successRate verifiedAt description';
+            '_id title name code slug discountValue discountType originalPrice discountedPrice endDate store storeId imageUrl entityType entityLocation entityTags entityScope createdAt dealType currency priceUnit successRate verifiedAt description isActive isPublished';
         const store = await Store.findOne(findFilter)
             .select('-apiKey -secretKey -webhookSecret')
             .populate('userId', 'name email')
-            .populate({
-                path: 'coupons',
-                match: { isPublished: true, isActive: true },
-                select: offerSelect,
-                options: { sort: { createdAt: -1 }, limit: 100 },
-            })
-            .populate({
-                path: 'deals',
-                match: { isPublished: true, isActive: true },
-                select: offerSelect,
-                options: { sort: { createdAt: -1 }, limit: 100 },
-            })
             .populate('subscription')
             .populate('categoryId', 'name slug')
             .populate('affiliate', 'name')
@@ -559,6 +582,10 @@ exports.getStoreById = async (req, res) => {
         if (!store) {
             return res.status(404).json({ message: 'Store not found' });
         }
+
+        const offers = await loadStoreOffers(store._id, req.siteId, offerSelect);
+        store.coupons = offers.coupons;
+        store.deals = offers.deals;
 
         // Check if store is available in visitor's country
         if (country && !isCountryAvailable(country, store.availableCountries || [], store.isWorldwide !== false)) {

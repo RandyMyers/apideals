@@ -10,6 +10,7 @@ const CouponUsage = require('../models/couponUsage');
 const cloudinary = require('cloudinary').v2;
 const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
+const { pingIndexNow } = require('../utils/indexNow');
 
 exports.createCoupon = async (req, res) => {
   try {
@@ -141,6 +142,28 @@ exports.createCoupon = async (req, res) => {
       }
     }
 
+    // Parse faqs[] (sent as JSON string from multipart admin form)
+    if (otherCouponData.faqs !== undefined) {
+      try {
+        const parsedFaqs = typeof otherCouponData.faqs === 'string'
+          ? JSON.parse(otherCouponData.faqs)
+          : otherCouponData.faqs;
+        otherCouponData.faqs = Array.isArray(parsedFaqs)
+          ? parsedFaqs.filter((f) => f && f.question && f.answer)
+          : [];
+      } catch (e) {
+        console.warn('Could not parse faqs, dropping field');
+        delete otherCouponData.faqs;
+      }
+    }
+
+    // Coerce boolean-ish multipart strings (FormData sends "true"/"false" as text)
+    ['verified', 'studentDiscount', 'militaryDiscount', 'firstPurchaseOnly', 'stackable'].forEach((key) => {
+      if (otherCouponData[key] !== undefined) {
+        otherCouponData[key] = otherCouponData[key] === true || otherCouponData[key] === 'true';
+      }
+    });
+
     // Allow superAdmin and couponManager to bypass subscription limits
     if (userType === 'superAdmin' || userType === 'couponManager') {
       const { 
@@ -226,6 +249,11 @@ exports.createCoupon = async (req, res) => {
     } catch (notifError) {
       console.error('Error sending follower notification for new coupon:', notifError);
       // Don't fail creation if notification fails
+    }
+
+    // IndexNow: notify search engines instantly when a coupon goes live
+    if (newCoupon.isPublished && newCoupon.isActive) {
+      pingIndexNow(`/coupon/${newCoupon.seoSlug || newCoupon.slug || newCoupon._id}`);
     }
 
     return res.status(201).json({ message: 'Coupon created successfully', coupon: newCoupon });
@@ -522,7 +550,7 @@ exports.getCouponById = async (req, res) => {
 
   try {
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    const findFilter = isObjectId ? { _id: id } : { slug: id };
+    const findFilter = isObjectId ? { _id: id } : { $or: [{ slug: id }, { seoSlug: id }] };
     if (req.siteId) findFilter.siteId = req.siteId;
     const coupon = await Coupon.findOne(findFilter)
       .populate({
@@ -844,6 +872,16 @@ exports.updateCoupon = async (req, res) => {
       }
     }
 
+    // Parse faqs[] (JSON string from admin form)
+    if (updatedData.faqs !== undefined) {
+      try {
+        const parsedFaqs = typeof updatedData.faqs === 'string' ? JSON.parse(updatedData.faqs) : updatedData.faqs;
+        updatedData.faqs = Array.isArray(parsedFaqs) ? parsedFaqs.filter((f) => f && f.question && f.answer) : [];
+      } catch (e) {
+        delete updatedData.faqs;
+      }
+    }
+
     // Convert date strings to Date objects
     if (updatedData.startDate && typeof updatedData.startDate === 'string') {
       updatedData.startDate = new Date(updatedData.startDate);
@@ -876,6 +914,15 @@ exports.updateCoupon = async (req, res) => {
       const parsed = parseBool(updatedData.isPublished);
       if (parsed !== undefined) updatedData.isPublished = parsed;
     }
+    ['verified', 'studentDiscount', 'militaryDiscount', 'firstPurchaseOnly', 'stackable'].forEach((key) => {
+      if (updatedData[key] !== undefined) {
+        const parsed = parseBool(updatedData[key]);
+        if (parsed !== undefined) updatedData[key] = parsed;
+      }
+    });
+    if (updatedData.lastVerifiedAt && typeof updatedData.lastVerifiedAt === 'string') {
+      updatedData.lastVerifiedAt = new Date(updatedData.lastVerifiedAt);
+    }
 
     // Convert numeric fields
     if (updatedData.discountValue !== undefined) {
@@ -888,6 +935,24 @@ exports.updateCoupon = async (req, res) => {
       updatedData.usageLimit = Number(updatedData.usageLimit) || 1;
     }
 
+    // Publish quality gate — only when transitioning/keeping published
+    if (updatedData.isPublished === true) {
+      const existing = await Coupon.findById(id).select('endDate verified lastVerifiedAt').lean();
+      const merged = {
+        endDate: updatedData.endDate !== undefined ? updatedData.endDate : existing?.endDate,
+        verified: updatedData.verified !== undefined ? updatedData.verified : existing?.verified,
+        lastVerifiedAt: updatedData.lastVerifiedAt !== undefined ? updatedData.lastVerifiedAt : existing?.lastVerifiedAt,
+      };
+      const { validateCouponPublish } = require('../utils/publishValidation');
+      const check = validateCouponPublish(merged);
+      if (!check.ok) {
+        return res.status(422).json({
+          message: 'Coupon cannot be published yet — please complete required fields.',
+          errors: check.errors,
+        });
+      }
+    }
+
     const updatedCoupon = await Coupon.findByIdAndUpdate(id, updatedData, { new: true, runValidators: true })
       .populate('affiliateId', 'name')
       .populate('storeId', 'name location')
@@ -895,6 +960,11 @@ exports.updateCoupon = async (req, res) => {
 
     if (!updatedCoupon) {
       return res.status(404).json({ message: 'Coupon not found' });
+    }
+
+    // IndexNow: re-submit when the coupon is live
+    if (updatedCoupon.isPublished && updatedCoupon.isActive) {
+      pingIndexNow(`/coupon/${updatedCoupon.seoSlug || updatedCoupon.slug || updatedCoupon._id}`);
     }
 
     res.status(200).json({ message: 'Coupon updated successfully', coupon: updatedCoupon });

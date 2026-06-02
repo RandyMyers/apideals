@@ -21,6 +21,9 @@ router.get('/all', authMiddleware, adminMiddleware(allowedAdminTypes), activityC
 // GET /api/v1/activities/top-pages - Get top pages by view count (Admin only)
 router.get('/top-pages', authMiddleware, adminMiddleware(allowedAdminTypes), activityController.getTopPages);
 
+// GET /api/v1/activities/top-referrers - Get top traffic sources (Admin only)
+router.get('/top-referrers', authMiddleware, adminMiddleware(allowedAdminTypes), activityController.getTopReferrers);
+
 // GET /api/v1/activities/live - Get live activity (active visitors) (Admin only)
 router.get('/live', authMiddleware, adminMiddleware(allowedAdminTypes), activityController.getLiveActivity);
 

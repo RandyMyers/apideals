@@ -26,6 +26,12 @@ exports.getRobotsTxt = async (req, res) => {
           crawlDelay: settings.robotsTxt.crawlDelay || config.crawlDelay,
         };
       }
+      if (settings && settings.aiCrawlers) {
+        config.aiCrawlers = {
+          allowAll: settings.aiCrawlers.allowAll !== false,
+          blockedBots: settings.aiCrawlers.blockedBots || [],
+        };
+      }
     } catch (dbError) {
       console.warn('Could not load SEO settings from database, using defaults:', dbError.message);
       // Continue with default config

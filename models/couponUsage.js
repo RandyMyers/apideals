@@ -41,26 +41,38 @@ const CouponUsageSchema = new Schema({
     required: true,
     index: true,
   },
-  // Discount information at time of use
+  // Discount information at time of use.
+  // Optional: deals like free shipping / bundles have no discountType/Value.
   discountType: {
     type: String,
     enum: ['percentage', 'fixed'],
-    required: true,
+    required: false,
   },
   discountValue: {
     type: Number,
-    required: true,
+    required: false,
   },
-  // Purchase information (optional - user can provide)
+  // Purchase information (optional - user can provide via the savings modal)
   purchaseAmount: {
     type: Number,
-    default: 0, // If not provided, we'll estimate based on discount
+    default: 0,
   },
-  // Calculated savings amount
+  // Calculated savings amount (only meaningful when savingsKnown is true)
   savingsAmount: {
     type: Number,
-    required: true,
+    required: false,
     default: 0,
+  },
+  // Whether savingsAmount is a verified/derived figure (vs. an unknown we don't count)
+  savingsKnown: {
+    type: Boolean,
+    default: false,
+  },
+  // How savingsAmount was derived
+  savingsSource: {
+    type: String,
+    enum: ['price', 'fixed', 'userInput', 'unknown'],
+    default: 'unknown',
   },
   // User feedback
   worked: {
@@ -88,22 +100,30 @@ CouponUsageSchema.index({ userId: 1, entityType: 1 });
 CouponUsageSchema.index({ storeId: 1, usedAt: -1 });
 CouponUsageSchema.index({ usedAt: -1 });
 
-// Pre-save hook to calculate savings amount
+// Pre-save fallback for savings.
+// Controllers should pre-compute savings via utils/savingsCalculator and set
+// savingsKnown/savingsSource explicitly. This hook only fills in honest values
+// for records created without that computation. It NEVER fabricates an estimate:
+// a percentage offer with no purchaseAmount stays at 0 / unknown.
 CouponUsageSchema.pre('save', function(next) {
-  if (this.isNew || this.isModified('discountValue') || this.isModified('purchaseAmount')) {
-    if (this.discountType === 'percentage') {
-      // For percentage: savings = purchaseAmount * (discountValue / 100)
-      // If purchaseAmount not provided, estimate based on minimum purchase or default
-      const baseAmount = this.purchaseAmount > 0 
-        ? this.purchaseAmount 
-        : (this.discountValue >= 10 ? 50 : 20); // Estimate: higher discount = higher purchase
-      this.savingsAmount = (baseAmount * this.discountValue) / 100;
-    } else {
-      // For fixed amount: savings = discountValue (up to purchaseAmount)
-      this.savingsAmount = this.purchaseAmount > 0
-        ? Math.min(this.discountValue, this.purchaseAmount)
-        : this.discountValue;
-    }
+  if (this.savingsKnown) {
+    return next();
+  }
+  if (this.discountType === 'fixed' && this.discountValue > 0) {
+    this.savingsAmount = this.purchaseAmount > 0
+      ? Math.min(this.discountValue, this.purchaseAmount)
+      : this.discountValue;
+    this.savingsKnown = true;
+    this.savingsSource = 'fixed';
+  } else if (this.discountType === 'percentage' && this.discountValue > 0 && this.purchaseAmount > 0) {
+    this.savingsAmount = Math.round((this.purchaseAmount * this.discountValue) / 100 * 100) / 100;
+    this.savingsKnown = true;
+    this.savingsSource = 'userInput';
+  } else {
+    // Unknown: do not invent a number.
+    this.savingsAmount = 0;
+    this.savingsKnown = false;
+    this.savingsSource = 'unknown';
   }
   next();
 });

@@ -12,14 +12,18 @@ const Deal = require('../models/deal');
 const UrlRedirect = require('../models/urlRedirect');
 const Site = require('../models/site');
 
+/** Target SERP phrase — lowercase exact match everywhere (title, H1, intro, all locales). */
+const EXACT_KEYWORD = 'expedia coupon codes';
+
 function daysFromNow(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d;
 }
 
-/** German locale body — keeps exact phrase "Expedia coupon codes" for SEO */
-function buildGermanExpediaLocale(keyword, regionSuffix = '') {
+/** German locale body — keeps exact phrase "expedia coupon codes" for SEO */
+function buildGermanExpediaLocale(regionSuffix = '') {
+  const keyword = EXACT_KEYWORD;
   const titleSuffix = regionSuffix ? ` (${regionSuffix})` : '';
   return {
     seo: {
@@ -127,7 +131,25 @@ function buildGermanExpediaLocale(keyword, regionSuffix = '') {
 }
 
 function buildSeoPayload(now) {
-  const keyword = 'Expedia coupon codes'; // keep exact phrase across locales
+  const keyword = EXACT_KEYWORD;
+
+  const baseEnglishSeo = {
+    primaryKeyword: EXACT_KEYWORD,
+    title: `${EXACT_KEYWORD} (2026): verified deals & promo codes`,
+    metaDescription:
+      `Find working ${EXACT_KEYWORD} for hotels, flights, and packages. Updated weekly with tested deals, FAQs, and step-by-step checkout help on DealCouponz.`,
+    h1: `${EXACT_KEYWORD} and deals`,
+    intro:
+      `Looking for active ${EXACT_KEYWORD} that actually lower your trip price? This page lists verified ${EXACT_KEYWORD} and hotel deals our team checks regularly. ` +
+      `When a true promo code is available, copy it below; otherwise use our Get Deal links for tested hotel and package savings on Expedia.`,
+    keywords: [
+      EXACT_KEYWORD,
+      'expedia promo codes',
+      'expedia discount codes',
+      'expedia hotel deals',
+      'expedia coupons 2026',
+    ],
+  };
 
   const baseShared = {
     savingTips: [
@@ -279,30 +301,14 @@ function buildSeoPayload(now) {
 
   return {
     seoSlug: 'expedia-coupon-codes',
-    logoAlt: 'Expedia coupon codes and travel deals on DealCouponz',
+    logoAlt: `${EXACT_KEYWORD} and travel deals on DealCouponz`,
     contentUpdatedAt: now,
     lastVerifiedAt: now,
     description:
-      'DealCouponz lists verified Expedia coupon codes, hotel deals, and travel savings updated weekly. ' +
-      'Browse active Expedia coupon codes for hotels and packages, plus step-by-step help when a promo code does not apply at checkout. ' +
-      'We test offers regularly and remove expired deals so you see working savings—not outdated lists.',
-    seo: {
-      primaryKeyword: 'expedia coupon codes',
-      title: 'Expedia Coupon Codes and Deals: Verified Promo Codes',
-      metaDescription:
-        'Find working Expedia coupon codes for hotels, flights, and packages. Updated weekly with tested deals, FAQs, and step-by-step checkout help on DealCouponz.',
-      h1: 'Expedia Coupon Codes and Deals',
-      intro:
-        'Looking for active Expedia coupon codes that actually lower your trip price? This page lists verified Expedia coupon codes and hotel deals our team checks regularly. ' +
-        'When a true promo code is available, copy it below; otherwise use our Get Deal links for tested hotel and package savings on Expedia.',
-      keywords: [
-        'expedia coupon codes',
-        'expedia promo codes',
-        'expedia discount codes',
-        'expedia hotel deals',
-        'expedia coupons 2026',
-      ],
-    },
+      `DealCouponz lists verified ${EXACT_KEYWORD}, hotel deals, and travel savings updated weekly. ` +
+      `Browse active ${EXACT_KEYWORD} for hotels and packages, plus step-by-step help when a promo code does not apply at checkout. ` +
+      `We test offers regularly and remove expired deals so you see working savings—not outdated lists.`,
+    seo: baseEnglishSeo,
     savingTips: baseShared.savingTips,
     faqs: baseShared.faqs,
     editorial: baseShared.editorial,
@@ -310,6 +316,15 @@ function buildSeoPayload(now) {
     // Regional content variants (manual). Keep keyword phrase intact for ranking in MX/JP/KR.
     languageTranslations: (() => {
       const translations = {
+      // Default English (explicit — same as root fields)
+      en: {
+        seo: baseEnglishSeo,
+        logoAlt: `${EXACT_KEYWORD} and travel deals on DealCouponz`,
+        description:
+          `DealCouponz lists verified ${EXACT_KEYWORD}, hotel deals, and travel savings updated weekly. ` +
+          `Browse active ${EXACT_KEYWORD} for hotels and packages, plus step-by-step help when a promo code does not apply at checkout.`,
+      },
+
       // English variants
       'en-GB': {
         seo: {
@@ -363,8 +378,8 @@ function buildSeoPayload(now) {
       },
 
       // German / Austrian German — full FAQs, editorial, tips (not English fallback)
-      de: buildGermanExpediaLocale(keyword),
-      'de-AT': buildGermanExpediaLocale(keyword, 'AT'),
+      de: buildGermanExpediaLocale(),
+      'de-AT': buildGermanExpediaLocale('AT'),
 
       // Spanish (Spain) — MX has separate richer copy below
       es: {
@@ -731,8 +746,13 @@ function buildSeoPayload(now) {
       // Keep the exact keyword phrase intact by reusing base shared content.
       Object.keys(translations).forEach((code) => {
         const row = translations[code] || {};
-        if (!row.logoAlt) row.logoAlt = `Expedia logo — ${keyword} (DealCouponz)`;
-        if (!row.description) row.description = `DealCouponz lists verified ${keyword}, hotel deals, and travel savings. Updated weekly.`;
+        if (!row.seo?.primaryKeyword) {
+          row.seo = { ...(row.seo || {}), primaryKeyword: EXACT_KEYWORD };
+        }
+        if (!row.logoAlt) row.logoAlt = `Expedia logo — ${EXACT_KEYWORD} (DealCouponz)`;
+        if (!row.description) {
+          row.description = `DealCouponz lists verified ${EXACT_KEYWORD}, hotel deals, and travel savings. Updated weekly.`;
+        }
         if (!row.savingTips) row.savingTips = baseShared.savingTips;
         if (!row.faqs) row.faqs = baseShared.faqs;
         if (!row.editorial) row.editorial = baseShared.editorial;

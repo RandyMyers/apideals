@@ -197,6 +197,33 @@ const seoSettingsSchema = new mongoose.Schema(
       },
     },
 
+    // IndexNow — instant indexing for Bing/Yandex/Seznam/etc.
+    indexNow: {
+      enabled: {
+        type: Boolean,
+        default: true,
+      },
+      // 8–128 char key. Must also be served at {host}/{key}.txt.
+      apiKey: {
+        type: String,
+        default: '',
+      },
+    },
+
+    // AI crawler / answer-engine policy (GEO / AIO)
+    aiCrawlers: {
+      // Master switch: allow AI/answer-engine bots to crawl for citation visibility.
+      allowAll: {
+        type: Boolean,
+        default: true,
+      },
+      // User-agents explicitly disallowed (subset of the known AI bot list).
+      blockedBots: {
+        type: [String],
+        default: [],
+      },
+    },
+
     // Last updated
     lastUpdated: {
       type: Date,

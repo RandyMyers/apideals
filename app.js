@@ -392,6 +392,7 @@ app.use('/api/payment-gateways', paymentGatewayRoutes); // Public alias for paym
 app.use('/', require('./routes/sitemapRoutes')); // Sitemap at /sitemap.xml
 app.get('/api/v1/sitemap/slugs', require('./controllers/sitemapController').getSitemapSlugs);
 app.use('/', require('./routes/robotsRoutes')); // Robots.txt at /robots.txt
+app.use('/', require('./routes/llmsRoutes')); // llms.txt at /llms.txt (AI crawler policy)
 app.use('/api/v1/seo-settings', require('./routes/seoSettingsRoutes')); // SEO Settings (admin only)
 app.use('/api/v1/search-console', require('./routes/searchConsoleRoutes')); // Google Search Console (admin only)
 app.use('/api/v1/performance', require('./routes/performanceRoutes')); // Performance Metrics
@@ -406,6 +407,7 @@ app.use('/api/v1/notification-templates', require('./routes/notificationTemplate
 app.use('/api/v1/share', shareRoutes); // Share routes
 app.use('/api/v1/coupon-usage', couponUsageRoutes); // Coupon Usage routes
 app.use('/api/v1/api-keys', apiKeyRoutes); // API Keys (admin only - create/list/revoke)
+app.use('/api/v1', require('./routes/catalogRoutes')); // Agent catalog feed (public, /api/v1/catalog.json)
 app.use('/api/v1', require('./routes/urlRedirectRoutes')); // URL Redirect routes (admin endpoints)
 
 // URL Redirect Middleware - Check for redirects before serving React app

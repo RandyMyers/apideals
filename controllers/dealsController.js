@@ -963,6 +963,23 @@ exports.updateDeal = async (req, res) => {
     const wasInactive = !oldDeal.isActive;
     const willBeActive = updatedData.isActive === true;
 
+    // Publish quality gate — only when transitioning/keeping published
+    if (updatedData.isPublished === true) {
+      const merged = {
+        title: updatedData.title !== undefined ? updatedData.title : oldDeal.title,
+        verified: updatedData.verified !== undefined ? updatedData.verified : oldDeal.verified,
+        lastVerifiedAt: updatedData.lastVerifiedAt !== undefined ? updatedData.lastVerifiedAt : oldDeal.lastVerifiedAt,
+      };
+      const { validateDealPublish } = require('../utils/publishValidation');
+      const check = validateDealPublish(merged);
+      if (!check.ok) {
+        return res.status(422).json({
+          message: 'Deal cannot be published yet — please complete required fields.',
+          errors: check.errors,
+        });
+      }
+    }
+
     // Log what we're about to update
     console.log('📝 Updating deal with data:', JSON.stringify({
       isPublished: updatedData.isPublished,
@@ -977,6 +994,16 @@ exports.updateDeal = async (req, res) => {
     }
     
     console.log('✅ Deal updated successfully. New isPublished:', updatedDeal.isPublished, 'New isActive:', updatedDeal.isActive);
+
+    // IndexNow: re-submit when the deal is live
+    if (updatedDeal.isPublished && updatedDeal.isActive) {
+      try {
+        const { pingIndexNow } = require('../utils/indexNow');
+        pingIndexNow(`/deal/${updatedDeal.seoSlug || updatedDeal.slug || updatedDeal._id}`);
+      } catch (e) {
+        console.warn('[dealsController] IndexNow ping failed:', e.message);
+      }
+    }
 
     // Send notification if deal was approved (changed from inactive to active) and has a userId
     if (wasInactive && willBeActive && updatedDeal.userId) {

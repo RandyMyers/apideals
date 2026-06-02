@@ -47,6 +47,26 @@ const CategorySchema = new Schema({
     default: null,
   },
 
+  // ── SEO / AEO fields ──
+  seoSlug: { type: String, trim: true, lowercase: true, index: true },
+  seoTitle: { type: String, trim: true },
+  seoDescription: { type: String, trim: true },
+  seoKeywords: [{ type: String, trim: true }],
+  h1: { type: String, trim: true },
+  intro: { type: String, trim: true },
+  faqs: [{
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
+    group: { type: String, enum: ['faq', 'paa', 'troubleshooting'], default: 'faq' },
+    order: { type: Number, default: 0 },
+  }],
+  languageTranslations: {
+    type: mongoose.Schema.Types.Mixed,
+    required: false,
+    default: {},
+  },
+  contentUpdatedAt: { type: Date },
+
   // Category created and updated timestamps
   createdAt: {
     type: Date,
@@ -56,6 +76,15 @@ const CategorySchema = new Schema({
     type: Date,
     default: Date.now,
   },
+});
+
+CategorySchema.pre('save', function (next) {
+  this.updatedAt = Date.now();
+  const contentPaths = ['name', 'description', 'h1', 'intro', 'faqs', 'seoTitle', 'seoDescription'];
+  if (this.isNew || contentPaths.some((p) => this.isModified(p))) {
+    this.contentUpdatedAt = new Date();
+  }
+  next();
 });
 
 // Create Category Model (avoid OverwriteModelError in watch/reload)

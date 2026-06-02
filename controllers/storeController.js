@@ -369,6 +369,14 @@ exports.getAllStores = async (req, res) => {
             total = filteredStores.length;
         }
         
+        // Cache only the public, active-only variant briefly. Admin requests
+        // (which omit isActive / use large limits) must always be fresh.
+        if ((isActive === 'true' || isActive === true) && !isAdminRequest) {
+            res.set('Cache-Control', 'public, max-age=60');
+        } else {
+            res.set('Cache-Control', 'no-store');
+        }
+
         res.status(200).json({
             stores,
             pagination: {
@@ -440,6 +448,8 @@ exports.getTopStores = async (req, res) => {
         // Limit to requested amount
         const limitedStores = storesWithViews.slice(0, parseInt(limit));
         
+        // Low-volatility public list — let browsers/CDN cache it for 5 minutes.
+        res.set('Cache-Control', 'public, max-age=300');
         res.status(200).json(limitedStores);
     } catch (error) {
         console.error('Error fetching top stores:', error);
@@ -979,7 +989,26 @@ exports.updateStore = async (req, res) => {
             return res.status(404).json({ message: 'Store not found' });
         }
         console.log('[storeController] Store found:', existingStore.name);
-        
+
+        // Publish quality gate — enforce only when transitioning inactive -> active
+        const willActivate = updates.isActive === true && existingStore.isActive !== true;
+        if (willActivate) {
+            const mergedStore = {
+                seo: updates.seo || existingStore.seo || {},
+                faqs: updates.faqs || existingStore.faqs || [],
+                logoAlt: updates.logoAlt !== undefined ? updates.logoAlt : existingStore.logoAlt,
+            };
+            const { validateStorePublish } = require('../utils/publishValidation');
+            const check = validateStorePublish(mergedStore);
+            if (!check.ok) {
+                console.warn('[storeController] Publish gate blocked activation:', check.errors);
+                return res.status(422).json({
+                    message: 'Store cannot be activated yet — please complete required fields.',
+                    errors: check.errors,
+                });
+            }
+        }
+
         // Update the store
         console.log('[storeController] Updating store in database...');
         try {
@@ -998,6 +1027,14 @@ exports.updateStore = async (req, res) => {
             console.log('[storeController] Store updated successfully:', store._id);
             console.log('[storeController] Updated store name:', store.name);
             console.log('========================================');
+
+            try {
+                if (store.isActive) {
+                    const { pingIndexNow } = require('../utils/indexNow');
+                    pingIndexNow(`/stores/${store.seoSlug || store.slug || store._id}`);
+                }
+            } catch (e) { /* non-blocking */ }
+
             res.status(200).json({
                 message: 'Store updated successfully',
                 store,

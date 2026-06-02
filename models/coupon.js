@@ -331,6 +331,62 @@ const CouponSchema = new Schema({
     type: String,
     required: false, // Full T&C text
   },
+  exclusions: {
+    type: String,
+    trim: true,
+    required: false, // What the coupon does NOT apply to (AEO/GEO trust signal)
+  },
+
+  // Verification / freshness signals (E-E-A-T, GEO)
+  verified: {
+    type: Boolean,
+    default: false, // Whether an operator has verified this coupon works
+  },
+  lastVerifiedAt: {
+    type: Date, // When it was last verified
+  },
+  contentUpdatedAt: {
+    type: Date, // When editorial content was last changed (preferred sitemap lastmod)
+  },
+
+  // Answer-engine FAQs (rendered + emitted as FAQPage schema)
+  faqs: [{
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
+    group: { type: String, enum: ['faq', 'paa', 'troubleshooting'], default: 'faq' },
+    order: { type: Number, default: 0 },
+  }],
+
+  // Granular taxonomy flags for AI shopping agents (P4)
+  studentDiscount: {
+    type: Boolean,
+    default: false,
+  },
+  militaryDiscount: {
+    type: Boolean,
+    default: false,
+  },
+  firstPurchaseOnly: {
+    type: Boolean,
+    default: false,
+  },
+  minCartValue: {
+    type: Number,
+    required: false,
+  },
+  stackable: {
+    type: Boolean,
+    default: false,
+  },
+
+  // Canonical SEO slug (overrides auto slug when set)
+  seoSlug: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    required: false,
+    index: true,
+  },
 
   // Language translations (for multi-language support)
   languageTranslations: {
@@ -392,7 +448,21 @@ const CouponSchema = new Schema({
 // Automatically update the updatedAt field on save and calculate savings
 CouponSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
-  
+
+  // Track editorial content freshness for sitemap lastmod
+  const contentPaths = [
+    'title', 'description', 'instructions', 'longDescription', 'highlights',
+    'termsAndConditions', 'exclusions', 'faqs', 'seoTitle', 'seoDescription',
+  ];
+  if (this.isNew || contentPaths.some((p) => this.isModified(p))) {
+    this.contentUpdatedAt = new Date();
+  }
+
+  // Stamp verification time when verified is freshly set
+  if (this.isModified('verified') && this.verified && !this.lastVerifiedAt) {
+    this.lastVerifiedAt = new Date();
+  }
+
   // Calculate savings if price fields are provided
   if (this.originalPrice && this.discountedPrice && 
       typeof this.originalPrice === 'number' && typeof this.discountedPrice === 'number' &&
@@ -401,6 +471,26 @@ CouponSchema.pre('save', function (next) {
     this.savingsPercentage = parseFloat(((this.savingsAmount / this.originalPrice) * 100).toFixed(2));
   }
   
+  next();
+});
+
+// Keep freshness/verification fields accurate on findByIdAndUpdate / findOneAndUpdate
+CouponSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate() || {};
+  const set = update.$set || update;
+  const contentPaths = [
+    'title', 'description', 'instructions', 'longDescription', 'highlights',
+    'termsAndConditions', 'exclusions', 'faqs', 'seoTitle', 'seoDescription',
+  ];
+  if (contentPaths.some((p) => set[p] !== undefined)) {
+    set.contentUpdatedAt = new Date();
+  }
+  if (set.verified === true && set.lastVerifiedAt === undefined) {
+    set.lastVerifiedAt = new Date();
+  }
+  set.updatedAt = Date.now();
+  if (update.$set) update.$set = set; else Object.assign(update, set);
+  this.setUpdate(update);
   next();
 });
 

@@ -121,11 +121,35 @@ exports.createVisitor = async (req, res) => {
 
 
 
-// Retrieve all visitors
+// Retrieve all visitors (with latest referrer from their most recent page view)
 exports.getAllVisitors = async (req, res) => {
     try {
-        const visitors = await Visitor.find().sort({ visitedAt: -1 }); // Sort by the latest visit
-        res.status(200).json(visitors);
+        const visitors = await Visitor.find().sort({ visitedAt: -1 }).lean();
+
+        const visitorIds = visitors.map((v) => v._id);
+        const latestReferrers = visitorIds.length
+            ? await View.aggregate([
+                { $match: { visitorId: { $in: visitorIds } } },
+                { $sort: { viewedAt: -1 } },
+                {
+                    $group: {
+                        _id: '$visitorId',
+                        referrer: { $first: '$referrer' },
+                    },
+                },
+            ])
+            : [];
+
+        const referrerByVisitor = new Map(
+            latestReferrers.map((row) => [String(row._id), row.referrer || null])
+        );
+
+        const enriched = visitors.map((v) => ({
+            ...v,
+            lastReferrer: referrerByVisitor.get(String(v._id)) || null,
+        }));
+
+        res.status(200).json(enriched);
     } catch (error) {
         console.error('Error fetching visitors:', error);
         res.status(500).json({ message: 'Error fetching visitors', error });

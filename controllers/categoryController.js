@@ -52,6 +52,28 @@ exports.createCategory = async (req, res) => {
     const parentCategoryId = parentCategory && parentCategory.trim() !== '' ? parentCategory : null;
     const slug = await uniqueCategorySlug(name);
 
+    // SEO fields (optional)
+    const { seoSlug, seoTitle, seoDescription, h1, intro } = req.body;
+    let seoKeywords = [];
+    if (req.body.seoKeywords) {
+      try {
+        seoKeywords = typeof req.body.seoKeywords === 'string'
+          ? JSON.parse(req.body.seoKeywords)
+          : (Array.isArray(req.body.seoKeywords) ? req.body.seoKeywords : []);
+      } catch (e) {
+        seoKeywords = String(req.body.seoKeywords).split(',').map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    let faqs = [];
+    if (req.body.faqs) {
+      try {
+        const parsed = typeof req.body.faqs === 'string' ? JSON.parse(req.body.faqs) : req.body.faqs;
+        if (Array.isArray(parsed)) faqs = parsed;
+      } catch (e) {
+        console.warn('[categoryController] Could not parse faqs:', e.message);
+      }
+    }
+
     const newCategory = new Category({
       name: name.trim(),
       slug,
@@ -59,6 +81,13 @@ exports.createCategory = async (req, res) => {
       imageUrl,
       storeId,
       parentCategory: parentCategoryId,
+      seoSlug: seoSlug || undefined,
+      seoTitle: seoTitle || undefined,
+      seoDescription: seoDescription || undefined,
+      seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
+      h1: h1 || undefined,
+      intro: intro || undefined,
+      faqs: faqs.length > 0 ? faqs : undefined,
     });
 
     await newCategory.save();
@@ -135,6 +164,31 @@ exports.updateCategory = async (req, res) => {
     if (parentCategory !== undefined) {
       updateData.parentCategory = parentCategory && parentCategory.trim() !== '' ? parentCategory : null;
     }
+
+    // SEO / AEO fields
+    if (req.body.seoSlug !== undefined) updateData.seoSlug = req.body.seoSlug;
+    if (req.body.seoTitle !== undefined) updateData.seoTitle = req.body.seoTitle;
+    if (req.body.seoDescription !== undefined) updateData.seoDescription = req.body.seoDescription;
+    if (req.body.h1 !== undefined) updateData.h1 = req.body.h1;
+    if (req.body.intro !== undefined) updateData.intro = req.body.intro;
+    if (req.body.seoKeywords !== undefined) {
+      try {
+        updateData.seoKeywords = typeof req.body.seoKeywords === 'string'
+          ? JSON.parse(req.body.seoKeywords)
+          : (Array.isArray(req.body.seoKeywords) ? req.body.seoKeywords : []);
+      } catch (e) {
+        updateData.seoKeywords = String(req.body.seoKeywords).split(',').map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    if (req.body.faqs !== undefined) {
+      try {
+        const parsed = typeof req.body.faqs === 'string' ? JSON.parse(req.body.faqs) : req.body.faqs;
+        if (Array.isArray(parsed)) updateData.faqs = parsed;
+      } catch (e) {
+        console.warn('[categoryController] Could not parse faqs:', e.message);
+      }
+    }
+    updateData.contentUpdatedAt = Date.now();
 
     // Handle new image upload
     if (req.files && req.files.image) {
@@ -251,6 +305,8 @@ exports.getPopularCategories = async (req, res) => {
       });
     }
 
+    // Low-volatility public list — let browsers/CDN cache it for 5 minutes.
+    res.set('Cache-Control', 'public, max-age=300');
     return res.status(200).json({
       success: true,
       categories: categoriesWithCounts.slice(0, limitNum)

@@ -2,6 +2,7 @@ const Vote = require('../models/vote');
 const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const CouponUsage = require('../models/couponUsage');
+const { computeUsageSavings } = require('../utils/savingsCalculator');
 
 function isObjectIdLike(value) {
   return /^[0-9a-fA-F]{24}$/.test(String(value || '').trim());
@@ -28,7 +29,7 @@ exports.createOrUpdateVote = async (req, res) => {
   let dealId = null;
   try {
     userId = req.user?.id || req.user?._id || req.user?.userId || req.body.userId;
-    const { couponId: couponIdInput, dealId: dealIdInput, type } = req.body;
+    const { couponId: couponIdInput, dealId: dealIdInput, type, purchaseAmount } = req.body;
     couponId = couponIdInput;
     dealId = dealIdInput;
 
@@ -97,6 +98,12 @@ exports.createOrUpdateVote = async (req, res) => {
     // Track savings based on vote (always create new usage record for thumbs up)
     // This allows tracking multiple uses of the same deal/coupon
     if (shouldTrackSavings && entity) {
+      // Derive an honest savings figure. Prefer known prices; for percentage
+      // offers use the spend the user reported (purchaseAmount). If neither is
+      // available, the record is saved as used with unknown ($0) savings rather
+      // than a fabricated estimate.
+      const savings = computeUsageSavings({ entity, purchaseAmount });
+
       // Always create a new usage record (allow multiple uses)
       const usage = new CouponUsage({
         userId,
@@ -104,9 +111,12 @@ exports.createOrUpdateVote = async (req, res) => {
         entityId: resolvedCouponId || resolvedDealId,
         entityModel: resolvedCouponId ? 'Coupon' : 'Deal',
         storeId,
-        discountType: entity.discountType,
-        discountValue: entity.discountValue,
-        purchaseAmount: entity.originalPrice || entity.savingsAmount || 0, // Use original price if available, otherwise estimate
+        ...(savings.discountType ? { discountType: savings.discountType } : {}),
+        ...(typeof savings.discountValue === 'number' ? { discountValue: savings.discountValue } : {}),
+        purchaseAmount: savings.purchaseAmount,
+        savingsAmount: savings.savingsAmount,
+        savingsKnown: savings.savingsKnown,
+        savingsSource: savings.savingsSource,
         worked: true, // User confirmed it worked by voting thumbs up
       });
       await usage.save();

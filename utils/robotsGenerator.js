@@ -3,6 +3,23 @@
  * Generates dynamic robots.txt file
  */
 
+// Canonical list of AI crawlers / answer engines we expose a policy for.
+const AI_CRAWLERS = [
+  'GPTBot', // OpenAI / ChatGPT
+  'OAI-SearchBot', // OpenAI SearchGPT
+  'ChatGPT-User', // ChatGPT browsing
+  'ClaudeBot', // Anthropic
+  'Claude-Web', // Anthropic
+  'anthropic-ai', // Anthropic
+  'PerplexityBot', // Perplexity
+  'Perplexity-User', // Perplexity browsing
+  'Google-Extended', // Google Gemini / Vertex
+  'Applebot-Extended', // Apple Intelligence
+  'CCBot', // Common Crawl (feeds many LLMs)
+  'Bytespider', // TikTok / Doubao
+  'cohere-ai', // Cohere
+];
+
 /**
  * Generate robots.txt content
  */
@@ -14,6 +31,7 @@ const generateRobotsTxt = (options = {}) => {
     sitemapUrl = null,
     crawlDelay = null,
     baseUrl = 'https://dealcouponz.com',
+    aiCrawlers = { allowAll: true, blockedBots: [] },
   } = options;
 
   let robots = '';
@@ -44,12 +62,13 @@ const generateRobotsTxt = (options = {}) => {
     robots += `Crawl-delay: ${crawlDelay}\n`;
   }
 
-  // Sitemap
+  // Sitemap (both the main sitemap and the sitemap index)
   if (sitemapUrl) {
     robots += `\nSitemap: ${sitemapUrl}\n`;
   } else {
     robots += `\nSitemap: ${baseUrl}/sitemap.xml\n`;
   }
+  robots += `Sitemap: ${baseUrl}/sitemap-index.xml\n`;
 
   const appendDisallows = () => {
     disallowPaths.forEach((path) => {
@@ -66,7 +85,24 @@ const generateRobotsTxt = (options = {}) => {
   robots += 'Allow: /\n';
   appendDisallows();
 
-  // Block bad bots
+  // AI crawlers / answer engines — policy is admin-configurable. By default we
+  // ALLOW for citation visibility (GEO/AIO) while keeping private/auth paths
+  // disallowed. Admins can block the whole class or specific bots.
+  const aiAllowAll = aiCrawlers.allowAll !== false;
+  const blockedAiBots = new Set(
+    (aiCrawlers.blockedBots || []).map((b) => String(b).toLowerCase())
+  );
+  AI_CRAWLERS.forEach((bot) => {
+    robots += `\nUser-agent: ${bot}\n`;
+    if (!aiAllowAll || blockedAiBots.has(bot.toLowerCase())) {
+      robots += 'Disallow: /\n';
+    } else {
+      robots += 'Allow: /\n';
+      appendDisallows();
+    }
+  });
+
+  // Block aggressive SEO scrapers
   robots += '\nUser-agent: AhrefsBot\n';
   robots += 'Disallow: /\n';
 
@@ -97,11 +133,13 @@ const getDefaultRobotsConfig = () => {
       '/forgot-password',
       '/reset-password',
       '/submit-coupon',
+      '/search',
       '/*/login',
       '/*/register',
       '/*/forgot-password',
       '/*/reset-password',
       '/*/submit-coupon',
+      '/*/search',
       '/billing/',
       '/_next/',
       '/static/',
@@ -115,5 +153,6 @@ const getDefaultRobotsConfig = () => {
 module.exports = {
   generateRobotsTxt,
   getDefaultRobotsConfig,
+  AI_CRAWLERS,
 };
 

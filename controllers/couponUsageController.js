@@ -3,6 +3,7 @@ const CouponUsage = require('../models/couponUsage');
 const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const Store = require('../models/store');
+const { computeUsageSavings } = require('../utils/savingsCalculator');
 
 /**
  * Mark a coupon or deal as used
@@ -51,6 +52,11 @@ exports.markAsUsed = async (req, res) => {
     // Check if already used (optional - you might want to allow multiple uses)
     // For now, we'll allow multiple uses but track them separately
 
+    // Derive an honest savings figure (known price > fixed > user-entered
+    // percentage). Unknown offers are recorded as used with $0 savings rather
+    // than an invented estimate.
+    const savings = computeUsageSavings({ entity, purchaseAmount });
+
     // Create usage record
     const usage = new CouponUsage({
       userId,
@@ -58,9 +64,12 @@ exports.markAsUsed = async (req, res) => {
       entityId,
       entityModel: entityType === 'coupon' ? 'Coupon' : 'Deal',
       storeId,
-      discountType: entity.discountType,
-      discountValue: entity.discountValue,
-      purchaseAmount: purchaseAmount || 0,
+      ...(savings.discountType ? { discountType: savings.discountType } : {}),
+      ...(typeof savings.discountValue === 'number' ? { discountValue: savings.discountValue } : {}),
+      purchaseAmount: savings.purchaseAmount,
+      savingsAmount: savings.savingsAmount,
+      savingsKnown: savings.savingsKnown,
+      savingsSource: savings.savingsSource,
       worked,
       notes,
     });

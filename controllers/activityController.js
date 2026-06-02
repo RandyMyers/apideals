@@ -12,6 +12,7 @@ const View = require('../models/view');
 const Interaction = require('../models/interaction');
 const CouponUsage = require('../models/couponUsage');
 const Visitor = require('../models/visitor');
+const { normalizeReferrerSource } = require('../utils/referrerSource');
 
 /**
  * Get recent activities for admin dashboard
@@ -520,6 +521,79 @@ exports.getTopPages = async (req, res) => {
 };
 
 /**
+ * Get top traffic referrers (site-wide, from page views)
+ * GET /api/v1/activities/top-referrers
+ */
+exports.getTopReferrers = async (req, res) => {
+  try {
+    const { limit = 15, startDate, endDate } = req.query;
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.viewedAt = {};
+      if (startDate) dateFilter.viewedAt.$gte = new Date(startDate);
+      if (endDate) dateFilter.viewedAt.$lte = new Date(endDate);
+    }
+
+    const rows = await View.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: '$referrer',
+          viewCount: { $sum: 1 },
+          uniqueVisitors: { $addToSet: '$visitorId' },
+        },
+      },
+      {
+        $project: {
+          referrer: '$_id',
+          viewCount: 1,
+          uniqueVisitors: {
+            $size: {
+              $filter: {
+                input: '$uniqueVisitors',
+                as: 'v',
+                cond: { $ne: ['$$v', null] },
+              },
+            },
+          },
+        },
+      },
+      { $sort: { viewCount: -1 } },
+      { $limit: parseInt(limit, 10) || 15 },
+    ]);
+
+    const sourceMap = new Map();
+    rows.forEach((row) => {
+      const { source } = normalizeReferrerSource(row.referrer);
+      const existing = sourceMap.get(source) || { source, viewCount: 0, uniqueVisitors: 0, samples: [] };
+      existing.viewCount += row.viewCount;
+      existing.uniqueVisitors += row.uniqueVisitors;
+      if (row.referrer && existing.samples.length < 2) {
+        existing.samples.push(row.referrer);
+      }
+      sourceMap.set(source, existing);
+    });
+
+    const data = Array.from(sourceMap.values())
+      .sort((a, b) => b.viewCount - a.viewCount)
+      .slice(0, parseInt(limit, 10) || 15);
+
+    res.json({
+      success: true,
+      data,
+      count: data.length,
+    });
+  } catch (error) {
+    console.error('Error fetching top referrers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching top referrers',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Get live activity (active visitors in last 5 minutes)
  * GET /api/v1/activities/live
  */
@@ -593,6 +667,7 @@ exports.getLiveActivity = async (req, res) => {
           existing.currentPage = view.pagePath || existing.currentPage;
           existing.languageCode = view.languageCode || existing.languageCode;
           existing.lastActivity = view.viewedAt;
+          existing.referrer = view.referrer || existing.referrer;
         }
       }
     });

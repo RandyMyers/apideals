@@ -10,14 +10,23 @@ const { generateLanguageUrl } = require('./languagePathUtils');
 /**
  * Add hreflang links to a URL element
  */
-const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl) => {
-  languages.forEach((lang) => {
+const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl, translatedLocales = null) => {
+  // When translatedLocales is provided, only emit alternates for the default language
+  // and locales that actually have real translations — avoids soft-404 hreflang clusters.
+  const emitLangs = translatedLocales
+    ? languages.filter((lang) => {
+        const code = lang.code || lang;
+        return code === defaultLang || translatedLocales.has(code) || translatedLocales.has(lang.locale);
+      })
+    : languages;
+
+  emitLangs.forEach((lang) => {
     const link = urlElement.ele('xhtml:link');
     link.att('rel', 'alternate');
     link.att('hreflang', lang.locale || lang.code);
     link.att('href', generateLanguageUrl(path, lang.code || lang, defaultLang, baseUrl));
   });
-  
+
   // Add x-default
   const xDefaultLink = urlElement.ele('xhtml:link');
   xDefaultLink.att('rel', 'alternate');
@@ -25,10 +34,28 @@ const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl) => 
   xDefaultLink.att('href', `${baseUrl}${path}`);
 };
 
+// Build a Set of locale codes that have real translations for an entity.
+const translatedLocaleSet = (entity) => {
+  const lt = entity && entity.languageTranslations;
+  if (!lt || typeof lt !== 'object') return null;
+  const keys = Object.keys(lt).filter((k) => lt[k] && Object.keys(lt[k]).length > 0);
+  return keys.length > 0 ? new Set(keys) : null;
+};
+
+// Prefer the most meaningful "last modified" timestamp.
+const pickLastmod = (entity) => {
+  const ts = entity.contentUpdatedAt || entity.updatedAt;
+  return ts ? new Date(ts).toISOString() : new Date().toISOString();
+};
+
 /**
  * Generate XML sitemap
  */
-const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
+const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', options = {}) => {
+  const sitemapSettings = options.sitemapSettings || {};
+  const maxItems = options.maxItems || 10000;
+  const include = (key) => sitemapSettings[key] !== false; // default ON unless explicitly disabled
+
   // Get language settings
   let languages = [];
   let defaultLang = 'en';
@@ -69,7 +96,6 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     { path: '/faq', priority: '0.7', changefreq: 'weekly' },
     { path: '/pricing', priority: '0.6', changefreq: 'monthly' },
     { path: '/partners', priority: '0.6', changefreq: 'monthly' },
-    { path: '/submit-coupon', priority: '0.6', changefreq: 'monthly' },
     { path: '/privacy', priority: '0.5', changefreq: 'yearly' },
     { path: '/terms', priority: '0.5', changefreq: 'yearly' },
     { path: '/cookies', priority: '0.5', changefreq: 'yearly' },
@@ -89,66 +115,86 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
   });
 
   try {
-    // Dynamic pages - Coupons
-    if (models.Coupon) {
-      const coupons = await models.Coupon.find({ isActive: true })
-        .select('_id slug updatedAt')
-        .limit(10000)
+    // Dynamic pages - Coupons (only published + active, matching the public API)
+    if (models.Coupon && include('includeCoupons')) {
+      const coupons = await models.Coupon.find({ isActive: true, isPublished: true })
+        .select('_id slug seoSlug updatedAt contentUpdatedAt languageTranslations')
+        .limit(maxItems)
         .lean();
 
       coupons.forEach((coupon) => {
-        const path = `/coupon/${coupon.slug || coupon._id}`;
+        const path = `/coupon/${coupon.seoSlug || coupon.slug || coupon._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
-        url.ele('lastmod', coupon.updatedAt ? new Date(coupon.updatedAt).toISOString() : new Date().toISOString());
+        url.ele('lastmod', pickLastmod(coupon));
         url.ele('changefreq', 'weekly');
         url.ele('priority', '0.8');
-        
-        // Add hreflang links if enabled
+
         if (hreflangEnabled && languages.length > 0) {
-          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(coupon));
         }
       });
     }
 
-    // Dynamic pages - Deals
-    if (models.Deal) {
-      const deals = await models.Deal.find({ isActive: true })
-        .select('_id slug updatedAt')
-        .limit(10000)
+    // Dynamic pages - Deals (only published + active)
+    if (models.Deal && include('includeDeals')) {
+      const deals = await models.Deal.find({ isActive: true, isPublished: true })
+        .select('_id slug seoSlug updatedAt contentUpdatedAt languageTranslations')
+        .limit(maxItems)
         .lean();
 
       deals.forEach((deal) => {
-        const path = `/deal/${deal.slug || deal._id}`;
+        const path = `/deal/${deal.seoSlug || deal.slug || deal._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
-        url.ele('lastmod', deal.updatedAt ? new Date(deal.updatedAt).toISOString() : new Date().toISOString());
+        url.ele('lastmod', pickLastmod(deal));
         url.ele('changefreq', 'weekly');
         url.ele('priority', '0.8');
-        
-        // Add hreflang links if enabled
+
         if (hreflangEnabled && languages.length > 0) {
-          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(deal));
         }
       });
     }
 
     // Dynamic pages - Stores
-    if (models.Store) {
+    if (models.Store && include('includeStores')) {
       const stores = await models.Store.find({ isActive: true })
-        .select('slug updatedAt')
-        .limit(10000)
+        .select('slug seoSlug updatedAt contentUpdatedAt languageTranslations')
+        .limit(maxItems)
         .lean();
 
       stores.forEach((store) => {
-        const path = `/stores/${store.slug || store._id}`;
+        const path = `/stores/${store.seoSlug || store.slug || store._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
-        url.ele('lastmod', store.updatedAt ? new Date(store.updatedAt).toISOString() : new Date().toISOString());
+        url.ele('lastmod', pickLastmod(store));
         url.ele('changefreq', 'weekly');
         url.ele('priority', '0.8');
-        
-        // Add hreflang links if enabled
+
+        if (hreflangEnabled && languages.length > 0) {
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(store));
+        }
+      });
+    }
+
+    // Dynamic pages - Store Landing Pages
+    if (models.StoreLandingPage && include('includeStores')) {
+      const landings = await models.StoreLandingPage.find({ isActive: true, isPublished: true })
+        .select('slug seoSlug updatedAt contentUpdatedAt')
+        .limit(maxItems)
+        .lean();
+
+      landings.forEach((lp) => {
+        const lpSlug = lp.seoSlug || lp.slug;
+        if (!lpSlug) return;
+        const path = `/stores/${lpSlug}`;
+        const url = root.ele('url');
+        url.ele('loc', `${baseUrl}${path}`);
+        url.ele('lastmod', pickLastmod(lp));
+        url.ele('changefreq', 'weekly');
+        url.ele('priority', '0.7');
+
         if (hreflangEnabled && languages.length > 0) {
           addHreflangLinks(url, path, languages, defaultLang, baseUrl);
         }
@@ -156,23 +202,22 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     }
 
     // Dynamic pages - Categories (no isActive field on Category model — fetch all)
-    if (models.Category) {
+    if (models.Category && include('includeCategories')) {
       const categories = await models.Category.find({})
-        .select('slug updatedAt')
-        .limit(1000)
+        .select('slug seoSlug updatedAt contentUpdatedAt languageTranslations')
+        .limit(Math.min(maxItems, 1000))
         .lean();
 
       categories.forEach((category) => {
-        const path = `/categories/${category.slug || category._id}`;
+        const path = `/categories/${category.seoSlug || category.slug || category._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
-        url.ele('lastmod', category.updatedAt ? new Date(category.updatedAt).toISOString() : new Date().toISOString());
+        url.ele('lastmod', pickLastmod(category));
         url.ele('changefreq', 'weekly');
         url.ele('priority', '0.7');
-        
-        // Add hreflang links if enabled
+
         if (hreflangEnabled && languages.length > 0) {
-          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(category));
         }
       });
     }
@@ -202,23 +247,22 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com') => {
     }
 
     // Dynamic pages - Blog posts
-    if (models.Blog) {
+    if (models.Blog && include('includeBlogs')) {
       const blogs = await models.Blog.find({ isPublished: true })
-        .select('slug updatedAt')
-        .limit(10000)
+        .select('slug seoSlug updatedAt contentUpdatedAt languageTranslations')
+        .limit(maxItems)
         .lean();
 
       blogs.forEach((blog) => {
-        const path = `/blog/${blog.slug || blog._id}`;
+        const path = `/blog/${blog.seoSlug || blog.slug || blog._id}`;
         const url = root.ele('url');
         url.ele('loc', `${baseUrl}${path}`);
-        url.ele('lastmod', blog.updatedAt ? new Date(blog.updatedAt).toISOString() : new Date().toISOString());
+        url.ele('lastmod', pickLastmod(blog));
         url.ele('changefreq', 'monthly');
         url.ele('priority', '0.7');
-        
-        // Add hreflang links if enabled
+
         if (hreflangEnabled && languages.length > 0) {
-          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(blog));
         }
       });
     }

@@ -563,6 +563,11 @@ exports.publishBlog = async (req, res) => {
     blog.isPublished = true;
     await blog.save();
 
+    try {
+      const { pingIndexNow } = require('../utils/indexNow');
+      pingIndexNow(`/blog/${blog.seoSlug || blog.slug || blog._id}`);
+    } catch (e) { /* non-blocking */ }
+
     res.status(200).json({ 
       message: 'Blog published successfully',
       blog: blog 

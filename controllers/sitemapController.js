@@ -16,6 +16,7 @@ const Store = require('../models/store');
 const Category = require('../models/category');
 const Blog = require('../models/blog');
 const HelpArticle = require('../models/helpArticle');
+const StoreLandingPage = require('../models/storeLandingPage');
 
 const CouponSubmission = require('../models/couponSubmission');
 
@@ -26,6 +27,7 @@ const models = {
   Category,
   Blog,
   HelpArticle,
+  StoreLandingPage,
   CouponSubmission,
 };
 
@@ -39,10 +41,12 @@ exports.getSitemap = async (req, res) => {
     // Check if sitemap is enabled
     let sitemapEnabled = true;
     let maxItems = 10000;
-    
+    let sitemapSettings = {};
+
     try {
       const settings = await SEOSettings.getSettings();
       if (settings && settings.sitemapSettings) {
+        sitemapSettings = settings.sitemapSettings;
         sitemapEnabled = settings.sitemapSettings.enabled !== false;
         maxItems = settings.sitemapSettings.maxItemsPerSitemap || 10000;
       }
@@ -54,7 +58,7 @@ exports.getSitemap = async (req, res) => {
       return res.status(404).send('Sitemap is disabled');
     }
 
-    const sitemap = await generateSitemap(models, baseUrl);
+    const sitemap = await generateSitemap(models, baseUrl, { sitemapSettings, maxItems });
 
     // Auto-submit to Search Console if enabled
     try {
@@ -179,9 +183,9 @@ exports.getSitemapSlugs = async (req, res) => {
   try {
     const maxItems = 10000;
     const [coupons, deals, stores, categories, blogs] = await Promise.all([
-      Coupon.find({ isActive: true }).select('_id slug updatedAt').limit(maxItems).lean(),
-      Deal.find({ isActive: true }).select('_id slug updatedAt').limit(maxItems).lean(),
-      Store.find({ isActive: true }).select('_id slug updatedAt').limit(maxItems).lean(),
+      Coupon.find({ isActive: true, isPublished: true }).select('_id slug seoSlug updatedAt').limit(maxItems).lean(),
+      Deal.find({ isActive: true, isPublished: true }).select('_id slug seoSlug updatedAt').limit(maxItems).lean(),
+      Store.find({ isActive: true }).select('_id slug seoSlug updatedAt').limit(maxItems).lean(),
       Category.find({}).select('_id slug updatedAt').limit(1000).lean(),
       Blog.find({ isPublished: true }).select('_id slug updatedAt').limit(maxItems).lean(),
     ]);

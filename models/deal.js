@@ -355,6 +355,44 @@ const DealSchema = new Schema({
     type: Map,
     of: String, // Flexible key-value pairs for different store types
   },
+  termsAndConditions: {
+    type: String,
+    required: false, // Full T&C text
+  },
+  exclusions: {
+    type: String,
+    trim: true,
+    required: false, // What the deal does NOT apply to
+  },
+
+  // Verification / freshness signals (E-E-A-T, GEO)
+  verified: {
+    type: Boolean,
+    default: false,
+  },
+  lastVerifiedAt: {
+    type: Date,
+  },
+  contentUpdatedAt: {
+    type: Date, // Preferred sitemap lastmod
+  },
+
+  // Answer-engine FAQs (rendered + emitted as FAQPage schema)
+  faqs: [{
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
+    group: { type: String, enum: ['faq', 'paa', 'troubleshooting'], default: 'faq' },
+    order: { type: Number, default: 0 },
+  }],
+
+  // Canonical SEO slug (overrides auto slug when set)
+  seoSlug: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    required: false,
+    index: true,
+  },
 
   // SEO fields
   seoTitle: {
@@ -409,7 +447,20 @@ const DealSchema = new Schema({
 // Automatically update the updatedAt field on save and calculate savings
 DealSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
-  
+
+  // Track editorial content freshness for sitemap lastmod
+  const contentPaths = [
+    'title', 'name', 'description', 'instructions', 'longDescription', 'highlights',
+    'features', 'termsAndConditions', 'exclusions', 'faqs', 'seoTitle', 'seoDescription',
+  ];
+  if (this.isNew || contentPaths.some((p) => this.isModified(p))) {
+    this.contentUpdatedAt = new Date();
+  }
+
+  if (this.isModified('verified') && this.verified && !this.lastVerifiedAt) {
+    this.lastVerifiedAt = new Date();
+  }
+
   // Calculate savings if price fields are provided
   if (this.originalPrice && this.discountedPrice && 
       typeof this.originalPrice === 'number' && typeof this.discountedPrice === 'number' &&
@@ -431,6 +482,26 @@ DealSchema.methods.isValid = function () {
     this.usedCount < this.maxUsage
   );
 };
+
+// Keep freshness/verification fields accurate on findByIdAndUpdate / findOneAndUpdate
+DealSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate() || {};
+  const set = update.$set || update;
+  const contentPaths = [
+    'title', 'name', 'description', 'instructions', 'longDescription', 'highlights',
+    'features', 'termsAndConditions', 'exclusions', 'faqs', 'seoTitle', 'seoDescription',
+  ];
+  if (contentPaths.some((p) => set[p] !== undefined)) {
+    set.contentUpdatedAt = new Date();
+  }
+  if (set.verified === true && set.lastVerifiedAt === undefined) {
+    set.lastVerifiedAt = new Date();
+  }
+  set.updatedAt = Date.now();
+  if (update.$set) update.$set = set; else Object.assign(update, set);
+  this.setUpdate(update);
+  next();
+});
 
 // Auto-generate slug before save if not already set
 DealSchema.pre('save', function (next) {

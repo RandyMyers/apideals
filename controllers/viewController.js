@@ -4,6 +4,7 @@ const Deal = require('../models/deal');
 const Store = require('../models/store');
 const Category = require('../models/category');
 const Blog = require('../models/blog');
+const mongoose = require('mongoose');
 
 function detectDeviceType(userAgent = '', platform = '') {
     const ua = String(userAgent || '').toLowerCase();
@@ -77,7 +78,10 @@ exports.createView = async (req, res) => {
         const authenticatedUserId = req.user?.id || userId || null;
 
         // Auto-link to visitor if not provided: find visitor by IP and userAgent
-        let finalVisitorId = visitorId;
+        let finalVisitorId =
+            visitorId && mongoose.Types.ObjectId.isValid(String(visitorId))
+                ? visitorId
+                : null;
         if (!finalVisitorId && trackingKey) {
             const trackedVisitor = await Visitor.findOne({ trackingKey }).select('_id userId').lean();
             if (trackedVisitor?._id) {
@@ -135,14 +139,23 @@ exports.createView = async (req, res) => {
                         });
                         finalVisitorId = fallbackVisitor._id;
                     } catch (createErr) {
-                        // If unique index races, grab latest matching record and continue.
-                        const fallbackExisting = await Visitor.findOne({
-                            ip: clientIp,
-                            userAgent,
-                        })
-                            .sort({ visitedAt: -1 })
-                            .select('_id')
-                            .lean();
+                        // Unique index races (ip+userAgent or trackingKey) — reuse existing visitor.
+                        let fallbackExisting = null;
+                        if (trackingKey) {
+                            fallbackExisting = await Visitor.findOne({ trackingKey })
+                                .sort({ visitedAt: -1 })
+                                .select('_id')
+                                .lean();
+                        }
+                        if (!fallbackExisting) {
+                            fallbackExisting = await Visitor.findOne({
+                                ip: clientIp,
+                                userAgent,
+                            })
+                                .sort({ visitedAt: -1 })
+                                .select('_id')
+                                .lean();
+                        }
                         finalVisitorId = fallbackExisting?._id || null;
                     }
                 }
@@ -225,6 +238,7 @@ exports.createView = async (req, res) => {
 
         // Create a new View entry
         const view = new View({
+            ...(req.siteId && { siteId: req.siteId }),
             visitorId: finalVisitorId || null,
             userId: authenticatedUserId, // Use authenticated user ID if available
             entityType: entityType || null,
@@ -313,8 +327,10 @@ exports.createView = async (req, res) => {
         });
     } catch (error) {
         console.error('Error logging view:', error);
-        res.status(500).json({
-            message: 'Error logging view',
+        // Analytics must not break the storefront — acknowledge so clients stop retrying.
+        res.status(202).json({
+            message: 'View accepted (partial)',
+            logged: false,
             error: error.message,
         });
     }

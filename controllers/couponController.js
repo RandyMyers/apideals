@@ -1,4 +1,5 @@
-const Coupon = require('../models/coupon'); // Adjust the path as per your project structure
+const Coupon = require('../models/coupon');
+const { withSiteScope } = require('../utils/tenantQuery'); // Adjust the path as per your project structure
 const Subscription = require('../models/subscriptions'); // Import Subscription model
 const User = require('../models/user');
 const Store = require('../models/store');
@@ -386,7 +387,7 @@ exports.getCouponsByStore = async (req, res) => {
     const maxLimit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
     const now = new Date();
 
-    const query = {
+    let query = {
       storeId,
       isPublished: true,
       isActive: true,
@@ -396,7 +397,9 @@ exports.getCouponsByStore = async (req, res) => {
         { endDate: { $exists: false } },
       ],
     };
-    if (req.siteId) query.siteId = req.siteId;
+    if (req.siteId) {
+      query = withSiteScope(query, req.siteId);
+    }
     if (exclude && /^[0-9a-fA-F]{24}$/.test(String(exclude))) {
       query._id = { $ne: exclude };
     }
@@ -447,7 +450,9 @@ exports.getAllCoupons = async (req, res) => {
       };
     }
     // If admin=true, query is empty (show all)
-    if (req.siteId) query.siteId = req.siteId;
+    if (req.siteId) {
+      query = withSiteScope(query, req.siteId);
+    }
 
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
@@ -550,8 +555,8 @@ exports.getCouponById = async (req, res) => {
 
   try {
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    const findFilter = isObjectId ? { _id: id } : { $or: [{ slug: id }, { seoSlug: id }] };
-    if (req.siteId) findFilter.siteId = req.siteId;
+    const baseFilter = isObjectId ? { _id: id } : { $or: [{ slug: id }, { seoSlug: id }] };
+    const findFilter = withSiteScope(baseFilter, req.siteId);
     const coupon = await Coupon.findOne(findFilter)
       .populate({
         path: 'affiliateId',

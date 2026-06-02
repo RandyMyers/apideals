@@ -11,6 +11,11 @@ const { isCountryAvailable } = require('../utils/countryUtils');
 const notificationService = require('../services/notificationService');
 const { generateSlug } = require('../utils/seoUtils');
 const { buildStoreLookupFilter } = require('../utils/storeResolver');
+const { withSiteScope } = require('../utils/tenantQuery');
+const {
+    loadStoreOfferCountMaps,
+    attachOfferCountsToStores,
+} = require('../utils/storeOfferCounts');
 
 /** Offers are linked on Coupon/Deal docs (storeId / store), not only Store.coupons/deals arrays. */
 function buildPublishedOfferFilter(siteId) {
@@ -309,7 +314,35 @@ exports.getAllStores = async (req, res) => {
             ];
         }
 
-        if (req.siteId) query.siteId = req.siteId;
+        const isAdminRequest = parseInt(limit) >= 1000;
+        let offerCountMaps = null;
+        if (!isAdminRequest) {
+            offerCountMaps = await loadStoreOfferCountMaps(req.siteId);
+            if (offerCountMaps.storeIdsWithOffers.length === 0) {
+                res.set('Cache-Control', 'public, max-age=60');
+                return res.status(200).json({
+                    stores: [],
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: 0,
+                        totalPages: 0,
+                    },
+                });
+            }
+            const offerIds = offerCountMaps.storeIdsWithOffers.map(
+                (id) => new mongoose.Types.ObjectId(id)
+            );
+            if (query._id && query._id.$nin) {
+                const exclude = query._id.$nin;
+                delete query._id;
+                query.$and = [{ _id: { $in: offerIds } }, { _id: { $nin: exclude } }];
+            } else {
+                query._id = { $in: offerIds };
+            }
+        }
+
+        const storeFindQuery = withSiteScope(query, req.siteId);
         
         // Sorting
         let sortOption = {};
@@ -329,18 +362,16 @@ exports.getAllStores = async (req, res) => {
                 break;
         }
         
-        // For admin requests, if limit is very large (>= 1000), return all stores without pagination
-        const isAdminRequest = parseInt(limit) >= 1000;
         let stores;
         if (isAdminRequest) {
-            stores = await Store.find(query)
+            stores = await Store.find(storeFindQuery)
                 .populate('userId', 'name email')
                 .populate('categoryId', 'name')
                 .populate('affiliate', 'name')
                 .sort(sortOption)
                 .lean();
         } else {
-            stores = await Store.find(query)
+            stores = await Store.find(storeFindQuery)
                 .populate('userId', 'name email')
                 .populate('categoryId', 'name')
                 .populate('affiliate', 'name')
@@ -349,6 +380,11 @@ exports.getAllStores = async (req, res) => {
                 .limit(parseInt(limit))
                 .lean();
         }
+
+        if (!offerCountMaps) {
+            offerCountMaps = await loadStoreOfferCountMaps(req.siteId);
+        }
+        stores = attachOfferCountsToStores(stores, offerCountMaps);
         
         // Filter by location if country is provided
         if (country) {
@@ -357,7 +393,7 @@ exports.getAllStores = async (req, res) => {
             );
         }
         
-        const totalQuery = { ...query };
+        const totalQuery = { ...storeFindQuery };
         let total = await Store.countDocuments(totalQuery);
         
         // If country filtering is applied, we need to count filtered results
@@ -419,8 +455,14 @@ exports.getTopStores = async (req, res) => {
         
         const storeIds = viewAggregation.map(v => v._id);
         
-        const storeFilter = { _id: { $in: storeIds }, isActive: true };
-        if (req.siteId) storeFilter.siteId = req.siteId;
+        const offerCountMaps = await loadStoreOfferCountMaps(req.siteId);
+        const offerIdSet = new Set(offerCountMaps.storeIdsWithOffers);
+        const storeIdsWithOffers = storeIds.filter((id) => offerIdSet.has(String(id)));
+
+        const storeFilter = withSiteScope(
+            { _id: { $in: storeIdsWithOffers }, isActive: true },
+            req.siteId
+        );
         let stores = await Store.find(storeFilter)
             .populate('userId', 'name email')
             .populate('categoryId', 'name')
@@ -433,14 +475,17 @@ exports.getTopStores = async (req, res) => {
             );
         }
             
-        // Merge view counts
-        const storesWithViews = stores.map(store => {
-            const viewData = viewAggregation.find(v => v._id.toString() === store._id.toString());
-            return {
-                ...store,
-                viewCount: viewData ? viewData.viewCount : store.viewCount || 0
-            };
-        });
+        // Merge view counts and offer counts
+        const storesWithViews = attachOfferCountsToStores(
+            stores.map(store => {
+                const viewData = viewAggregation.find(v => v._id.toString() === store._id.toString());
+                return {
+                    ...store,
+                    viewCount: viewData ? viewData.viewCount : store.viewCount || 0
+                };
+            }),
+            offerCountMaps
+        );
         
         // Sort by view count (from aggregation, not denormalized)
         storesWithViews.sort((a, b) => b.viewCount - a.viewCount);
@@ -475,14 +520,22 @@ exports.getSponsoredStores = async (req, res) => {
                 { sponsoredEndDate: { $gte: new Date() } }
             ]
         };
-        if (req.siteId) sponsoredQuery.siteId = req.siteId;
-        const stores = await Store.find(sponsoredQuery)
+        const offerCountMaps = await loadStoreOfferCountMaps(req.siteId);
+        if (offerCountMaps.storeIdsWithOffers.length === 0) {
+            return res.status(200).json([]);
+        }
+        sponsoredQuery._id = {
+            $in: offerCountMaps.storeIdsWithOffers.map((id) => new mongoose.Types.ObjectId(id)),
+        };
+        const storeFindQuery = withSiteScope(sponsoredQuery, req.siteId);
+        const stores = await Store.find(storeFindQuery)
             .populate('userId', 'name email')
             .populate('categoryId', 'name')
-            .sort({ sponsoredPriority: -1, createdAt: -1 }) // Sort by priority first, then date
-            .limit(parseInt(limit));
-            
-        res.status(200).json(stores);
+            .sort({ sponsoredPriority: -1, createdAt: -1 })
+            .limit(parseInt(limit))
+            .lean();
+
+        res.status(200).json(attachOfferCountsToStores(stores, offerCountMaps));
     } catch (error) {
         console.error('Error fetching sponsored stores:', error);
         res.status(500).json({

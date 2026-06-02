@@ -18,6 +18,9 @@ router.get('/recent', authMiddleware, adminMiddleware(allowedAdminTypes), activi
 // Queries View, Interaction, and CouponUsage models directly
 router.get('/all', authMiddleware, adminMiddleware(allowedAdminTypes), activityController.getAllActivities);
 
+// GET /api/v1/activities/overview - Visitor analytics overview (Admin only)
+router.get('/overview', authMiddleware, adminMiddleware(allowedAdminTypes), activityController.getVisitorOverview);
+
 // GET /api/v1/activities/top-pages - Get top pages by view count (Admin only)
 router.get('/top-pages', authMiddleware, adminMiddleware(allowedAdminTypes), activityController.getTopPages);
 

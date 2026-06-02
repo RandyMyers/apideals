@@ -379,6 +379,128 @@ exports.getAllActivities = async (req, res) => {
 };
 
 /**
+ * Visitor analytics overview (accurate totals for admin dashboard)
+ * GET /api/v1/activities/overview?days=30
+ */
+exports.getVisitorOverview = async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const viewPathMatch = {
+      pagePath: { $exists: true, $ne: null, $ne: '' },
+    };
+
+    const [
+      visitorRecords,
+      visitorsActive24h,
+      pageViews,
+      pageViews24h,
+      uniqueVisitorsAgg,
+      uniqueVisitors24hAgg,
+      topCountries,
+      topPagesRaw,
+      topReferrersRaw,
+    ] = await Promise.all([
+      Visitor.countDocuments({}),
+      Visitor.countDocuments({ visitedAt: { $gte: since24h } }),
+      View.countDocuments({ ...viewPathMatch, viewedAt: { $gte: since } }),
+      View.countDocuments({ ...viewPathMatch, viewedAt: { $gte: since24h } }),
+      View.aggregate([
+        { $match: { viewedAt: { $gte: since }, visitorId: { $ne: null } } },
+        { $group: { _id: '$visitorId' } },
+        { $count: 'count' },
+      ]),
+      View.aggregate([
+        { $match: { viewedAt: { $gte: since24h }, visitorId: { $ne: null } } },
+        { $group: { _id: '$visitorId' } },
+        { $count: 'count' },
+      ]),
+      Visitor.aggregate([
+        { $match: { country: { $exists: true, $nin: [null, ''] } } },
+        { $group: { _id: '$country', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]),
+      View.aggregate([
+        { $match: { ...viewPathMatch, viewedAt: { $gte: since } } },
+        {
+          $group: {
+            _id: '$pagePath',
+            viewCount: { $sum: 1 },
+            uniqueVisitors: { $addToSet: '$visitorId' },
+            lastViewed: { $max: '$viewedAt' },
+          },
+        },
+        {
+          $project: {
+            pagePath: '$_id',
+            viewCount: 1,
+            uniqueVisitors: {
+              $size: {
+                $filter: {
+                  input: '$uniqueVisitors',
+                  as: 'v',
+                  cond: { $ne: ['$$v', null] },
+                },
+              },
+            },
+            lastViewed: 1,
+          },
+        },
+        { $sort: { viewCount: -1 } },
+        { $limit: 20 },
+      ]),
+      View.aggregate([
+        { $match: { viewedAt: { $gte: since } } },
+        { $group: { _id: '$referrer', viewCount: { $sum: 1 }, uniqueVisitors: { $addToSet: '$visitorId' } } },
+        { $sort: { viewCount: -1 } },
+        { $limit: 30 },
+      ]),
+    ]);
+
+    const sourceMap = new Map();
+    topReferrersRaw.forEach((row) => {
+      const { source } = normalizeReferrerSource(row._id);
+      const existing = sourceMap.get(source) || { source, viewCount: 0 };
+      existing.viewCount += row.viewCount;
+      sourceMap.set(source, existing);
+    });
+    const topReferrers = Array.from(sourceMap.values())
+      .sort((a, b) => b.viewCount - a.viewCount)
+      .slice(0, 12);
+
+    res.json({
+      success: true,
+      data: {
+        days,
+        totals: {
+          visitorRecords,
+          visitorsActive24h,
+          pageViews,
+          pageViews24h,
+          uniqueVisitors: uniqueVisitorsAgg[0]?.count || 0,
+          uniqueVisitors24h: uniqueVisitors24hAgg[0]?.count || 0,
+        },
+        topCountries: topCountries.map((c) => ({
+          country: c._id,
+          count: c.count,
+        })),
+        topPages: topPagesRaw,
+        topReferrers,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching visitor overview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching visitor overview',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Get top pages by view count (for SEO analysis)
  * GET /api/v1/activities/top-pages
  */

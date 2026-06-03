@@ -6,6 +6,8 @@
 const xmlbuilder = require('xmlbuilder');
 const LanguageSettings = require('../models/languageSettings');
 const { generateLanguageUrl } = require('./languagePathUtils');
+const { loadStoreOfferCountMaps } = require('./storeOfferCounts');
+const mongoose = require('mongoose');
 
 /**
  * Add hreflang links to a URL element
@@ -157,9 +159,18 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
       });
     }
 
-    // Dynamic pages - Stores
+    // Dynamic pages - Stores (active + at least one published offer)
     if (models.Store && include('includeStores')) {
-      const stores = await models.Store.find({ isActive: true })
+      const offerMaps = await loadStoreOfferCountMaps(null);
+      const storeObjectIds = offerMaps.storeIdsWithOffers.map(
+        (id) => new mongoose.Types.ObjectId(id)
+      );
+      const storeQuery =
+        storeObjectIds.length > 0
+          ? { isActive: true, _id: { $in: storeObjectIds } }
+          : { _id: { $in: [] } };
+
+      const stores = await models.Store.find(storeQuery)
         .select('slug seoSlug updatedAt contentUpdatedAt languageTranslations')
         .limit(maxItems)
         .lean();

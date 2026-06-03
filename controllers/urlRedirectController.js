@@ -1,6 +1,7 @@
 const UrlRedirect = require('../models/urlRedirect');
 const Blog = require('../models/blog');
 const { stripLanguagePrefix } = require('../utils/languagePathUtils');
+const { resolveUnpublishedEntityRedirect } = require('../utils/unpublishedEntityRedirect');
 
 const WORDPRESS_PATTERNS = [
   /^\/wp-/i,
@@ -65,6 +66,15 @@ exports.resolveRedirect = async (req, res) => {
       }
       if (isWordPressPath(candidate)) {
         return res.json({ found: true, newPath: '/', redirectType: 301 });
+      }
+
+      const unpublished = await resolveUnpublishedEntityRedirect(candidate, req.siteId);
+      if (unpublished?.newPath) {
+        return res.json({
+          found: true,
+          newPath: unpublished.newPath,
+          redirectType: unpublished.redirectType || 301,
+        });
       }
     }
 

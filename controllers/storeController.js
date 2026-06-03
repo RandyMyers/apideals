@@ -31,8 +31,30 @@ function buildPublishedOfferFilter(siteId) {
     };
 }
 
-async function loadStoreOffers(storeId, siteId, offerSelect) {
-    const offerFilter = buildPublishedOfferFilter(siteId);
+const ADMIN_PANEL_ROLES = [
+    'superAdmin',
+    'couponManager',
+    'customerSupport',
+    'contentEditor',
+    'marketingManager',
+];
+
+function isAdminPanelUser(user) {
+    return user && ADMIN_PANEL_ROLES.includes(user.userType);
+}
+
+async function loadStoreOffers(storeId, siteId, offerSelect, { includeUnpublished = false } = {}) {
+    const offerFilter = includeUnpublished
+        ? (siteId
+            ? {
+                $or: [
+                    { siteId },
+                    { siteId: { $exists: false } },
+                    { siteId: null },
+                ],
+            }
+            : {})
+        : buildPublishedOfferFilter(siteId);
     const sort = { createdAt: -1 };
     const limit = 100;
     const [coupons, deals] = await Promise.all([
@@ -76,7 +98,7 @@ exports.createStore = async (req, res) => {
         let logoUrl = '';
         let cloudinaryId = '';
 
-         // Handle logo upload
+         // Handle logo upload or remote URL (e.g. Logo.dev)
          if (req.files && req.files.logo) {
             const file = req.files.logo;
             const result = await cloudinary.uploader.upload(file.tempFilePath, {
@@ -87,6 +109,8 @@ exports.createStore = async (req, res) => {
 
             logoUrl = result.secure_url;
             cloudinaryId = result.public_id;
+        } else if (req.body.logo && typeof req.body.logo === 'string' && req.body.logo.startsWith('http')) {
+            logoUrl = req.body.logo.trim();
         }
 
         // Fetch user details
@@ -666,16 +690,24 @@ exports.getStoreById = async (req, res) => {
             return res.status(404).json({ message: 'Store not found' });
         }
 
-        if (store.isActive === false) {
+        const adminView = isAdminPanelUser(req.user);
+
+        if (!adminView && store.isActive === false) {
             return res.status(404).json({ message: 'Store not found' });
         }
 
-        const offers = await loadStoreOffers(store._id, req.siteId, offerSelect);
+        const offers = await loadStoreOffers(store._id, req.siteId, offerSelect, {
+            includeUnpublished: adminView,
+        });
         store.coupons = offers.coupons;
         store.deals = offers.deals;
 
-        // Check if store is available in visitor's country
-        if (country && !isCountryAvailable(country, store.availableCountries || [], store.isWorldwide !== false)) {
+        // Check if store is available in visitor's country (skip for admin preview)
+        if (
+            !adminView &&
+            country &&
+            !isCountryAvailable(country, store.availableCountries || [], store.isWorldwide !== false)
+        ) {
             return res.status(403).json({ 
                 message: 'This store is not available in your location',
                 availableCountries: store.availableCountries
@@ -977,7 +1009,7 @@ exports.updateStore = async (req, res) => {
         }
 
         // Handle string fields (only update if provided)
-        const stringFields = ['name', 'description', 'url', 'apiKey', 'secretKey', 'storeType', 'seoSlug', 'logoAlt'];
+        const stringFields = ['name', 'description', 'url', 'apiKey', 'secretKey', 'storeType', 'seoSlug', 'logoAlt', 'logo'];
         stringFields.forEach(field => {
             if (req.body[field] !== undefined) {
                 updates[field] = req.body[field];
@@ -1004,6 +1036,12 @@ exports.updateStore = async (req, res) => {
 
         const editorialPayload = parseJsonField(req.body.editorial, 'editorial');
         if (editorialPayload) updates.editorial = editorialPayload;
+
+        const languageTranslationsPayload = parseJsonField(req.body.languageTranslations, 'languageTranslations');
+        if (languageTranslationsPayload && typeof languageTranslationsPayload === 'object') {
+            updates.languageTranslations = languageTranslationsPayload;
+            console.log('[storeController] languageTranslations locales:', Object.keys(languageTranslationsPayload));
+        }
 
         if (req.body.contentUpdatedAt) {
             updates.contentUpdatedAt = new Date(req.body.contentUpdatedAt);

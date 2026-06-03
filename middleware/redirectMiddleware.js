@@ -1,5 +1,6 @@
 const UrlRedirect = require('../models/urlRedirect');
 const { stripLanguagePrefix } = require('../utils/languagePathUtils');
+const { resolveUnpublishedEntityRedirect } = require('../utils/unpublishedEntityRedirect');
 
 /**
  * Common WordPress URL patterns that should redirect to homepage if not specifically mapped
@@ -103,14 +104,22 @@ const redirectMiddleware = async (req, res, next) => {
       return res.redirect(redirect.redirectType, redirect.newPath);
     }
     
-    // Step 2: Check if this is a WordPress URL pattern without a specific mapping
+    // Step 2: Unpublished / empty store, coupon, deal, or category detail pages
+    for (const tryPath of lookupPaths) {
+      const unpublished = await resolveUnpublishedEntityRedirect(tryPath, req.siteId);
+      if (unpublished?.newPath) {
+        return res.redirect(unpublished.redirectType || 301, unpublished.newPath);
+      }
+    }
+
+    // Step 3: Check if this is a WordPress URL pattern without a specific mapping
     // Redirect unknown WordPress URLs to homepage to preserve SEO link equity
     if (isWordPressUrl(req.path)) {
       console.log(`[Redirect] WordPress URL pattern detected, redirecting to homepage: ${req.path}`);
       return res.redirect(301, '/');
     }
     
-    // Step 3: No redirect found - continue to next middleware (React Router)
+    // Step 4: No redirect found - continue to next middleware (React Router)
     next();
   } catch (error) {
     console.error('Error in redirect middleware:', error);

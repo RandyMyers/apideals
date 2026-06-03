@@ -365,6 +365,7 @@ app.use('/api/v1/coupon-submissions', couponSubmissionRoutes);  // User Coupon S
 app.use('/api/v1/coupon-boosts', couponBoostRoutes);  // Coupon Boosts
 app.use('/api/v1/deals', dealRoutes);
 app.use('/api/v1/sites', siteRoutes);
+app.use('/api/v1/logo-dev', require('./routes/logoDevRoutes'));
 app.use('/api/v1/store', storeRoutes);
 app.use('/api/v1/store-landing-pages', storeLandingPageRoutes);
 app.use('/api/v1/stores', savingTipsRoutes);

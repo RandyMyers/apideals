@@ -118,6 +118,11 @@ const corsOptions = {
       }
     }
     
+    const envOrigins = (process.env.CORS_ORIGINS || '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
@@ -125,7 +130,9 @@ const corsOptions = {
       'https://dealcouponz.com',
       'https://www.dealcouponz.com',
       'https://admin.dealcouponz.com',
-      'https://joyful-kitsune-4ff266.netlify.app'
+      'https://honeydew-hamster-965094.hostingersite.com',
+      'https://joyful-kitsune-4ff266.netlify.app',
+      ...envOrigins,
     ];
     
     if (allowedOrigins.includes(origin)) {

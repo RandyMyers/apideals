@@ -4,6 +4,7 @@ const storeController = require('../controllers/storeController');
 const storeLandingPageController = require('../controllers/storeLandingPageController');
 const authMiddleware = require('../middleware/authMiddleware');
 const authOrApiKeyMiddleware = require('../middleware/authOrApiKeyMiddleware');
+const optionalAuthMiddleware = require('../middleware/optionalAuthMiddleware');
 
 // Route to create a new store (JWT or API key)
 router.post('/create', authOrApiKeyMiddleware, storeController.createStore);
@@ -24,8 +25,8 @@ router.get('/trending/category/:categoryId', storeController.getTrendingStoresBy
 router.get('/:storeSlug/landings', storeLandingPageController.listPublicLandings);
 router.get('/:storeSlug/landing/:landingSlug', storeLandingPageController.getPublicLanding);
 
-// Route to get a store by its ID
-router.get('/:id', storeController.getStoreById);
+// Route to get a store by its ID (optional auth so admin can load draft/inactive stores)
+router.get('/:id', optionalAuthMiddleware, storeController.getStoreById);
 
 router.get('/user/:userId', storeController.getStoresByUserId);
 

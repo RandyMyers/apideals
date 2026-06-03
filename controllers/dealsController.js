@@ -681,6 +681,10 @@ exports.getDealById = async (req, res) => {
       return res.status(404).json({ message: 'Deal not found' });
     }
 
+    if (deal.isPublished !== true || deal.isActive === false) {
+      return res.status(404).json({ message: 'Deal not found' });
+    }
+
     // Check if deal is available in visitor's country
     if (country && !isCountryAvailable(country, deal.availableCountries || [], deal.isWorldwide !== false)) {
       return res.status(403).json({ 

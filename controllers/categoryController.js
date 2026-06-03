@@ -5,6 +5,88 @@ const Deal     = require('../models/deal');
 const mongoose = require('mongoose');
 const cloudinary = require('cloudinary').v2;
 const { generateSlug } = require('../utils/seoUtils');
+const { withSiteScope } = require('../utils/tenantQuery');
+
+function buildPublishedOfferFilter(siteId) {
+  const base = { isPublished: true, isActive: true };
+  if (!siteId) return base;
+  return {
+    ...base,
+    $or: [
+      { siteId },
+      { siteId: { $exists: false } },
+      { siteId: null },
+    ],
+  };
+}
+
+/**
+ * Category IDs that have at least one published offer or an active store with published offers.
+ */
+async function getCategoryIdsWithPublicContent(siteId) {
+  const offerFilter = buildPublishedOfferFilter(siteId);
+
+  const [couponCategoryIds, dealCategoryIds, couponStoreIds, dealStoreIds] = await Promise.all([
+    Coupon.distinct(
+      'categoryId',
+      withSiteScope(
+        { ...offerFilter, categoryId: { $exists: true, $ne: null } },
+        siteId
+      )
+    ),
+    Deal.distinct(
+      'categoryId',
+      withSiteScope(
+        { ...offerFilter, categoryId: { $exists: true, $ne: null } },
+        siteId
+      )
+    ),
+    Coupon.distinct(
+      'storeId',
+      withSiteScope(
+        { ...offerFilter, storeId: { $exists: true, $ne: null } },
+        siteId
+      )
+    ),
+    Deal.distinct(
+      'store',
+      withSiteScope(
+        { ...offerFilter, store: { $exists: true, $ne: null } },
+        siteId
+      )
+    ),
+  ]);
+
+  const storeIdSet = new Set(
+    [...couponStoreIds, ...dealStoreIds]
+      .filter(Boolean)
+      .map((id) => String(id))
+  );
+
+  let storeCategoryIds = [];
+  if (storeIdSet.size > 0) {
+    const storeObjectIds = [...storeIdSet]
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    storeCategoryIds = await Store.distinct(
+      'categoryId',
+      withSiteScope(
+        {
+          _id: { $in: storeObjectIds },
+          isActive: true,
+          categoryId: { $exists: true, $ne: null },
+        },
+        siteId
+      )
+    );
+  }
+
+  const ids = new Set();
+  [...couponCategoryIds, ...dealCategoryIds, ...storeCategoryIds]
+    .filter(Boolean)
+    .forEach((id) => ids.add(String(id)));
+  return ids;
+}
 
 // Helper: ensure slug uniqueness for a category
 async function uniqueCategorySlug(base, excludeId = null) {
@@ -133,18 +215,29 @@ exports.getCategories = async (req, res) => {
     const couponCountMap = new Map(couponAgg.map((r) => [String(r._id), r.count]));
     const dealCountMap = new Map(dealAgg.map((r) => [String(r._id), r.count]));
 
-    const categoriesWithCounts = categories.map((cat) => {
-      const id = String(cat._id);
-      const couponCount = couponCountMap.get(id) || 0;
-      const dealCount = dealCountMap.get(id) || 0;
-      return {
-        ...cat,
-        couponCount,
-        dealCount,
-        offerCount: couponCount + dealCount,
-      };
-    });
+    const includeEmpty = req.query.includeEmpty === 'true' || req.query.includeEmpty === '1';
+    const categoryIdsWithContent = includeEmpty
+      ? null
+      : await getCategoryIdsWithPublicContent(req.siteId);
 
+    const categoriesWithCounts = categories
+      .map((cat) => {
+        const id = String(cat._id);
+        const couponCount = couponCountMap.get(id) || 0;
+        const dealCount = dealCountMap.get(id) || 0;
+        return {
+          ...cat,
+          couponCount,
+          dealCount,
+          offerCount: couponCount + dealCount,
+        };
+      })
+      .filter((cat) => {
+        if (includeEmpty) return true;
+        return categoryIdsWithContent.has(String(cat._id));
+      });
+
+    res.set('Cache-Control', 'public, max-age=300');
     return res.status(200).json({ categories: categoriesWithCounts });
   } catch (error) {
     console.error(error);
@@ -280,69 +373,84 @@ exports.getCategoriesByParent = async (req, res) => {
   }
 };
 
-// Get popular categories (sorted by number of stores in each category)
+// Get popular categories (only categories with published offers or stores that have them)
 exports.getPopularCategories = async (req, res) => {
   try {
     const { limit = 6 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 6, 1), 50);
-    
-    // Aggregate stores by categoryId to count stores per category
-    const storeCounts = await Store.aggregate([
-      { $match: { categoryId: { $exists: true, $ne: null }, isActive: { $ne: false } } },
-      { $group: { _id: '$categoryId', storeCount: { $sum: 1 } } },
-      { $sort: { storeCount: -1 } },
-      { $limit: limitNum }
-    ]);
 
-    // Get category IDs
-    const categoryIds = storeCounts.map(item => item._id);
-
-    // Fetch category details
-    const categories = await Category.find({ _id: { $in: categoryIds } })
-      .select('name description imageUrl')
-      .exec();
-
-    // Map categories with store counts
-    const categoriesWithCounts = categories.map(category => {
-      const countData = storeCounts.find(item => item._id.toString() === category._id.toString());
-      return {
-        _id: category._id,
-        name: category.name,
-        description: category.description,
-        imageUrl: category.imageUrl,
-        storeCount: countData ? countData.storeCount : 0
-      };
-    });
-
-    // Sort by store count (descending)
-    categoriesWithCounts.sort((a, b) => b.storeCount - a.storeCount);
-
-    // If we have fewer categories than limit, fill with any other categories
-    if (categoriesWithCounts.length < limitNum) {
-      const existingIds = categoriesWithCounts.map(c => c._id.toString());
-      const additionalCategories = await Category.find({
-        _id: { $nin: existingIds.map(id => new mongoose.Types.ObjectId(id)) }
-      })
-        .select('name description imageUrl')
-        .limit(limitNum - categoriesWithCounts.length)
-        .exec();
-
-      additionalCategories.forEach(category => {
-        categoriesWithCounts.push({
-          _id: category._id,
-          name: category.name,
-          description: category.description,
-          imageUrl: category.imageUrl,
-          storeCount: 0
-        });
-      });
+    const contentIds = await getCategoryIdsWithPublicContent(req.siteId);
+    if (contentIds.size === 0) {
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.status(200).json({ success: true, categories: [] });
     }
 
-    // Low-volatility public list — let browsers/CDN cache it for 5 minutes.
+    const contentObjectIds = [...contentIds]
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const offerFilter = buildPublishedOfferFilter(req.siteId);
+    const [couponStoreIds, dealStoreIds] = await Promise.all([
+      Coupon.distinct(
+        'storeId',
+        withSiteScope(
+          { ...offerFilter, storeId: { $exists: true, $ne: null } },
+          req.siteId
+        )
+      ),
+      Deal.distinct(
+        'store',
+        withSiteScope(
+          { ...offerFilter, store: { $exists: true, $ne: null } },
+          req.siteId
+        )
+      ),
+    ]);
+    const storeIdsWithOffers = [...new Set([...couponStoreIds, ...dealStoreIds].map(String))]
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const storeMatch = withSiteScope(
+      {
+        categoryId: { $in: contentObjectIds },
+        isActive: true,
+        ...(storeIdsWithOffers.length
+          ? { _id: { $in: storeIdsWithOffers } }
+          : { _id: { $in: [] } }),
+      },
+      req.siteId
+    );
+
+    const storeCounts = await Store.aggregate([
+      { $match: storeMatch },
+      { $group: { _id: '$categoryId', storeCount: { $sum: 1 } } },
+      { $sort: { storeCount: -1 } },
+    ]);
+
+    const categories = await Category.find({ _id: { $in: contentObjectIds } })
+      .select('name slug description imageUrl')
+      .lean();
+
+    const storeCountMap = new Map(
+      storeCounts.map((row) => [String(row._id), row.storeCount])
+    );
+
+    const categoriesWithCounts = categories
+      .map((category) => ({
+        _id: category._id,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+        imageUrl: category.imageUrl,
+        storeCount: storeCountMap.get(String(category._id)) || 0,
+      }))
+      .sort((a, b) => b.storeCount - a.storeCount || a.name.localeCompare(b.name))
+      .slice(0, limitNum);
+
     res.set('Cache-Control', 'public, max-age=300');
     return res.status(200).json({
       success: true,
-      categories: categoriesWithCounts.slice(0, limitNum)
+      categories: categoriesWithCounts,
     });
   } catch (error) {
     console.error(error);
@@ -375,17 +483,6 @@ exports.getCategoryDetail = async (req, res) => {
 
     const categoryId = category._id;
 
-    const storeFilter = { categoryId, isActive: true };
-    if (req.siteId) storeFilter.siteId = req.siteId;
-    const stores = await Store.find(storeFilter)
-      .select('_id name logo slug website')
-      .lean();
-
-    const storeMap = {};
-    for (const s of stores) {
-      storeMap[s._id.toString()] = s;
-    }
-
     // List by each document’s categoryId (not “all offers from stores tagged with this category”).
     // siteId is not required here — same as before; store list above already scopes tenants when needed.
     const offerBase = { categoryId, isActive: true, isPublished: true };
@@ -417,6 +514,33 @@ exports.getCategoryDetail = async (req, res) => {
         const st = d.store;
         return st && typeof st === 'object' && st.isActive !== false;
       });
+    }
+
+    const storeIdsFromOffers = new Set();
+    for (const c of coupons) {
+      const sid = c.storeId?._id || c.storeId;
+      if (sid) storeIdsFromOffers.add(String(sid));
+    }
+    for (const d of deals) {
+      const sid = d.store?._id || d.store;
+      if (sid) storeIdsFromOffers.add(String(sid));
+    }
+
+    let stores = [];
+    if (storeIdsFromOffers.size > 0) {
+      const storeFilter = {
+        _id: { $in: [...storeIdsFromOffers] },
+        isActive: true,
+      };
+      if (req.siteId) storeFilter.siteId = req.siteId;
+      stores = await Store.find(storeFilter)
+        .select('_id name logo slug website url')
+        .lean();
+    }
+
+    const storeMap = {};
+    for (const s of stores) {
+      storeMap[s._id.toString()] = s;
     }
 
     const storeInfoFromCoupon = (item) => {

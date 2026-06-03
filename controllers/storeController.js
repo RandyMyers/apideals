@@ -555,18 +555,38 @@ exports.getTrendingStoresByCategory = async (req, res) => {
             return res.status(400).json({ message: 'Category ID is required' });
         }
 
-        // Get stores in this category, sorted by views/rating/followers
-        const stores = await Store.find({
-            categoryId: categoryId,
-            isActive: true
-        })
+        const offerCountMaps = await loadStoreOfferCountMaps(req.siteId);
+        if (offerCountMaps.storeIdsWithOffers.length === 0) {
+            res.set('Cache-Control', 'public, max-age=300');
+            return res.status(200).json([]);
+        }
+
+        const offerIds = offerCountMaps.storeIdsWithOffers.map(
+            (id) => new mongoose.Types.ObjectId(id)
+        );
+
+        const stores = await Store.find(
+            withSiteScope(
+                {
+                    categoryId,
+                    isActive: true,
+                    _id: { $in: offerIds },
+                },
+                req.siteId
+            )
+        )
             .populate('categoryId', 'name slug')
-            .sort({ views: -1, rating: -1, followers: -1, createdAt: -1 })
+            .sort({ viewCount: -1, averageRating: -1, followers: -1, createdAt: -1 })
             .limit(parseInt(limit))
-            .select('name slug logo website rating followers categoryId views')
+            .select('name slug seoSlug logo url website rating averageRating followers categoryId viewCount isActive')
             .lean();
 
-        res.status(200).json(stores);
+        const withCounts = attachOfferCountsToStores(stores, offerCountMaps).filter(
+            (s) => (s.couponCount || 0) + (s.dealCount || 0) > 0
+        );
+
+        res.set('Cache-Control', 'public, max-age=300');
+        res.status(200).json(withCounts);
     } catch (error) {
         console.error('Error fetching trending stores by category:', error);
         res.status(500).json({
@@ -643,6 +663,10 @@ exports.getStoreById = async (req, res) => {
             .lean();
 
         if (!store) {
+            return res.status(404).json({ message: 'Store not found' });
+        }
+
+        if (store.isActive === false) {
             return res.status(404).json({ message: 'Store not found' });
         }
 

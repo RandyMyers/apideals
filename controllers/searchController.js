@@ -7,7 +7,9 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const Store = require('../models/store');
 const Category = require('../models/category');
+const mongoose = require('mongoose');
 const { isCountryAvailable } = require('../utils/countryUtils');
+const { loadStoreOfferCountMaps } = require('../utils/storeOfferCounts');
 
 function buildSearchRegex(q) {
   const trimmed = String(q || '').trim();
@@ -54,6 +56,7 @@ exports.getSearchSuggestions = async (req, res) => {
         { code: { $regex: query, $options: 'i' } },
       ],
       isActive: true,
+      isPublished: true,
     })
       .select('title code discountType discountValue storeId _id')
       .populate('storeId', 'name logo')
@@ -67,6 +70,7 @@ exports.getSearchSuggestions = async (req, res) => {
         { description: { $regex: query, $options: 'i' } },
       ],
       isActive: true,
+      isPublished: true,
     })
       .select('title discountType discountValue storeId _id')
       .populate('storeId', 'name logo')
@@ -224,9 +228,19 @@ exports.search = async (req, res) => {
     };
     if (req.siteId) dealFilter.siteId = req.siteId;
 
+    const offerCountMaps = await loadStoreOfferCountMaps(req.siteId);
+    const publishedStoreIds = offerCountMaps.storeIdsWithOffers
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (publishedStoreIds.length) {
+      storeFilter._id = { $in: publishedStoreIds };
+    } else {
+      storeFilter._id = { $in: [] };
+    }
+
     const [stores, coupons, deals] = await Promise.all([
       Store.find(storeFilter)
-        .select('name slug logo description categoryId averageRating')
+        .select('name slug logo description categoryId averageRating couponCount dealCount')
         .sort({ averageRating: -1, createdAt: -1 })
         .limit(perType)
         .lean(),

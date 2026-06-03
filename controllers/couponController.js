@@ -604,6 +604,10 @@ exports.getCouponById = async (req, res) => {
       return res.status(404).json({ message: 'Coupon not found' });
     }
 
+    if (coupon.isPublished !== true || coupon.isActive === false) {
+      return res.status(404).json({ message: 'Coupon not found' });
+    }
+
     // Map storeId to store for frontend compatibility
     if (coupon.storeId) {
       coupon.store = coupon.storeId;

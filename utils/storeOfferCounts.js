@@ -11,14 +11,17 @@ function toCountMap(rows) {
 }
 
 /**
- * Aggregate coupon/deal counts per store (total + active).
- * Active = isActive: true. Totals include expired/unpublished offers.
+ * Aggregate coupon/deal counts per store.
+ * Public counts = isPublished + isActive (what the client should show).
+ * Totals include all offers (admin reporting).
  */
 async function loadStoreOfferCountMaps(siteId) {
     const couponBase = { storeId: { $exists: true, $ne: null } };
     const dealBase = { store: { $exists: true, $ne: null } };
+    const publishedCouponMatch = { ...couponBase, isPublished: true, isActive: true };
+    const publishedDealMatch = { ...dealBase, isPublished: true, isActive: true };
 
-    const [couponTotals, dealTotals, couponActive, dealActive] = await Promise.all([
+    const [couponTotals, dealTotals, couponPublished, dealPublished] = await Promise.all([
         Coupon.aggregate([
             { $match: withSiteScope(couponBase, siteId) },
             { $group: { _id: '$storeId', count: { $sum: 1 } } },
@@ -28,21 +31,21 @@ async function loadStoreOfferCountMaps(siteId) {
             { $group: { _id: '$store', count: { $sum: 1 } } },
         ]),
         Coupon.aggregate([
-            { $match: withSiteScope({ ...couponBase, isActive: true }, siteId) },
+            { $match: withSiteScope(publishedCouponMatch, siteId) },
             { $group: { _id: '$storeId', count: { $sum: 1 } } },
         ]),
         Deal.aggregate([
-            { $match: withSiteScope({ ...dealBase, isActive: true }, siteId) },
+            { $match: withSiteScope(publishedDealMatch, siteId) },
             { $group: { _id: '$store', count: { $sum: 1 } } },
         ]),
     ]);
 
     const totalCoupons = toCountMap(couponTotals);
     const totalDeals = toCountMap(dealTotals);
-    const activeCoupons = toCountMap(couponActive);
-    const activeDeals = toCountMap(dealActive);
+    const activeCoupons = toCountMap(couponPublished);
+    const activeDeals = toCountMap(dealPublished);
 
-    const storeIdsWithOffers = new Set([...totalCoupons.keys(), ...totalDeals.keys()]);
+    const storeIdsWithOffers = new Set([...activeCoupons.keys(), ...activeDeals.keys()]);
 
     return {
         totalCoupons,

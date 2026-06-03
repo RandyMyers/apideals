@@ -12,7 +12,7 @@ const View = require('../models/view');
 const Interaction = require('../models/interaction');
 const CouponUsage = require('../models/couponUsage');
 const Visitor = require('../models/visitor');
-const { normalizeReferrerSource } = require('../utils/referrerSource');
+const { normalizeReferrerSource, isSearchEngineSource } = require('../utils/referrerSource');
 
 /**
  * Get recent activities for admin dashboard
@@ -401,6 +401,7 @@ exports.getVisitorOverview = async (req, res) => {
       topCountries,
       topPagesRaw,
       topReferrersRaw,
+      searchEngineViewsRaw,
     ] = await Promise.all([
       Visitor.countDocuments({}),
       Visitor.countDocuments({ visitedAt: { $gte: since24h } }),
@@ -457,6 +458,28 @@ exports.getVisitorOverview = async (req, res) => {
         { $sort: { viewCount: -1 } },
         { $limit: 30 },
       ]),
+      View.aggregate([
+        {
+          $match: {
+            ...viewPathMatch,
+            viewedAt: { $gte: since },
+            referrer: {
+              $exists: true,
+              $nin: [null, ''],
+              $regex: /google\.|bing\.com|yahoo\.|duckduckgo\.|baidu\.com|yandex\.|ecosia\.org|startpage\.com|brave\.com|ask\.com|naver\.com|daum\.net/i,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: { pagePath: '$pagePath', referrer: '$referrer' },
+            viewCount: { $sum: 1 },
+            uniqueVisitors: { $addToSet: '$visitorId' },
+          },
+        },
+        { $sort: { viewCount: -1 } },
+        { $limit: 400 },
+      ]),
     ]);
 
     const sourceMap = new Map();
@@ -469,6 +492,35 @@ exports.getVisitorOverview = async (req, res) => {
     const topReferrers = Array.from(sourceMap.values())
       .sort((a, b) => b.viewCount - a.viewCount)
       .slice(0, 12);
+
+    const pagesByEngineMap = new Map();
+    searchEngineViewsRaw.forEach((row) => {
+      const pagePath = row._id?.pagePath;
+      if (!pagePath) return;
+      const { source } = normalizeReferrerSource(row._id?.referrer);
+      if (!isSearchEngineSource(source)) return;
+
+      if (!pagesByEngineMap.has(source)) {
+        pagesByEngineMap.set(source, new Map());
+      }
+      const pageMap = pagesByEngineMap.get(source);
+      const existing = pageMap.get(pagePath) || {
+        pagePath,
+        viewCount: 0,
+      };
+      existing.viewCount += row.viewCount;
+      pageMap.set(pagePath, existing);
+    });
+
+    const topPagesBySearchEngine = Array.from(pagesByEngineMap.entries())
+      .map(([engine, pageMap]) => ({
+        engine,
+        pages: Array.from(pageMap.values())
+          .sort((a, b) => b.viewCount - a.viewCount)
+          .slice(0, 8),
+        totalViews: Array.from(pageMap.values()).reduce((sum, p) => sum + p.viewCount, 0),
+      }))
+      .sort((a, b) => b.totalViews - a.totalViews);
 
     res.json({
       success: true,
@@ -488,6 +540,7 @@ exports.getVisitorOverview = async (req, res) => {
         })),
         topPages: topPagesRaw,
         topReferrers,
+        topPagesBySearchEngine,
       },
     });
   } catch (error) {

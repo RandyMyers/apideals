@@ -1124,7 +1124,7 @@ exports.getTrendingCoupons = async (req, res) => {
     const searchLimit = parseInt(limit);
 
     // Get trending coupons based on views, usage count, and recent activity
-    const trendingCoupons = await Coupon.find({ isActive: true })
+    const trendingCoupons = await Coupon.find({ isActive: true, isPublished: true })
       .sort({ 
         views: -1, 
         usageCount: -1, 

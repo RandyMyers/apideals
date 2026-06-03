@@ -108,11 +108,44 @@ exports.createCategory = async (req, res) => {
 exports.getCategories = async (req, res) => {
   try {
     const categories = await Category.find()
-      .populate('storeId', 'name') // If you need to populate coupons
-      .populate('parentCategory') // If you need to populate parent category
-      .exec();
+      .populate('storeId', 'name')
+      .populate('parentCategory')
+      .lean();
 
-    return res.status(200).json({ categories });
+    const categoryIds = categories.map((c) => c._id);
+    const publishedOfferMatch = {
+      categoryId: { $in: categoryIds },
+      isActive: true,
+      isPublished: true,
+    };
+
+    const [couponAgg, dealAgg] = await Promise.all([
+      Coupon.aggregate([
+        { $match: publishedOfferMatch },
+        { $group: { _id: '$categoryId', count: { $sum: 1 } } },
+      ]),
+      Deal.aggregate([
+        { $match: publishedOfferMatch },
+        { $group: { _id: '$categoryId', count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const couponCountMap = new Map(couponAgg.map((r) => [String(r._id), r.count]));
+    const dealCountMap = new Map(dealAgg.map((r) => [String(r._id), r.count]));
+
+    const categoriesWithCounts = categories.map((cat) => {
+      const id = String(cat._id);
+      const couponCount = couponCountMap.get(id) || 0;
+      const dealCount = dealCountMap.get(id) || 0;
+      return {
+        ...cat,
+        couponCount,
+        dealCount,
+        offerCount: couponCount + dealCount,
+      };
+    });
+
+    return res.status(200).json({ categories: categoriesWithCounts });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Server error', error: error.message });
@@ -355,7 +388,7 @@ exports.getCategoryDetail = async (req, res) => {
 
     // List by each document’s categoryId (not “all offers from stores tagged with this category”).
     // siteId is not required here — same as before; store list above already scopes tenants when needed.
-    const offerBase = { categoryId, isActive: true };
+    const offerBase = { categoryId, isActive: true, isPublished: true };
 
     let coupons = [];
     let deals = [];

@@ -34,7 +34,38 @@ const HOST_LABELS = [
   [/claude\.ai|anthropic\./i, 'Claude'],
   [/gemini\.google/i, 'Gemini'],
   [/copilot\.microsoft/i, 'Microsoft Copilot'],
+  [/baidu\.com/i, 'Baidu'],
+  [/yandex\./i, 'Yandex'],
+  [/ecosia\.org/i, 'Ecosia'],
+  [/startpage\.com/i, 'Startpage'],
+  [/brave\.com/i, 'Brave Search'],
+  [/ask\.com/i, 'Ask'],
+  [/naver\.com/i, 'Naver'],
+  [/daum\.net/i, 'Daum'],
 ];
+
+const SEARCH_ENGINE_SOURCES = new Set([
+  'Google',
+  'Bing',
+  'Yahoo',
+  'DuckDuckGo',
+  'Baidu',
+  'Yandex',
+  'Ecosia',
+  'Startpage',
+  'Brave Search',
+  'Ask',
+  'Naver',
+  'Daum',
+]);
+
+/**
+ * @param {string} source - Normalized label from normalizeReferrerSource
+ * @returns {boolean}
+ */
+function isSearchEngineSource(source) {
+  return SEARCH_ENGINE_SOURCES.has(source);
+}
 
 /**
  * @param {string|null|undefined} referrer - Raw document.referrer or HTTP Referer header
@@ -60,4 +91,9 @@ function normalizeReferrerSource(referrer) {
   return { source: host, raw, isDirect: false };
 }
 
-module.exports = { normalizeReferrerSource, parseHostname };
+module.exports = {
+  normalizeReferrerSource,
+  parseHostname,
+  isSearchEngineSource,
+  SEARCH_ENGINE_SOURCES,
+};

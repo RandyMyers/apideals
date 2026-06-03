@@ -8,7 +8,15 @@ function buildStoreLookupFilter(slugOrId, siteId) {
     base = { _id: slugOrId };
   } else {
     const normalized = String(slugOrId).trim().toLowerCase();
-    base = { $or: [{ slug: normalized }, { seoSlug: normalized }] };
+    const compact = normalized.replace(/[^a-z0-9]/g, '');
+    const orConditions = [
+      { slug: normalized },
+      { seoSlug: normalized },
+    ];
+    if (compact && compact !== normalized) {
+      orConditions.push({ slug: compact }, { seoSlug: compact });
+    }
+    base = { $or: orConditions };
   }
   if (!siteId) return base;
   return {

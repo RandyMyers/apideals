@@ -42,7 +42,14 @@ function buildLogoImageUrl(domainOrUrl, options = {}) {
 /**
  * Brand search — requires LOGO_DEV_SECRET_KEY (sk_…).
  */
-async function searchBrands(query, strategy = 'typeahead') {
+/** Logo.dev accepts `suggest` (autocomplete) or `match` (exact). */
+function normalizeSearchStrategy(strategy) {
+  if (strategy === 'match') return 'match';
+  if (strategy === 'typeahead' || strategy === 'suggest') return 'suggest';
+  return 'suggest';
+}
+
+async function searchBrands(query, strategy = 'suggest') {
   const q = String(query || '').trim();
   if (!q) return [];
   if (!LOGO_DEV_SECRET) {
@@ -53,7 +60,7 @@ async function searchBrands(query, strategy = 'typeahead') {
 
   const url = new URL('https://api.logo.dev/search');
   url.searchParams.set('q', q);
-  if (strategy) url.searchParams.set('strategy', strategy);
+  url.searchParams.set('strategy', normalizeSearchStrategy(strategy));
 
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${LOGO_DEV_SECRET}` },

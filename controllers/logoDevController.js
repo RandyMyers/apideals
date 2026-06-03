@@ -16,7 +16,7 @@ exports.getStatus = (req, res) => {
 exports.search = async (req, res) => {
   try {
     const q = req.query.q || req.query.query || '';
-    const strategy = req.query.strategy === 'match' ? 'match' : 'typeahead';
+    const strategy = req.query.strategy === 'match' ? 'match' : 'suggest';
     const results = await searchBrands(q, strategy);
     res.json({ results });
   } catch (error) {

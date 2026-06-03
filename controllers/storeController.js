@@ -1037,6 +1037,11 @@ exports.updateStore = async (req, res) => {
         const editorialPayload = parseJsonField(req.body.editorial, 'editorial');
         if (editorialPayload) updates.editorial = editorialPayload;
 
+        const savingTipsPayload = parseJsonField(req.body.savingTips, 'savingTips');
+        if (Array.isArray(savingTipsPayload)) {
+            updates.savingTips = savingTipsPayload.filter((t) => t && String(t.tip || '').trim());
+        }
+
         const languageTranslationsPayload = parseJsonField(req.body.languageTranslations, 'languageTranslations');
         if (languageTranslationsPayload && typeof languageTranslationsPayload === 'object') {
             updates.languageTranslations = languageTranslationsPayload;
@@ -1044,10 +1049,12 @@ exports.updateStore = async (req, res) => {
         }
 
         if (req.body.contentUpdatedAt) {
-            updates.contentUpdatedAt = new Date(req.body.contentUpdatedAt);
+            const d = new Date(req.body.contentUpdatedAt);
+            if (!Number.isNaN(d.getTime())) updates.contentUpdatedAt = d;
         }
         if (req.body.lastVerifiedAt) {
-            updates.lastVerifiedAt = new Date(req.body.lastVerifiedAt);
+            const d = new Date(req.body.lastVerifiedAt);
+            if (!Number.isNaN(d.getTime())) updates.lastVerifiedAt = d;
         }
 
         // Regenerate slug whenever the store name changes

@@ -190,6 +190,13 @@ const UserSchema = new Schema({
     type: Boolean,
     default: false
   },
+  /** Dashboard savings display currency (ISO 4217) */
+  preferredCurrency: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: 'USD',
+  },
   
   // Timestamps
   createdAt: {

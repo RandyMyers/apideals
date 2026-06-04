@@ -2,7 +2,7 @@ const Vote = require('../models/vote');
 const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const CouponUsage = require('../models/couponUsage');
-const { computeUsageSavings } = require('../utils/savingsCalculator');
+const { buildUsageSavingsFields } = require('../utils/savingsConversion');
 
 function isObjectIdLike(value) {
   return /^[0-9a-fA-F]{24}$/.test(String(value || '').trim());
@@ -29,7 +29,7 @@ exports.createOrUpdateVote = async (req, res) => {
   let dealId = null;
   try {
     userId = req.user?.id || req.user?._id || req.user?.userId || req.body.userId;
-    const { couponId: couponIdInput, dealId: dealIdInput, type, purchaseAmount } = req.body;
+    const { couponId: couponIdInput, dealId: dealIdInput, type, purchaseAmount, purchaseCurrency } = req.body;
     couponId = couponIdInput;
     dealId = dealIdInput;
 
@@ -102,7 +102,7 @@ exports.createOrUpdateVote = async (req, res) => {
       // offers use the spend the user reported (purchaseAmount). If neither is
       // available, the record is saved as used with unknown ($0) savings rather
       // than a fabricated estimate.
-      const savings = computeUsageSavings({ entity, purchaseAmount });
+      const savings = await buildUsageSavingsFields({ entity, purchaseAmount, purchaseCurrency });
 
       // Always create a new usage record (allow multiple uses)
       const usage = new CouponUsage({
@@ -114,9 +114,15 @@ exports.createOrUpdateVote = async (req, res) => {
         ...(savings.discountType ? { discountType: savings.discountType } : {}),
         ...(typeof savings.discountValue === 'number' ? { discountValue: savings.discountValue } : {}),
         purchaseAmount: savings.purchaseAmount,
+        ...(savings.purchaseCurrency ? { purchaseCurrency: savings.purchaseCurrency } : {}),
+        currency: savings.currency,
         savingsAmount: savings.savingsAmount,
+        savingsAmountUsd: savings.savingsAmountUsd || 0,
         savingsKnown: savings.savingsKnown,
         savingsSource: savings.savingsSource,
+        ...(savings.exchangeRate != null ? { exchangeRate: savings.exchangeRate } : {}),
+        ...(savings.exchangeRateSnapshotAt ? { exchangeRateSnapshotAt: savings.exchangeRateSnapshotAt } : {}),
+        exchangeRateSource: savings.exchangeRateSource || 'unknown',
         worked: true, // User confirmed it worked by voting thumbs up
       });
       await usage.save();

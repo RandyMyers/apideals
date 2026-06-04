@@ -25,7 +25,17 @@
     "db:perf-indexes": "node scripts/ensurePerformanceIndexes.js",
     "verify:store-landings": "node scripts/verifyAndFixStoreLandingPages.js",
     "fix:store-landings": "node scripts/verifyAndFixStoreLandingPages.js --fix",
-    "fix:store-landings:publish": "node scripts/verifyAndFixStoreLandingPages.js --fix --publish-landings"
+    "fix:store-landings:publish": "node scripts/verifyAndFixStoreLandingPages.js --fix --publish-landings",
+    "audit:enhanced-stores": "node scripts/auditEnhancedStores.js",
+    "sync:enhanced-stores": "node scripts/syncEnhancedStores.js",
+    "sync:enhanced-stores:apply": "node scripts/syncEnhancedStores.js --apply",
+    "seed:affiliate-networks": "node scripts/seedAffiliateNetworks.js",
+    "publish:enhanced-stores": "node scripts/publishEnhancedStores.js",
+    "sync:exchange-rates": "node scripts/syncExchangeRatesOnce.js",
+    "audit:stores": "node scripts/auditAllStores.js",
+    "audit:stores:verbose": "node scripts/auditAllStores.js --verbose",
+    "migrate:store-content": "node scripts/migrateStoreContentToPageContent.js --dry-run",
+    "migrate:store-content:apply": "node scripts/migrateStoreContentToPageContent.js --apply --only-empty"
   },
   "author": "",
   "license": "ISC",

@@ -2,6 +2,7 @@ const User = require('../models/user'); // Adjust path to your project structure
 const cloudinary = require('cloudinary').v2;
 const Payment = require('../models/payments');
 const bcrypt = require('bcrypt');
+const { normalizeCurrencyCode, DISPLAY_CURRENCIES } = require('../utils/currencyConstants');
 
 // Create a new user (only for admin or other user types with permission to add users manually)
 // Create a new user (only for admin or other user types with permission to add users manually)
@@ -162,6 +163,16 @@ exports.updateUser = async (req, res) => {
 
             // You might want to store the public_id in the database for easier deletion later
             updates.cloudinaryId = result.public_id;
+        }
+
+        if (updates.preferredCurrency !== undefined) {
+            const code = normalizeCurrencyCode(updates.preferredCurrency);
+            if (!code || !DISPLAY_CURRENCIES.includes(code)) {
+                return res.status(400).json({
+                    message: 'Invalid preferredCurrency. Choose a supported ISO currency code.',
+                });
+            }
+            updates.preferredCurrency = code;
         }
 
         updates.updatedAt = new Date(); // Update timestamp

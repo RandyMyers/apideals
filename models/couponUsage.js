@@ -57,11 +57,39 @@ const CouponUsageSchema = new Schema({
     type: Number,
     default: 0,
   },
-  // Calculated savings amount (only meaningful when savingsKnown is true)
+  purchaseCurrency: {
+    type: String,
+    trim: true,
+    uppercase: true,
+  },
+  /** ISO 4217 — currency of savingsAmount */
+  currency: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: 'USD',
+  },
+  // Calculated savings amount in transaction currency (only meaningful when savingsKnown is true)
   savingsAmount: {
     type: Number,
     required: false,
     default: 0,
+  },
+  /** Canonical USD amount for cross-offer totals */
+  savingsAmountUsd: {
+    type: Number,
+    default: 0,
+  },
+  exchangeRate: {
+    type: Number,
+  },
+  exchangeRateSnapshotAt: {
+    type: Date,
+  },
+  exchangeRateSource: {
+    type: String,
+    enum: ['db-snapshot', 'identity', 'unknown', 'failed'],
+    default: 'unknown',
   },
   // Whether savingsAmount is a verified/derived figure (vs. an unknown we don't count)
   savingsKnown: {
@@ -128,17 +156,19 @@ CouponUsageSchema.pre('save', function(next) {
   next();
 });
 
-// Static method to get user's total savings
-CouponUsageSchema.statics.getTotalSavings = async function(userId) {
+const { SAVINGS_USD_SUM } = require('../utils/savingsConversion');
+
+// Static method to get user's total savings (USD canonical)
+CouponUsageSchema.statics.getTotalSavingsUsd = async function(userId) {
   const result = await this.aggregate([
     { $match: { userId: userId, worked: true } },
-    { $group: { _id: null, total: { $sum: '$savingsAmount' } } }
+    { $group: { _id: null, total: SAVINGS_USD_SUM } }
   ]);
   return result.length > 0 ? result[0].total : 0;
 };
 
-// Static method to get monthly savings
-CouponUsageSchema.statics.getMonthlySavings = async function(userId, year, month) {
+// Static method to get monthly savings (USD canonical)
+CouponUsageSchema.statics.getMonthlySavingsUsd = async function(userId, year, month) {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
   
@@ -150,7 +180,7 @@ CouponUsageSchema.statics.getMonthlySavings = async function(userId, year, month
         usedAt: { $gte: startDate, $lte: endDate }
       }
     },
-    { $group: { _id: null, total: { $sum: '$savingsAmount' } } }
+    { $group: { _id: null, total: SAVINGS_USD_SUM } }
   ]);
   return result.length > 0 ? result[0].total : 0;
 };
@@ -163,7 +193,7 @@ CouponUsageSchema.statics.getUsageStats = async function(userId) {
       $group: {
         _id: '$entityType',
         count: { $sum: 1 },
-        totalSavings: { $sum: '$savingsAmount' }
+        totalSavings: SAVINGS_USD_SUM
       }
     }
   ]);

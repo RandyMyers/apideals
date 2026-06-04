@@ -3,7 +3,9 @@ const CouponUsage = require('../models/couponUsage');
 const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const Store = require('../models/store');
-const { computeUsageSavings } = require('../utils/savingsCalculator');
+const User = require('../models/user');
+const { buildUsageSavingsFields, SAVINGS_USD_SUM, convertSavingsTotalForDisplay } = require('../utils/savingsConversion');
+const exchangeRateService = require('../services/exchangeRateService');
 
 /**
  * Mark a coupon or deal as used
@@ -11,7 +13,7 @@ const { computeUsageSavings } = require('../utils/savingsCalculator');
  */
 exports.markAsUsed = async (req, res) => {
   try {
-    const { entityType, entityId, purchaseAmount, worked = true, notes } = req.body;
+    const { entityType, entityId, purchaseAmount, purchaseCurrency, worked = true, notes } = req.body;
     const userId = req.user.id;
 
     if (!entityType || !entityId) {
@@ -55,7 +57,7 @@ exports.markAsUsed = async (req, res) => {
     // Derive an honest savings figure (known price > fixed > user-entered
     // percentage). Unknown offers are recorded as used with $0 savings rather
     // than an invented estimate.
-    const savings = computeUsageSavings({ entity, purchaseAmount });
+    const savings = await buildUsageSavingsFields({ entity, purchaseAmount, purchaseCurrency });
 
     // Create usage record
     const usage = new CouponUsage({
@@ -67,9 +69,15 @@ exports.markAsUsed = async (req, res) => {
       ...(savings.discountType ? { discountType: savings.discountType } : {}),
       ...(typeof savings.discountValue === 'number' ? { discountValue: savings.discountValue } : {}),
       purchaseAmount: savings.purchaseAmount,
+      ...(savings.purchaseCurrency ? { purchaseCurrency: savings.purchaseCurrency } : {}),
+      currency: savings.currency,
       savingsAmount: savings.savingsAmount,
+      savingsAmountUsd: savings.savingsAmountUsd || 0,
       savingsKnown: savings.savingsKnown,
       savingsSource: savings.savingsSource,
+      ...(savings.exchangeRate != null ? { exchangeRate: savings.exchangeRate } : {}),
+      ...(savings.exchangeRateSnapshotAt ? { exchangeRateSnapshotAt: savings.exchangeRateSnapshotAt } : {}),
+      exchangeRateSource: savings.exchangeRateSource || 'unknown',
       worked,
       notes,
     });
@@ -163,9 +171,29 @@ exports.getUserUsageHistory = async (req, res) => {
       CouponUsage.countDocuments(query)
     ]);
 
+    const user = await User.findById(userId).select('preferredCurrency').lean();
+    const displayCurrency = user?.preferredCurrency || 'USD';
+
+    const enriched = await Promise.all(
+      usageHistory.map(async (row) => {
+        const doc = row.toObject ? row.toObject() : row;
+        const usd = doc.savingsKnown ? (doc.savingsAmountUsd ?? (doc.currency === 'USD' ? doc.savingsAmount : 0)) : 0;
+        let savingsAmountDisplay = 0;
+        if (usd > 0) {
+          const conv = await exchangeRateService.convertFromUsd(usd, displayCurrency);
+          savingsAmountDisplay = conv.success ? conv.amount : usd;
+        }
+        return {
+          ...doc,
+          savingsAmountDisplay,
+          displayCurrency,
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: usageHistory,
+      data: enriched,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -209,13 +237,15 @@ exports.getUserSavingsStatistics = async (req, res) => {
     }
 
     const userObjectId = new mongoose.Types.ObjectId(userId);
+    const user = await User.findById(userObjectId).select('preferredCurrency').lean();
+    const displayCurrency = user?.preferredCurrency || 'USD';
 
-    // Get total savings
-    const totalSavings = await CouponUsage.getTotalSavings(userObjectId);
+    // Get total savings (USD canonical)
+    const totalSavingsUsd = await CouponUsage.getTotalSavingsUsd(userObjectId);
 
     // Get current month savings
     const now = new Date();
-    const currentMonthSavings = await CouponUsage.getMonthlySavings(
+    const currentMonthSavingsUsd = await CouponUsage.getMonthlySavingsUsd(
       userObjectId,
       now.getFullYear(),
       now.getMonth() + 1
@@ -223,7 +253,7 @@ exports.getUserSavingsStatistics = async (req, res) => {
 
     // Get last month savings
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthSavings = await CouponUsage.getMonthlySavings(
+    const lastMonthSavingsUsd = await CouponUsage.getMonthlySavingsUsd(
       userObjectId,
       lastMonth.getFullYear(),
       lastMonth.getMonth() + 1
@@ -272,7 +302,10 @@ exports.getUserSavingsStatistics = async (req, res) => {
       }
       
       const category = categoryMap.get(categoryId);
-      category.totalSavings += usage.savingsAmount || 0;
+      const usd = usage.savingsKnown
+        ? (usage.savingsAmountUsd ?? (usage.currency === 'USD' ? usage.savingsAmount : 0))
+        : 0;
+      category.totalSavings += usd || 0;
       category.count += 1;
     });
 
@@ -286,7 +319,7 @@ exports.getUserSavingsStatistics = async (req, res) => {
       {
         $group: {
           _id: '$storeId',
-          totalSavings: { $sum: '$savingsAmount' },
+          totalSavings: SAVINGS_USD_SUM,
           count: { $sum: 1 }
         }
       },
@@ -312,24 +345,67 @@ exports.getUserSavingsStatistics = async (req, res) => {
       { $limit: 10 }
     ]);
 
-    // Calculate yearly estimate (simple: based on current month * 12)
-    const yearlyEstimate = currentMonthSavings > 0
-      ? currentMonthSavings * 12
-      : totalSavings;
+    const yearlyEstimateUsd = currentMonthSavingsUsd > 0
+      ? currentMonthSavingsUsd * 12
+      : totalSavingsUsd;
 
-    // Calculate trend
-    const trend = lastMonthSavings > 0
-      ? ((currentMonthSavings - lastMonthSavings) / lastMonthSavings) * 100
+    const trend = lastMonthSavingsUsd > 0
+      ? ((currentMonthSavingsUsd - lastMonthSavingsUsd) / lastMonthSavingsUsd) * 100
       : 0;
+
+    const [
+      totalDisplay,
+      monthlyDisplay,
+      lastMonthDisplay,
+      yearlyDisplay,
+      couponSavingsDisplay,
+      dealSavingsDisplay,
+    ] = await Promise.all([
+      convertSavingsTotalForDisplay(totalSavingsUsd, displayCurrency),
+      convertSavingsTotalForDisplay(currentMonthSavingsUsd, displayCurrency),
+      convertSavingsTotalForDisplay(lastMonthSavingsUsd, displayCurrency),
+      convertSavingsTotalForDisplay(yearlyEstimateUsd, displayCurrency),
+      convertSavingsTotalForDisplay(usageStats.couponSavings, displayCurrency),
+      convertSavingsTotalForDisplay(usageStats.dealSavings, displayCurrency),
+    ]);
+
+    const ratesMeta = await exchangeRateService.getRatesMeta();
+
+    const topCategoriesConverted = await Promise.all(
+      categorySavings.map(async (cat) => {
+        const conv = await convertSavingsTotalForDisplay(cat.totalSavings, displayCurrency);
+        return {
+          categoryId: cat.categoryId,
+          categoryName: cat.categoryName || 'Uncategorized',
+          totalSavings: conv.amount,
+          count: cat.count,
+        };
+      })
+    );
+
+    const topStoresConverted = await Promise.all(
+      storeSavings.map(async (store) => {
+        const conv = await convertSavingsTotalForDisplay(store.totalSavings, displayCurrency);
+        return {
+          storeId: store.storeId,
+          storeName: store.storeName,
+          storeLogo: store.storeLogo,
+          totalSavings: conv.amount,
+          count: store.count,
+        };
+      })
+    );
 
     res.json({
       success: true,
       data: {
         savings: {
-          total: totalSavings,
-          monthly: currentMonthSavings,
-          lastMonth: lastMonthSavings,
-          yearlyEstimate: Math.round(yearlyEstimate),
+          total: totalDisplay.amount,
+          monthly: monthlyDisplay.amount,
+          lastMonth: lastMonthDisplay.amount,
+          yearlyEstimate: Math.round(yearlyDisplay.amount),
+          displayCurrency,
+          ratesUpdatedAt: ratesMeta.fetchedAt,
           trend: trend > 0 ? 'up' : trend < 0 ? 'down' : 'stable',
           trendPercentage: Math.abs(Math.round(trend))
         },
@@ -337,22 +413,11 @@ exports.getUserSavingsStatistics = async (req, res) => {
           couponsUsed: usageStats.couponsUsed,
           dealsUsed: usageStats.dealsUsed,
           totalUsed: usageStats.totalUsed,
-          couponSavings: usageStats.couponSavings,
-          dealSavings: usageStats.dealSavings
+          couponSavings: couponSavingsDisplay.amount,
+          dealSavings: dealSavingsDisplay.amount
         },
-        topCategories: categorySavings.map(cat => ({
-          categoryId: cat.categoryId,
-          categoryName: cat.categoryName || 'Uncategorized',
-          totalSavings: cat.totalSavings,
-          count: cat.count,
-        })),
-        topStores: storeSavings.map(store => ({
-          storeId: store.storeId,
-          storeName: store.storeName,
-          storeLogo: store.storeLogo,
-          totalSavings: store.totalSavings,
-          count: store.count
-        }))
+        topCategories: topCategoriesConverted,
+        topStores: topStoresConverted
       }
     });
   } catch (error) {

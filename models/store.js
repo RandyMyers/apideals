@@ -56,7 +56,7 @@ const StoreSchema = new Schema({
    * Per-locale store content overrides (optional).
    * Shape example:
    * {
-   *   "es-MX": { seo: {...}, description: "...", savingTips: [...], faqs: [...], editorial: {...}, logoAlt: "..." }
+   *   "es-MX": { seo, description, pageContent, aboutSummary, savingTips, faqs, editorial, logoAlt, name }
    * }
    */
   languageTranslations: {
@@ -109,10 +109,22 @@ const StoreSchema = new Schema({
     required: true,
   },
 
-  // A short description of the store
+  // Brief sidebar "about" copy (plain/short HTML)
+  aboutSummary: {
+    type: String,
+    trim: true,
+    maxlength: 1200,
+  },
+
+  // A short description of the store (legacy; prefer aboutSummary for sidebar)
   description: {
     type: String,
     trim: true,
+  },
+
+  /** Main store page body below offers — rich HTML (blog-style) */
+  pageContent: {
+    type: String,
   },
 
   // Store logo image (URL or path to image file)

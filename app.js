@@ -407,6 +407,7 @@ app.use('/api/v1/notifications', require('./routes/notificationRoutes')); // Not
 app.use('/api/v1/notification-templates', require('./routes/notificationTemplateRoutes')); // Notification Template Management (admin only)
 app.use('/api/v1/share', shareRoutes); // Share routes
 app.use('/api/v1/coupon-usage', couponUsageRoutes); // Coupon Usage routes
+app.use('/api/v1/exchange-rates', require('./routes/exchangeRateRoutes'));
 app.use('/api/v1/api-keys', apiKeyRoutes); // API Keys (admin only - create/list/revoke)
 app.use('/api/v1', require('./routes/catalogRoutes')); // Agent catalog feed (public, /api/v1/catalog.json)
 app.use('/api/v1', require('./routes/urlRedirectRoutes')); // URL Redirect routes (admin endpoints)
@@ -487,6 +488,14 @@ if (!isServerless) {
     startNotificationJobs();
   } catch (error) {
     logger.warn('Failed to start notification jobs (non-critical):', error.message);
+  }
+
+  // Exchange rate sync (DB snapshot — no API calls on user votes)
+  try {
+    const { startExchangeRateJobs } = require('./jobs/exchangeRateJobs');
+    startExchangeRateJobs();
+  } catch (error) {
+    logger.warn('Failed to start exchange rate jobs (non-critical):', error.message);
   }
 } else {
   // In serverless, you might want to use Vercel Cron Jobs or external services

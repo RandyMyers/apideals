@@ -17,6 +17,7 @@ router.get('/tags/:tag', forumController.getThreadsByTag);
 router.get('/leaderboard', forumController.getLeaderboard);
 router.get('/search', forumController.searchForum);
 router.get('/stores/:storeSlug/discussions', forumController.getStoreDiscussions);
+router.get('/threads', forumController.listThreads);
 router.get('/threads/:slug', optionalAuthMiddleware, forumController.getThread);
 
 router.post('/threads', authMiddleware, forumController.createThread);
@@ -25,7 +26,8 @@ router.post('/threads/:threadId/subscribe', authMiddleware, forumController.subs
 router.patch('/posts/:postId', authMiddleware, forumController.editPost);
 router.delete('/posts/:postId', authMiddleware, forumController.deletePost);
 router.post('/posts/:postId/vote', authMiddleware, forumController.votePost);
-router.post('/report', authMiddleware, forumController.reportContent);
+router.get('/report-captcha', forumController.getReportCaptcha);
+router.post('/report', optionalAuthMiddleware, forumController.reportContent);
 
 router.get('/admin/categories', authMiddleware, adminMiddleware(adminRoles), forumAdminController.listCategoriesAdmin);
 router.post('/admin/categories', authMiddleware, adminMiddleware(adminRoles), forumAdminController.createCategory);
@@ -38,5 +40,8 @@ router.get('/admin/posts', authMiddleware, adminMiddleware(adminRoles), forumAdm
 router.patch('/admin/posts/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.updatePostAdmin);
 router.get('/admin/reports', authMiddleware, adminMiddleware(adminRoles), forumAdminController.listReports);
 router.patch('/admin/reports/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.resolveReport);
+
+router.get('/admin/settings', authMiddleware, adminMiddleware(adminRoles), forumAdminController.getForumSettings);
+router.patch('/admin/settings', authMiddleware, adminMiddleware(adminRoles), forumAdminController.updateForumSettings);
 
 module.exports = router;

@@ -62,6 +62,18 @@ exports.createNotification = async (userId, templateName, data = {}, options = {
     });
 
     await notification.save();
+
+    try {
+      const webPushService = require('../utils/webPushService');
+      await webPushService.sendPushToUser(userId, {
+        title,
+        body: message,
+        url: options.actionUrl || '/dashboard',
+      });
+    } catch {
+      /* push optional */
+    }
+
     return notification;
   } catch (error) {
     console.error(`Error creating notification from template '${templateName}':`, error);

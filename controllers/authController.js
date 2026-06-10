@@ -309,7 +309,7 @@ exports.register = async (req, res) => {
         newUser._id,
         'welcome',
         { userName: newUser.username },
-        { actionUrl: '/dashboard' }
+        { actionUrl: '/dashboard/settings?tab=profile&welcome=1' }
       );
     } catch (notifError) {
       console.error('Error sending welcome notification:', notifError);

@@ -1,3 +1,5 @@
+const ForumSettings = require('../models/forumSettings');
+const { invalidateForumSettingsCache } = require('../utils/forumSettingsCache');
 const ForumCategory = require('../models/forumCategory');
 const ForumThread = require('../models/forumThread');
 const ForumPost = require('../models/forumPost');
@@ -248,6 +250,40 @@ exports.updatePostAdmin = async (req, res) => {
     }
 
     return res.json({ success: true, post, approved: approving });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getForumSettings = async (req, res) => {
+  try {
+    const settings = await ForumSettings.getSettings();
+    return res.json({ success: true, settings });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.updateForumSettings = async (req, res) => {
+  try {
+    const allowed = [
+      'newAccountDays',
+      'autoHideReportThreshold',
+      'maxThreadsPerDay',
+      'maxPostsPerDay',
+      'spamPendingScore',
+      'spamRejectScore',
+    ];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body?.[key] !== undefined) {
+        const n = parseInt(req.body[key], 10);
+        if (!Number.isNaN(n)) updates[key] = n;
+      }
+    }
+    const settings = await ForumSettings.updateSettings(updates);
+    invalidateForumSettingsCache();
+    return res.json({ success: true, settings });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

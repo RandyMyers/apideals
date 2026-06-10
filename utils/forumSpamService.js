@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const ForumPost = require('../models/forumPost');
+const { stripHtmlToText } = require('./forumSanitize');
 
 const BLOCKED_DOMAINS = [
   'bit.ly',
@@ -21,14 +22,14 @@ const SPAM_PHRASES = [
 /**
  * Score 0–100. action: allow | pending | reject
  */
-function scoreContent(content, { isNewAccount = false } = {}) {
+function scoreContent(content, { isNewAccount = false, pendingScore = 35, rejectScore = 70 } = {}) {
   if (!content || typeof content !== 'string') {
     return { score: 0, action: 'allow', reasons: [] };
   }
 
   const reasons = [];
   let score = 0;
-  const text = content.trim();
+  const text = stripHtmlToText(content);
   const lower = text.toLowerCase();
 
   const links = (text.match(/https?:\/\//gi) || []).length;
@@ -74,8 +75,8 @@ function scoreContent(content, { isNewAccount = false } = {}) {
   }
 
   let action = 'allow';
-  if (score >= 70) action = 'reject';
-  else if (score >= 35 || (isNewAccount && score >= 20)) action = 'pending';
+  if (score >= rejectScore) action = 'reject';
+  else if (score >= pendingScore || (isNewAccount && score >= 20)) action = 'pending';
 
   return { score, action, reasons };
 }
@@ -131,7 +132,7 @@ async function checkOpenAIModeration(content) {
 /**
  * Full production spam gate for thread/post body.
  */
-async function evaluateForumContent(content, { user, isNewAccount }) {
+async function evaluateForumContent(content, { user, isNewAccount, spamPendingScore, spamRejectScore } = {}) {
   const basic = require('./forumHelpers').checkSpamContent(content);
   if (!basic.ok) {
     return { ok: false, action: 'reject', message: basic.message, score: 100 };
@@ -163,7 +164,11 @@ async function evaluateForumContent(content, { user, isNewAccount }) {
     };
   }
 
-  const scored = scoreContent(content, { isNewAccount });
+  const scored = scoreContent(content, {
+    isNewAccount,
+    pendingScore: spamPendingScore ?? 35,
+    rejectScore: spamRejectScore ?? 70,
+  });
   if (scored.action === 'reject') {
     return {
       ok: false,

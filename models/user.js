@@ -234,6 +234,9 @@ const UserSchema = new Schema({
     completedAt: { type: Date },
     completionRewardGranted: { type: Boolean, default: false },
     trustedContributor: { type: Boolean, default: false },
+    featuredMember: { type: Boolean, default: false },
+    featuredOrder: { type: Number, default: 0 },
+    featuredAt: { type: Date },
   },
   
   // Timestamps

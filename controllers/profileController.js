@@ -42,6 +42,33 @@ async function getPublicStats(userId) {
   };
 }
 
+exports.getFeaturedMembers = async (req, res) => {
+  try {
+    const limit = Math.min(12, parseInt(req.query.limit, 10) || 6);
+    const users = await User.find({
+      isActive: true,
+      isSuspended: { $ne: true },
+      'publicProfile.isEnabled': { $ne: false },
+      'publicProfile.visibility': 'public',
+      'publicProfile.featuredMember': true,
+    })
+      .sort({ 'publicProfile.featuredOrder': 1, 'publicProfile.featuredAt': -1 })
+      .limit(limit)
+      .select('username profileSlug profilePicture firstName lastName publicProfile bio')
+      .lean();
+
+    const members = users.map((u) => ({
+      ...buildSafePublicProfile(u, {}),
+      headline: u.publicProfile?.headline || '',
+    }));
+
+    return res.json({ success: true, members });
+  } catch (error) {
+    console.error('[profileController.getFeaturedMembers]', error);
+    return res.status(500).json({ success: false, message: 'Failed to load featured members' });
+  }
+};
+
 exports.getPublicProfile = async (req, res) => {
   try {
     const normalized = normalizeSlug(req.params.slug);
@@ -469,6 +496,8 @@ exports.listPublicProfilesAdmin = async (req, res) => {
       visibility: u.publicProfile?.visibility || 'public',
       isEnabled: u.publicProfile?.isEnabled !== false,
       trustedContributor: !!u.publicProfile?.trustedContributor,
+      featuredMember: !!u.publicProfile?.featuredMember,
+      featuredOrder: u.publicProfile?.featuredOrder || 0,
       completedAt: u.publicProfile?.completedAt,
       isSuspended: !!u.isSuspended,
       createdAt: u.createdAt,
@@ -498,6 +527,24 @@ exports.adminUpdateProfile = async (req, res) => {
         pp.visibility = publicProfile.visibility;
       }
       if (publicProfile.trustedContributor !== undefined) pp.trustedContributor = !!publicProfile.trustedContributor;
+      if (publicProfile.featuredMember !== undefined) {
+        pp.featuredMember = !!publicProfile.featuredMember;
+        pp.featuredAt = pp.featuredMember ? new Date() : null;
+      }
+      if (publicProfile.featuredOrder !== undefined) {
+        pp.featuredOrder = parseInt(publicProfile.featuredOrder, 10) || 0;
+      }
+      if (publicProfile.stripLinks === true) {
+        const hadLinks = !!(pp.websiteUrl?.trim() || (Array.isArray(pp.socialLinks) && pp.socialLinks.length > 0));
+        pp.websiteUrl = '';
+        pp.socialLinks = [];
+        if (hadLinks) {
+          const notificationService = require('../services/notificationService');
+          notificationService
+            .createNotification(user._id, 'profile_links_removed', {}, { actionUrl: '/dashboard/settings?tab=profile' })
+            .catch(() => {});
+        }
+      }
       user.publicProfile = pp;
     }
 

@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 
 const forumReportSchema = new mongoose.Schema(
   {
-    reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    isAnonymous: { type: Boolean, default: false },
+    reporterIp: { type: String, trim: true, maxlength: 64 },
     targetType: { type: String, enum: ['thread', 'post', 'profile'], required: true },
     targetId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     reason: { type: String, required: true, trim: true, maxlength: 500 },

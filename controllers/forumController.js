@@ -15,10 +15,13 @@ const {
   authorDisplay,
   assertCanPost,
   isNewAccount,
-  AUTO_HIDE_REPORT_THRESHOLD,
 } = require('../utils/forumHelpers');
 const { evaluateForumContent } = require('../utils/forumSpamService');
+const { getForumSettings } = require('../utils/forumSettingsCache');
 const { searchThreads, searchPosts } = require('../utils/forumSearch');
+const { indexDocument } = require('../utils/forumElasticsearch');
+const { createChallenge, verifyChallenge, verifyRecaptcha } = require('../utils/reportCaptcha');
+const { stripHtmlToText } = require('../utils/forumSanitize');
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_THREADS_PER_DAY = 5;
@@ -26,6 +29,32 @@ const MAX_POSTS_PER_DAY = 30;
 
 const visibleThread = { moderationStatus: 'visible' };
 const visiblePost = { isDeleted: false, moderationStatus: 'visible' };
+
+function threadSortOption(sort) {
+  switch (sort) {
+    case 'new':
+      return { createdAt: -1 };
+    case 'replies':
+      return { isPinned: -1, replyCount: -1, lastPostAt: -1 };
+    case 'views':
+      return { isPinned: -1, viewCount: -1, lastPostAt: -1 };
+    default:
+      return { isPinned: -1, lastPostAt: -1 };
+  }
+}
+
+function categorySortOption(sort) {
+  switch (sort) {
+    case 'name':
+      return { name: 1 };
+    case 'threads':
+      return { threadCount: -1, name: 1 };
+    case 'activity':
+      return { lastActivityAt: -1, name: 1 };
+    default:
+      return { order: 1, name: 1 };
+  }
+}
 
 async function countToday(model, userId) {
   const start = new Date();
@@ -68,10 +97,40 @@ async function notifyThreadParticipants(thread, post, authorId) {
 
 exports.listCategories = async (req, res) => {
   try {
-    const categories = await ForumCategory.find({ isActive: true })
-      .sort({ order: 1, name: 1 })
-      .lean();
-    return res.json({ success: true, categories });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit, 10) || 0);
+    const q = String(req.query.q || '').trim();
+    const sort = categorySortOption(req.query.sort);
+
+    const filter = { isActive: true };
+    if (q) {
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    if (!limit) {
+      const categories = await ForumCategory.find(filter).sort(sort).lean();
+      return res.json({ success: true, categories, total: categories.length, page: 1, pages: 1 });
+    }
+
+    const [categories, total] = await Promise.all([
+      ForumCategory.find(filter)
+        .sort(sort)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      ForumCategory.countDocuments(filter),
+    ]);
+
+    return res.json({
+      success: true,
+      categories,
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      total,
+    });
   } catch (error) {
     console.error('[forum.listCategories]', error);
     return res.status(500).json({ success: false, message: 'Failed to load categories' });
@@ -113,7 +172,7 @@ exports.getCategory = async (req, res) => {
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(30, parseInt(req.query.limit, 10) || 20);
-    const sort = req.query.sort === 'new' ? { createdAt: -1 } : { isPinned: -1, lastPostAt: -1 };
+    const sort = threadSortOption(req.query.sort);
 
     const filter = { categoryId: category._id, ...visibleThread };
     const [threads, total] = await Promise.all([
@@ -209,13 +268,14 @@ exports.getThread = async (req, res) => {
 
 exports.createThread = async (req, res) => {
   try {
+    const settings = await getForumSettings();
     const userId = req.user.id || req.user._id;
     const user = await User.findById(userId);
-    const gate = assertCanPost(user);
+    const gate = assertCanPost(user, settings);
     if (!gate.ok) return res.status(gate.status).json({ success: false, message: gate.message });
 
     const threadsToday = await countToday(ForumThread, userId);
-    if (threadsToday >= MAX_THREADS_PER_DAY) {
+    if (threadsToday >= (settings.maxThreadsPerDay ?? MAX_THREADS_PER_DAY)) {
       return res.status(429).json({ success: false, message: 'Daily thread limit reached. Try again tomorrow.' });
     }
 
@@ -227,11 +287,16 @@ exports.createThread = async (req, res) => {
     const body = sanitizeForumContent(content);
     const threadTitle = String(title || '').trim().slice(0, 200);
 
-    if (!threadTitle || body.length < 10) {
+    if (!threadTitle || stripHtmlToText(body).length < 10) {
       return res.status(400).json({ success: false, message: 'Title and message (10+ chars) are required.' });
     }
 
-    const spam = await evaluateForumContent(body, { user, isNewAccount: isNewAccount(user) });
+    const spam = await evaluateForumContent(body, {
+      user,
+      isNewAccount: isNewAccount(user, settings.newAccountDays),
+      spamPendingScore: settings.spamPendingScore,
+      spamRejectScore: settings.spamRejectScore,
+    });
     if (!spam.ok) return res.status(400).json({ success: false, message: spam.message });
 
     const tagSet = new Set();
@@ -289,6 +354,17 @@ exports.createThread = async (req, res) => {
       await ForumSubscription.create({ userId, threadId: thread._id });
       const threadUrl = `/forum/${category.slug}/${thread.slug}`;
       notifyMentionedUsers({ content: body, authorId: userId, thread, actionUrl: threadUrl }).catch(() => {});
+      indexDocument({
+        id: `thread-${thread._id}`,
+        type: 'thread',
+        title: thread.title,
+        content: stripHtmlToText(body),
+        tags: tagList,
+        slug: thread.slug,
+        categorySlug: category.slug,
+        threadId: String(thread._id),
+        createdAt: thread.createdAt,
+      }).catch(() => {});
     }
 
     return res.status(201).json({
@@ -306,13 +382,14 @@ exports.createThread = async (req, res) => {
 
 exports.createPost = async (req, res) => {
   try {
+    const settings = await getForumSettings();
     const userId = req.user.id || req.user._id;
     const user = await User.findById(userId);
-    const gate = assertCanPost(user);
+    const gate = assertCanPost(user, settings);
     if (!gate.ok) return res.status(gate.status).json({ success: false, message: gate.message });
 
     const postsToday = await countToday(ForumPost, userId);
-    if (postsToday >= MAX_POSTS_PER_DAY) {
+    if (postsToday >= (settings.maxPostsPerDay ?? MAX_POSTS_PER_DAY)) {
       return res.status(429).json({ success: false, message: 'Daily reply limit reached.' });
     }
 
@@ -327,11 +404,16 @@ exports.createPost = async (req, res) => {
     }
 
     const body = sanitizeForumContent(req.body?.content);
-    if (body.length < 2) {
+    if (stripHtmlToText(body).length < 2) {
       return res.status(400).json({ success: false, message: 'Reply is too short.' });
     }
 
-    const spam = await evaluateForumContent(body, { user, isNewAccount: isNewAccount(user) });
+    const spam = await evaluateForumContent(body, {
+      user,
+      isNewAccount: isNewAccount(user, settings.newAccountDays),
+      spamPendingScore: settings.spamPendingScore,
+      spamRejectScore: settings.spamRejectScore,
+    });
     if (!spam.ok) return res.status(400).json({ success: false, message: spam.message });
 
     let parentPostId = req.body?.parentPostId || null;
@@ -475,17 +557,41 @@ exports.votePost = async (req, res) => {
   }
 };
 
+exports.getReportCaptcha = async (req, res) => {
+  try {
+    const challenge = createChallenge();
+    return res.json({ success: true, ...challenge });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to create captcha' });
+  }
+};
+
 exports.reportContent = async (req, res) => {
   try {
-    const userId = req.user.id || req.user._id;
-    const { targetType, targetId, reason, details } = req.body || {};
+    const settings = await getForumSettings();
+    const reportThreshold = settings.autoHideReportThreshold ?? 3;
+    const userId = req.user?.id || req.user?._id;
+    const { targetType, targetId, reason, details, captchaId, captchaAnswer, recaptchaToken } = req.body || {};
     const allowed = ['thread', 'post', 'profile'];
     if (!allowed.includes(targetType) || !targetId || !reason?.trim()) {
       return res.status(400).json({ success: false, message: 'Invalid report' });
     }
 
+    if (!userId) {
+      const recaptcha = await verifyRecaptcha(recaptchaToken);
+      if (!recaptcha.skipped && !recaptcha.ok) {
+        return res.status(400).json({ success: false, message: recaptcha.message });
+      }
+      if (recaptcha.skipped) {
+        const captcha = verifyChallenge(captchaId, captchaAnswer);
+        if (!captcha.ok) return res.status(400).json({ success: false, message: captcha.message });
+      }
+    }
+
     await ForumReport.create({
-      reporterId: userId,
+      reporterId: userId || undefined,
+      isAnonymous: !userId,
+      reporterIp: req.ip || req.headers['x-forwarded-for'] || '',
       targetType,
       targetId,
       reason: String(reason).trim().slice(0, 500),
@@ -498,7 +604,7 @@ exports.reportContent = async (req, res) => {
         { $inc: { reportCount: 1 } },
         { new: true }
       );
-      if (post && post.reportCount >= AUTO_HIDE_REPORT_THRESHOLD) {
+      if (post && post.reportCount >= reportThreshold) {
         post.moderationStatus = 'hidden';
         await post.save();
       }
@@ -508,7 +614,7 @@ exports.reportContent = async (req, res) => {
         targetId,
         status: 'open',
       });
-      if (openReports >= AUTO_HIDE_REPORT_THRESHOLD) {
+      if (openReports >= reportThreshold) {
         await ForumThread.updateOne({ _id: targetId }, { moderationStatus: 'hidden' });
       }
     }
@@ -568,6 +674,67 @@ async function mapThreadsResponse(threads) {
   }));
 }
 
+exports.listThreads = async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(30, parseInt(req.query.limit, 10) || 20);
+    const sort = threadSortOption(req.query.sort);
+    const q = String(req.query.q || '').trim();
+    const categorySlug = String(req.query.category || '').trim().toLowerCase();
+    const tag = String(req.query.tag || '').trim().toLowerCase();
+
+    const filter = { ...visibleThread };
+
+    if (categorySlug) {
+      const category = await ForumCategory.findOne({ slug: categorySlug, isActive: true }).lean();
+      if (!category) {
+        return res.json({
+          success: true,
+          threads: [],
+          page: 1,
+          pages: 1,
+          total: 0,
+        });
+      }
+      filter.categoryId = category._id;
+    }
+
+    if (tag) {
+      filter.tags = tag;
+    }
+
+    if (q) {
+      filter.$or = [
+        { title: { $regex: q, $options: 'i' } },
+        { tags: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    const [threads, total] = await Promise.all([
+      ForumThread.find(filter)
+        .sort(sort)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate('authorId', AUTHOR_SELECT)
+        .populate('lastPostUserId', AUTHOR_SELECT)
+        .populate('categoryId', 'name slug icon')
+        .lean(),
+      ForumThread.countDocuments(filter),
+    ]);
+
+    return res.json({
+      success: true,
+      threads: await mapThreadsResponse(threads),
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      total,
+    });
+  } catch (error) {
+    console.error('[forum.listThreads]', error);
+    return res.status(500).json({ success: false, message: 'Failed to load discussions' });
+  }
+};
+
 exports.getThreadsByTag = async (req, res) => {
   try {
     const tag = String(req.params.tag || '').trim().toLowerCase();
@@ -579,9 +746,11 @@ exports.getThreadsByTag = async (req, res) => {
     const limit = Math.min(30, parseInt(req.query.limit, 10) || 20);
     const filter = { ...visibleThread, tags: tag };
 
+    const sort = threadSortOption(req.query.sort);
+
     const [threads, total] = await Promise.all([
       ForumThread.find(filter)
-        .sort({ isPinned: -1, lastPostAt: -1 })
+        .sort(sort)
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('authorId', AUTHOR_SELECT)

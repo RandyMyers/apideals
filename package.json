@@ -4,6 +4,9 @@
   "description": "",
   "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "dev": "node app.js",
+    "seed:forum": "node scripts/seedForumAll.js --apply",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed:categories": "node scripts/seedCategories.js",
     "seed:plans": "node scripts/seedSubscriptionPlans.js",
@@ -61,6 +64,7 @@
     "googleapis": "^164.1.0",
     "helmet": "^7.2.0",
     "hpp": "^0.2.3",
+    "isomorphic-dompurify": "^3.16.0",
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.5.0",
@@ -70,6 +74,7 @@
     "nodemon": "^3.1.7",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "web-push": "^3.6.7",
     "winston": "^3.10.0",
     "xmlbuilder": "^15.1.1"
   }

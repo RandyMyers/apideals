@@ -22,27 +22,22 @@ async function uniqueThreadSlug(ThreadModel, base) {
   return candidate;
 }
 
-function sanitizeForumContent(raw) {
-  if (!raw || typeof raw !== 'string') return '';
-  return raw
-    .replace(/<[^>]*>/g, '')
-    .replace(/\0/g, '')
-    .trim()
-    .slice(0, 10000);
-}
+const { sanitizeForumContent, stripHtmlToText } = require('./forumSanitize');
 
-const AUTHOR_SELECT = 'username profilePicture profileSlug firstName lastName publicProfile.displayName';
+const AUTHOR_SELECT =
+  'username profilePicture profileSlug firstName lastName publicProfile isSuspended isActive';
 
 const NEW_ACCOUNT_DAYS = 7;
 const AUTO_HIDE_REPORT_THRESHOLD = 3;
 
-function isNewAccount(user) {
+function isNewAccount(user, newAccountDays = NEW_ACCOUNT_DAYS) {
   if (!user?.createdAt) return false;
   const ageMs = Date.now() - new Date(user.createdAt).getTime();
-  return ageMs < NEW_ACCOUNT_DAYS * 24 * 60 * 60 * 1000;
+  return ageMs < newAccountDays * 24 * 60 * 60 * 1000;
 }
 
-function assertCanPost(user) {
+function assertCanPost(user, settings = {}) {
+  const newAccountDays = settings.newAccountDays ?? NEW_ACCOUNT_DAYS;
   if (!user?.isEmailVerified) {
     return { ok: false, status: 403, message: 'Verify your email before posting.' };
   }
@@ -50,11 +45,11 @@ function assertCanPost(user) {
     return { ok: false, status: 403, message: 'Account suspended.' };
   }
   const pp = user.publicProfile || {};
-  if (isNewAccount(user) && !pp.trustedContributor) {
+  if (isNewAccount(user, newAccountDays) && !pp.trustedContributor) {
     return {
       ok: false,
       status: 403,
-      message: `New accounts can post after ${NEW_ACCOUNT_DAYS} days. Complete your profile and stay active!`,
+      message: `New accounts can post after ${newAccountDays} days. Complete your profile and stay active!`,
     };
   }
   return { ok: true };
@@ -62,20 +57,22 @@ function assertCanPost(user) {
 
 function extractMentions(content) {
   if (!content) return [];
-  const matches = content.match(/@([a-zA-Z0-9_-]{3,30})/g) || [];
+  const text = stripHtmlToText(content);
+  const matches = text.match(/@([a-zA-Z0-9_-]{3,30})/g) || [];
   return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
 }
 
 function checkSpamContent(content) {
   if (!content) return { ok: true };
-  const links = (content.match(/https?:\/\//gi) || []).length;
+  const plain = stripHtmlToText(content);
+  const links = (plain.match(/https?:\/\//gi) || []).length;
   if (links > 5) {
     return { ok: false, message: 'Too many links in one post.' };
   }
-  if (/(.)\1{12,}/.test(content)) {
+  if (/(.)\1{12,}/.test(plain)) {
     return { ok: false, message: 'Content looks like spam.' };
   }
-  if (content.length > 8000) {
+  if (plain.length > 8000) {
     return { ok: false, message: 'Post is too long.' };
   }
   return { ok: true };
@@ -94,6 +91,9 @@ function authorDisplay(user) {
     profileSlug: user.profileSlug || user.username,
     displayName,
     profilePicture: user.profilePicture || null,
+    publicProfile: pp,
+    isSuspended: user.isSuspended,
+    isActive: user.isActive,
   };
 }
 

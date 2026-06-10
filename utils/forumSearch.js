@@ -1,6 +1,8 @@
 /**
- * Production forum search — MongoDB text indexes with regex fallback.
+ * Production forum search — Elasticsearch (optional), MongoDB text indexes, regex fallback.
  */
+
+const { searchForumElasticsearch, isEnabled: esEnabled } = require('./forumElasticsearch');
 
 function escapeRegex(q) {
   return q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -18,6 +20,20 @@ function toTextSearchQuery(q) {
 }
 
 async function searchThreads({ ForumThread, visibleFilter, q, page, limit }) {
+  if (esEnabled()) {
+    const es = await searchForumElasticsearch(q, { page, limit });
+    if (es && es.hits?.length) {
+      const slugs = es.hits.map((h) => h.slug).filter(Boolean);
+      const threads = await ForumThread.find({ slug: { $in: slugs }, ...visibleFilter })
+        .populate('authorId')
+        .populate('categoryId', 'name slug')
+        .lean();
+      const order = new Map(slugs.map((s, i) => [s, i]));
+      threads.sort((a, b) => (order.get(a.slug) ?? 99) - (order.get(b.slug) ?? 99));
+      return { threads, total: es.total, mode: 'elasticsearch' };
+    }
+  }
+
   const textQ = toTextSearchQuery(q);
   if (textQ.length >= 2) {
     try {

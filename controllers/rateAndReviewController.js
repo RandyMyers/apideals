@@ -3,8 +3,22 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const { calculateStoreRating } = require('../services/storeRatingService');
 
+const { sanitizeForumContent, checkSpamContent } = require('../utils/forumHelpers');
+
 const REVIEW_USER_SELECT =
-  'username profileSlug publicProfile.isEnabled publicProfile.visibility isSuspended isActive';
+  'username profileSlug profilePicture publicProfile isSuspended isActive';
+
+function sanitizeReviewText(reviewText) {
+  if (!reviewText || typeof reviewText !== 'string') return '';
+  const trimmed = sanitizeForumContent(reviewText).trim();
+  const spam = checkSpamContent(trimmed);
+  if (!spam.ok) {
+    const err = new Error(spam.message);
+    err.status = 400;
+    throw err;
+  }
+  return trimmed.slice(0, 1000);
+}
 
 /** Resolve coupon slug or ObjectId to ObjectId for DB queries. */
 async function resolveCouponId(couponIdOrSlug) {
@@ -69,12 +83,19 @@ exports.createRateAndReview = async (req, res) => {
             resolvedDealId = deal._id;
         }
 
+        let safeReviewText = '';
+        try {
+            safeReviewText = sanitizeReviewText(reviewText);
+        } catch (err) {
+            return res.status(err.status || 400).json({ message: err.message });
+        }
+
         const rateAndReview = new RateAndReview({
             userId,
             couponId: resolvedCouponId,
             dealId: resolvedDealId,
             rating,
-            reviewText,
+            reviewText: safeReviewText,
         });
 
         await rateAndReview.save();
@@ -181,9 +202,22 @@ exports.updateRateAndReview = async (req, res) => {
             return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
         }
 
+        let safeReviewText;
+        if (reviewText !== undefined) {
+            try {
+                safeReviewText = sanitizeReviewText(reviewText);
+            } catch (err) {
+                return res.status(err.status || 400).json({ message: err.message });
+            }
+        }
+
+        const updates = { updatedAt: Date.now() };
+        if (rating !== undefined) updates.rating = rating;
+        if (reviewText !== undefined) updates.reviewText = safeReviewText;
+
         const rateAndReview = await RateAndReview.findByIdAndUpdate(
             id,
-            { rating, reviewText, updatedAt: Date.now() },
+            updates,
             { new: true }
         );
 

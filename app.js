@@ -361,6 +361,7 @@ app.use('/api/v1/visitors', visitorRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/profiles', require('./routes/profileRoutes'));
 app.use('/api/v1/forum', require('./routes/forumRoutes'));
+app.use('/api/v1/push', require('./routes/pushRoutes'));
 app.use('/api/v1/interactions', interactionRoutes); 
 app.use('/api/v1/coupons', couponRoutes);  // New route for Coupons
 app.use('/api/v1/coupon-submissions', couponSubmissionRoutes);  // User Coupon Submissions

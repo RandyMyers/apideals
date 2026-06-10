@@ -43,6 +43,8 @@ router.patch(
   profileController.adminUpdateProfile
 );
 
+router.get('/featured/list', profileController.getFeaturedMembers);
+
 router.get('/:slug/activity', profileController.getPublicActivity);
 router.get('/:slug', profileController.getPublicProfile);
 

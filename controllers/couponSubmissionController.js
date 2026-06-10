@@ -424,7 +424,7 @@ exports.getPendingSubmissions = async (req, res) => {
     }
 
     const submissions = await CouponSubmission.find(query)
-      .populate('userId', 'username email')
+      .populate('userId', 'username email profileSlug')
       .populate('storeId', 'name logo')
       .populate('categoryId', 'name')
       .sort(sort)

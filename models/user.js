@@ -197,6 +197,44 @@ const UserSchema = new Schema({
     uppercase: true,
     default: 'USD',
   },
+
+  /** Public URL slug — defaults to username; used at /u/:slug */
+  profileSlug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    minlength: 3,
+    maxlength: 30,
+  },
+
+  publicProfile: {
+    isEnabled: { type: Boolean, default: true },
+    visibility: {
+      type: String,
+      enum: ['public', 'unlisted', 'private'],
+      default: 'public',
+    },
+    displayName: { type: String, trim: true, maxlength: 60 },
+    headline: { type: String, trim: true, maxlength: 120 },
+    websiteUrl: { type: String, trim: true },
+    socialLinks: [{
+      platform: {
+        type: String,
+        enum: ['twitter', 'instagram', 'linkedin', 'youtube', 'tiktok', 'facebook', 'github', 'website', 'other'],
+      },
+      url: { type: String, trim: true },
+      label: { type: String, trim: true, maxlength: 40 },
+      order: { type: Number, default: 0 },
+    }],
+    location: { type: String, trim: true, maxlength: 80 },
+    showStats: { type: Boolean, default: true },
+    showActivity: { type: Boolean, default: true },
+    completedAt: { type: Date },
+    completionRewardGranted: { type: Boolean, default: false },
+    trustedContributor: { type: Boolean, default: false },
+  },
   
   // Timestamps
   createdAt: {
@@ -217,10 +255,20 @@ UserSchema.index({ passwordResetToken: 1 });
 UserSchema.index({ isActive: 1, isSuspended: 1 });
 UserSchema.index({ createdAt: -1 });
 UserSchema.index({ lastLoginAt: -1 });
+UserSchema.index({ profileSlug: 1 });
+UserSchema.index({ 'publicProfile.visibility': 1 });
 
 // Pre-save middleware to update timestamps
 UserSchema.pre('save', function(next) {
   this.updatedAt = new Date();
+  next();
+});
+
+// Default profileSlug from username when missing
+UserSchema.pre('save', function(next) {
+  if (!this.profileSlug && this.username) {
+    this.profileSlug = String(this.username).toLowerCase().trim();
+  }
   next();
 });
 
@@ -245,7 +293,7 @@ UserSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Instance method to get public profile
+/** @deprecated Use profileHelpers.buildSafePublicProfile — exposes email */
 UserSchema.methods.getPublicProfile = function() {
   return {
     id: this._id,
@@ -257,7 +305,7 @@ UserSchema.methods.getPublicProfile = function() {
     userType: this.userType,
     isEmailVerified: this.isEmailVerified,
     createdAt: this.createdAt,
-    lastLoginAt: this.lastLoginAt
+    lastLoginAt: this.lastLoginAt,
   };
 };
 

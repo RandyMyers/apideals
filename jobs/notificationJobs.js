@@ -3,6 +3,7 @@ const User = require('../models/user');
 const Coupon = require('../models/coupon');
 const Subscription = require('../models/subscriptions');
 const notificationService = require('../services/notificationService');
+const { sendWeeklyForumDigest } = require('../services/forumDigestService');
 
 /**
  * Check for coupons expiring soon and notify users
@@ -140,6 +141,37 @@ const checkExpiringSubscriptionsJob = cron.schedule('0 9 * * *', async () => {
   }
 });
 
+/** Weekly forum digest — Mondays 09:00 UTC */
+const forumDigestJob = cron.schedule('0 9 * * 1', async () => {
+  try {
+    console.log('[Notification Job] Starting weekly forum digest...');
+    const result = await sendWeeklyForumDigest();
+    if (result.sent > 0) {
+      const User = require('../models/user');
+      const users = await User.find({
+        isActive: true,
+        emailNotifications: { $ne: false },
+      })
+        .select('_id')
+        .limit(5000)
+        .lean();
+      const ids = users.map((u) => String(u._id));
+      if (ids.length) {
+        try {
+          await notificationService.sendBulkNotifications(ids, 'forum_digest', {
+            count: String(result.threads || 0),
+          }, { actionUrl: '/forum' });
+        } catch {
+          /* template optional */
+        }
+      }
+    }
+    console.log('[Notification Job] Forum digest done', result);
+  } catch (error) {
+    console.error('[Notification Job] Forum digest failed:', error);
+  }
+});
+
 /**
  * Initialize notification jobs
  * Call this from app.js
@@ -147,6 +179,7 @@ const checkExpiringSubscriptionsJob = cron.schedule('0 9 * * *', async () => {
 const startNotificationJobs = () => {
   checkExpiringCouponsJob.start();
   checkExpiringSubscriptionsJob.start();
+  forumDigestJob.start();
   console.log('[Notification Jobs] All notification jobs started');
 };
 
@@ -157,6 +190,7 @@ const startNotificationJobs = () => {
 const stopNotificationJobs = () => {
   checkExpiringCouponsJob.stop();
   checkExpiringSubscriptionsJob.stop();
+  forumDigestJob.stop();
   console.log('[Notification Jobs] All notification jobs stopped');
 };
 
@@ -164,6 +198,7 @@ module.exports = {
   startNotificationJobs,
   stopNotificationJobs,
   checkExpiringCouponsJob,
-  checkExpiringSubscriptionsJob
+  checkExpiringSubscriptionsJob,
+  forumDigestJob,
 };
 

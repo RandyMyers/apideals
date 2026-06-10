@@ -6,7 +6,11 @@ const InteractionSchema = new Schema({
     visitorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Visitor' }, // Reference to the visitor (optional for logged-in users)
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, // Reference to the user (for logged-in users)
     interactionType: { type: String, required: true, enum: ['follow', 'unfollow', 'share', 'click', 'hover', 'saved', 'unsaved'] }, // Type of interaction
-    entityType: { type: String, enum: ['store', 'coupon', 'deal', 'category'], default: null }, // Type of entity interacted with
+    entityType: {
+      type: String,
+      enum: ['store', 'coupon', 'deal', 'category', 'forum_thread', 'forum_post', 'user_profile'],
+      default: null,
+    },
     entityId: { type: mongoose.Schema.Types.ObjectId, refPath: 'entityModel' }, // Dynamic reference
     entityModel: { type: String, enum: ['Store', 'Coupon', 'Deal', 'Category'] }, // Model name for dynamic ref
     type: { type: String }, // Legacy field (deprecated, use interactionType)

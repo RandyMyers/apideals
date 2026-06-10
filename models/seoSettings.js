@@ -62,7 +62,7 @@ const seoSettingsSchema = new mongoose.Schema(
       },
       allowPaths: {
         type: [String],
-        default: [],
+        default: ['/u/', '/forum/'],
       },
       crawlDelay: {
         type: Number,
@@ -97,6 +97,14 @@ const seoSettingsSchema = new mongoose.Schema(
         default: true,
       },
       includeHelpArticles: {
+        type: Boolean,
+        default: true,
+      },
+      includeProfiles: {
+        type: Boolean,
+        default: true,
+      },
+      includeForum: {
         type: Boolean,
         default: true,
       },

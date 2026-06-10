@@ -41,7 +41,7 @@ const notificationSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['system', 'coupon', 'deal', 'user', 'store', 'payment', 'subscription', 'achievement'],
+    enum: ['system', 'coupon', 'deal', 'user', 'store', 'payment', 'subscription', 'achievement', 'forum', 'profile'],
     default: 'system',
   },
   icon: {

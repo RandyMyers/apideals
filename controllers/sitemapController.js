@@ -19,6 +19,9 @@ const HelpArticle = require('../models/helpArticle');
 const StoreLandingPage = require('../models/storeLandingPage');
 
 const CouponSubmission = require('../models/couponSubmission');
+const User = require('../models/user');
+const ForumCategory = require('../models/forumCategory');
+const ForumThread = require('../models/forumThread');
 
 const models = {
   Coupon,
@@ -29,6 +32,9 @@ const models = {
   HelpArticle,
   StoreLandingPage,
   CouponSubmission,
+  User,
+  ForumCategory,
+  ForumThread,
 };
 
 /**

@@ -32,7 +32,7 @@ const notificationTemplateSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['system', 'coupon', 'deal', 'user', 'store', 'payment', 'subscription', 'achievement'],
+    enum: ['system', 'coupon', 'deal', 'user', 'store', 'payment', 'subscription', 'achievement', 'forum', 'profile'],
     required: true,
     default: 'system',
   },

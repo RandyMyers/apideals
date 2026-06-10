@@ -3,6 +3,9 @@ const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
 const { calculateStoreRating } = require('../services/storeRatingService');
 
+const REVIEW_USER_SELECT =
+  'username profileSlug publicProfile.isEnabled publicProfile.visibility isSuspended isActive';
+
 /** Resolve coupon slug or ObjectId to ObjectId for DB queries. */
 async function resolveCouponId(couponIdOrSlug) {
   if (!couponIdOrSlug) return null;
@@ -100,7 +103,7 @@ exports.createRateAndReview = async (req, res) => {
 exports.getAllRatingsAndReviews = async (req, res) => {
     try {
         const ratingsAndReviews = await RateAndReview.find()
-            .populate('userId', 'username') // Populate only username (privacy: no email)
+            .populate('userId', REVIEW_USER_SELECT)
             .populate('couponId')            // Populate coupon details
             .populate('dealId')              // Populate deal details
             .sort({ createdAt: -1 });        // Sort by newest first
@@ -125,7 +128,7 @@ exports.getRatingsAndReviewsByCoupon = async (req, res) => {
         }
 
         const ratingsAndReviews = await RateAndReview.find({ couponId: resolvedCouponId })
-            .populate('userId', 'username') // Populate only username (privacy: no email)
+            .populate('userId', REVIEW_USER_SELECT)
             .sort({ createdAt: -1 });
 
         res.status(200).json(ratingsAndReviews);
@@ -148,7 +151,7 @@ exports.getRatingsAndReviewsByDeal = async (req, res) => {
         }
 
         const ratingsAndReviews = await RateAndReview.find({ dealId: resolvedDealId })
-            .populate('userId', 'username') // Populate only username (privacy: no email)
+            .populate('userId', REVIEW_USER_SELECT)
             .sort({ createdAt: -1 });
 
         res.status(200).json(ratingsAndReviews);

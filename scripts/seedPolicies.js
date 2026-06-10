@@ -260,6 +260,32 @@ const policyData = [
         <strong>Address:</strong> [Your Business Address]
       </p>
     `
+  },
+  {
+    title: 'Community Guidelines',
+    content: `
+      <h1>Community Guidelines</h1>
+      <p><strong>Last Updated:</strong> ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      <p>These guidelines apply to the DealCouponz community forum, public member profiles, reviews, and other user-generated content (UGC). By participating, you agree to follow them in addition to our <a href="/terms">Terms of Service</a>.</p>
+      <h2>1. Be respectful</h2>
+      <p>Treat fellow savers with courtesy. Debate ideas, not people. Harassment, hate speech, threats, and personal attacks are not tolerated.</p>
+      <h2>2. Stay on topic</h2>
+      <p>Post in the most relevant category. Coupon tips, deal questions, store experiences, and platform feedback are welcome. Off-topic spam or repeated self-promotion may be removed.</p>
+      <h2>3. No spam or scams</h2>
+      <p>Do not post misleading coupon codes, phishing links, pyramid schemes, or unsolicited advertising. Suspicious posts may be held for moderation or removed.</p>
+      <h2>4. Share honestly</h2>
+      <p>Describe deals accurately. If a code did not work for you, say so. Affiliate links are allowed when relevant but must not dominate your posts.</p>
+      <h2>5. Protect privacy</h2>
+      <p>Do not share other people's personal information. Keep your own contact details out of public posts when possible.</p>
+      <h2>6. Report problems</h2>
+      <p>Use the report button on threads or posts that violate these guidelines. Our moderators review reports and may lock, hide, or remove content.</p>
+      <h2>7. Profile &amp; outbound links</h2>
+      <p>Public profiles may include a website and social links after email verification. Links use <code>nofollow ugc</code> by default unless you are granted trusted contributor status. Abusive link spam can result in profile restrictions.</p>
+      <h2>8. Moderation &amp; enforcement</h2>
+      <p>New accounts and flagged content may be reviewed before appearing publicly. Violations may lead to content removal, temporary restrictions, or account suspension.</p>
+      <h2>9. Contact</h2>
+      <p>Questions about moderation? Contact us at <strong>support@dealcouponz.com</strong> or via our <a href="/contact">support form</a>.</p>
+    `
   }
 ];
 

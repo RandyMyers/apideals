@@ -92,6 +92,7 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
     { path: '/stores', priority: '0.9', changefreq: 'daily' },
     { path: '/categories/all', priority: '0.8', changefreq: 'weekly' },
     { path: '/blog', priority: '0.8', changefreq: 'daily' },
+    { path: '/forum', priority: '0.8', changefreq: 'daily' },
     { path: '/about', priority: '0.7', changefreq: 'monthly' },
     { path: '/contact', priority: '0.7', changefreq: 'monthly' },
     { path: '/help', priority: '0.7', changefreq: 'weekly' },
@@ -254,6 +255,77 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
           : (sub.updatedAt ? new Date(sub.updatedAt).toISOString() : new Date().toISOString()));
         url.ele('changefreq', 'weekly');
         url.ele('priority', '0.6');
+      });
+    }
+
+    // Public member profiles
+    if (models.User && include('includeProfiles')) {
+      const profiles = await models.User.find({
+        isActive: true,
+        isSuspended: { $ne: true },
+        profileSlug: { $exists: true, $ne: '' },
+        'publicProfile.isEnabled': { $ne: false },
+        'publicProfile.visibility': 'public',
+      })
+        .select('profileSlug updatedAt')
+        .limit(Math.min(maxItems, 5000))
+        .lean();
+
+      profiles.forEach((profile) => {
+        const slug = profile.profileSlug;
+        if (!slug) return;
+        const path = `/u/${slug}`;
+        const url = root.ele('url');
+        url.ele('loc', `${baseUrl}${path}`);
+        url.ele('lastmod', pickLastmod(profile));
+        url.ele('changefreq', 'weekly');
+        url.ele('priority', '0.5');
+
+        if (hreflangEnabled && languages.length > 0) {
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+        }
+      });
+    }
+
+    // Forum categories & threads
+    if (models.ForumCategory && include('includeForum')) {
+      const forumCats = await models.ForumCategory.find({ isActive: true })
+        .select('slug updatedAt')
+        .limit(50)
+        .lean();
+
+      forumCats.forEach((cat) => {
+        const path = `/forum/${cat.slug}`;
+        const url = root.ele('url');
+        url.ele('loc', `${baseUrl}${path}`);
+        url.ele('lastmod', pickLastmod(cat));
+        url.ele('changefreq', 'daily');
+        url.ele('priority', '0.65');
+        if (hreflangEnabled && languages.length > 0) {
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+        }
+      });
+    }
+
+    if (models.ForumThread && include('includeForum')) {
+      const threads = await models.ForumThread.find({ moderationStatus: 'visible' })
+        .select('slug updatedAt lastPostAt categoryId')
+        .populate('categoryId', 'slug')
+        .limit(Math.min(maxItems, 5000))
+        .lean();
+
+      threads.forEach((thread) => {
+        const catSlug = thread.categoryId?.slug;
+        if (!catSlug || !thread.slug) return;
+        const path = `/forum/${catSlug}/${thread.slug}`;
+        const url = root.ele('url');
+        url.ele('loc', `${baseUrl}${path}`);
+        url.ele('lastmod', pickLastmod({ updatedAt: thread.lastPostAt || thread.updatedAt }));
+        url.ele('changefreq', 'weekly');
+        url.ele('priority', '0.55');
+        if (hreflangEnabled && languages.length > 0) {
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl);
+        }
       });
     }
 

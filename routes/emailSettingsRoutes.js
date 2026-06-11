@@ -7,6 +7,7 @@ const router = express.Router();
 const adminRoles = ['superAdmin'];
 
 router.get('/', authMiddleware, adminMiddleware(adminRoles), emailSettingsController.getEmailSettings);
+router.get('/logs', authMiddleware, adminMiddleware(adminRoles), emailSettingsController.getEmailLogs);
 router.patch('/', authMiddleware, adminMiddleware(adminRoles), emailSettingsController.updateEmailSettings);
 router.post('/test', authMiddleware, adminMiddleware(adminRoles), emailSettingsController.testEmailSettings);
 

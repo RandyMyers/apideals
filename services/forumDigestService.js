@@ -66,6 +66,7 @@ async function sendWeeklyForumDigest() {
         to: user.email,
         subject: 'Trending forum topics this week | DealCouponz',
         html,
+        type: 'digest',
       });
       if (ok) sent += 1;
     } catch (err) {

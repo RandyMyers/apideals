@@ -1,4 +1,5 @@
 const EmailSettings = require('../models/emailSettings');
+const EmailLog = require('../models/emailLog');
 const {
   sendTestEmail,
   maskSettings,
@@ -40,12 +41,23 @@ exports.updateEmailSettings = async (req, res) => {
   }
 };
 
+exports.getEmailLogs = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const logs = await EmailLog.find().sort({ createdAt: -1 }).limit(limit).lean();
+    return res.json({ success: true, logs });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.testEmailSettings = async (req, res) => {
   try {
     const to = String(req.body?.to || req.user?.email || '').trim();
     if (!to) {
       return res.status(400).json({ success: false, message: 'Recipient email required' });
     }
+    console.log(`[emailSettings] Admin test send requested → to=${to} by ${req.user?.email || req.user?.username || 'unknown admin'}`);
     const result = await sendTestEmail(to);
     const status = result.sent ? 'success' : 'failed';
     const errorMsg = result.sent ? '' : (result.reason || 'Send failed');
@@ -56,13 +68,14 @@ exports.testEmailSettings = async (req, res) => {
     });
     invalidateEmailSettingsCache();
     if (!result.sent) {
+      const reasonMessages = {
+        disabled: 'Outbound email is disabled. Enable "Enable outbound email" above (and check DISABLE_EMAIL env var), then save.',
+        not_configured: 'SMTP is not configured. Save host, port, and credentials first.',
+        dev_skipped: 'Email skipped in development. Enable “Send in development” in settings or set EMAIL_SEND_IN_DEV=true.',
+      };
       return res.status(400).json({
         success: false,
-        message: errorMsg === 'dev_skipped'
-          ? 'Email skipped in development. Enable “Send in development” in settings or set EMAIL_SEND_IN_DEV=true.'
-          : errorMsg === 'not_configured'
-            ? 'SMTP is not configured. Save host, port, and credentials first.'
-            : 'Test email was not sent.',
+        message: reasonMessages[errorMsg] || 'Test email was not sent.',
         result,
       });
     }

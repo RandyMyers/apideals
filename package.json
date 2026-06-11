@@ -7,6 +7,8 @@
     "start": "node app.js",
     "dev": "node app.js",
     "seed:forum": "node scripts/seedForumAll.js --apply",
+    "seed:forum:fresh": "node scripts/seedForumAll.js --apply --fresh",
+    "seed:forum:i18n": "node scripts/applyForumEntityTranslations.js --apply",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed:categories": "node scripts/seedCategories.js",
     "seed:plans": "node scripts/seedSubscriptionPlans.js",

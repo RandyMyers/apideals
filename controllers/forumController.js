@@ -22,6 +22,15 @@ const { searchThreads, searchPosts } = require('../utils/forumSearch');
 const { indexDocument } = require('../utils/forumElasticsearch');
 const { createChallenge, verifyChallenge, verifyRecaptcha } = require('../utils/reportCaptcha');
 const { stripHtmlToText } = require('../utils/forumSanitize');
+const {
+  getRequestLanguage,
+  localizeCategory,
+  localizeThread,
+  localizePost,
+  localizeCategories,
+} = require('../utils/forumLocalization');
+
+const CATEGORY_POPULATE_FIELDS = 'name slug icon description metaTitle metaDescription languageTranslations';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_THREADS_PER_DAY = 5;
@@ -110,9 +119,17 @@ exports.listCategories = async (req, res) => {
       ];
     }
 
+    const lang = getRequestLanguage(req);
+
     if (!limit) {
       const categories = await ForumCategory.find(filter).sort(sort).lean();
-      return res.json({ success: true, categories, total: categories.length, page: 1, pages: 1 });
+      return res.json({
+        success: true,
+        categories: localizeCategories(categories, lang),
+        total: categories.length,
+        page: 1,
+        pages: 1,
+      });
     }
 
     const [categories, total] = await Promise.all([
@@ -126,7 +143,7 @@ exports.listCategories = async (req, res) => {
 
     return res.json({
       success: true,
-      categories,
+      categories: localizeCategories(categories, lang),
       page,
       pages: Math.ceil(total / limit) || 1,
       total,
@@ -139,23 +156,27 @@ exports.listCategories = async (req, res) => {
 
 exports.listRecentThreads = async (req, res) => {
   try {
+    const lang = getRequestLanguage(req);
     const limit = Math.min(20, parseInt(req.query.limit, 10) || 8);
     const threads = await ForumThread.find(visibleThread)
       .sort({ isPinned: -1, lastPostAt: -1 })
       .limit(limit)
-      .populate('categoryId', 'name slug')
+      .populate('categoryId', CATEGORY_POPULATE_FIELDS)
       .populate('authorId', AUTHOR_SELECT)
       .populate('lastPostUserId', AUTHOR_SELECT)
       .lean();
 
     return res.json({
       success: true,
-      threads: threads.map((t) => ({
-        ...t,
-        author: authorDisplay(t.authorId),
-        category: t.categoryId,
-        lastPostUser: authorDisplay(t.lastPostUserId),
-      })),
+      threads: threads.map((t) => {
+        const localized = localizeThread(t, lang);
+        return {
+          ...localized,
+          author: authorDisplay(t.authorId),
+          category: localizeCategory(t.categoryId, lang),
+          lastPostUser: authorDisplay(t.lastPostUserId),
+        };
+      }),
     });
   } catch (error) {
     console.error('[forum.listRecentThreads]', error);
@@ -165,10 +186,12 @@ exports.listRecentThreads = async (req, res) => {
 
 exports.getCategory = async (req, res) => {
   try {
-    const category = await ForumCategory.findOne({ slug: req.params.slug, isActive: true }).lean();
-    if (!category) {
+    const lang = getRequestLanguage(req);
+    const categoryDoc = await ForumCategory.findOne({ slug: req.params.slug, isActive: true }).lean();
+    if (!categoryDoc) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
+    const category = localizeCategory(categoryDoc, lang);
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(30, parseInt(req.query.limit, 10) || 20);
@@ -190,7 +213,7 @@ exports.getCategory = async (req, res) => {
       success: true,
       category,
       threads: threads.map((t) => ({
-        ...t,
+        ...localizeThread(t, lang),
         author: authorDisplay(t.authorId),
         lastPostUser: authorDisplay(t.lastPostUserId),
       })),
@@ -206,8 +229,9 @@ exports.getCategory = async (req, res) => {
 
 exports.getThread = async (req, res) => {
   try {
+    const lang = getRequestLanguage(req);
     const thread = await ForumThread.findOne({ slug: req.params.slug, ...visibleThread })
-      .populate('categoryId', 'name slug')
+      .populate('categoryId', CATEGORY_POPULATE_FIELDS)
       .populate('authorId', AUTHOR_SELECT)
       .populate('attachedDealId', 'title slug discountType discountValue')
       .populate('attachedCouponId', 'title slug code discountType discountValue')
@@ -247,12 +271,12 @@ exports.getThread = async (req, res) => {
     return res.json({
       success: true,
       thread: {
-        ...thread,
+        ...localizeThread(thread, lang),
         author: authorDisplay(thread.authorId),
-        category: thread.categoryId,
+        category: localizeCategory(thread.categoryId, lang),
       },
       posts: posts.map((p) => ({
-        ...p,
+        ...localizePost(p, lang),
         author: authorDisplay(p.authorId),
         upvotedByMe: votedPostIds.has(String(p._id)),
       })),
@@ -665,17 +689,18 @@ exports.listPopularTags = async (req, res) => {
   }
 };
 
-async function mapThreadsResponse(threads) {
+function mapThreadsResponse(threads, lang) {
   return threads.map((t) => ({
-    ...t,
+    ...localizeThread(t, lang),
     author: authorDisplay(t.authorId),
     lastPostUser: authorDisplay(t.lastPostUserId),
-    category: t.categoryId,
+    category: localizeCategory(t.categoryId, lang),
   }));
 }
 
 exports.listThreads = async (req, res) => {
   try {
+    const lang = getRequestLanguage(req);
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(30, parseInt(req.query.limit, 10) || 20);
     const sort = threadSortOption(req.query.sort);
@@ -717,14 +742,14 @@ exports.listThreads = async (req, res) => {
         .limit(limit)
         .populate('authorId', AUTHOR_SELECT)
         .populate('lastPostUserId', AUTHOR_SELECT)
-        .populate('categoryId', 'name slug icon')
+        .populate('categoryId', CATEGORY_POPULATE_FIELDS)
         .lean(),
       ForumThread.countDocuments(filter),
     ]);
 
     return res.json({
       success: true,
-      threads: await mapThreadsResponse(threads),
+      threads: mapThreadsResponse(threads, lang),
       page,
       pages: Math.ceil(total / limit) || 1,
       total,
@@ -737,6 +762,7 @@ exports.listThreads = async (req, res) => {
 
 exports.getThreadsByTag = async (req, res) => {
   try {
+    const lang = getRequestLanguage(req);
     const tag = String(req.params.tag || '').trim().toLowerCase();
     if (!tag) {
       return res.status(400).json({ success: false, message: 'Tag required' });
@@ -755,7 +781,7 @@ exports.getThreadsByTag = async (req, res) => {
         .limit(limit)
         .populate('authorId', AUTHOR_SELECT)
         .populate('lastPostUserId', AUTHOR_SELECT)
-        .populate('categoryId', 'name slug')
+        .populate('categoryId', CATEGORY_POPULATE_FIELDS)
         .lean(),
       ForumThread.countDocuments(filter),
     ]);
@@ -763,7 +789,7 @@ exports.getThreadsByTag = async (req, res) => {
     return res.json({
       success: true,
       tag,
-      threads: await mapThreadsResponse(threads),
+      threads: mapThreadsResponse(threads, lang),
       page,
       pages: Math.ceil(total / limit),
       total,
@@ -776,6 +802,7 @@ exports.getThreadsByTag = async (req, res) => {
 
 exports.getStoreDiscussions = async (req, res) => {
   try {
+    const lang = getRequestLanguage(req);
     const storeSlug = String(req.params.storeSlug || '').trim().toLowerCase();
     if (!storeSlug) {
       return res.status(400).json({ success: false, message: 'Store slug required' });
@@ -791,7 +818,7 @@ exports.getStoreDiscussions = async (req, res) => {
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('authorId', AUTHOR_SELECT)
-        .populate('categoryId', 'name slug')
+        .populate('categoryId', CATEGORY_POPULATE_FIELDS)
         .lean(),
       ForumThread.countDocuments(filter),
     ]);
@@ -799,7 +826,7 @@ exports.getStoreDiscussions = async (req, res) => {
     return res.json({
       success: true,
       storeSlug,
-      threads: await mapThreadsResponse(threads),
+      threads: mapThreadsResponse(threads, lang),
       page,
       pages: Math.ceil(total / limit),
       total,
@@ -906,6 +933,7 @@ exports.getLeaderboard = async (req, res) => {
 
 exports.searchForum = async (req, res) => {
   try {
+    const lang = getRequestLanguage(req);
     const q = String(req.query.q || '').trim();
     if (q.length < 2) {
       return res.status(400).json({ success: false, message: 'Query too short' });
@@ -931,14 +959,14 @@ exports.searchForum = async (req, res) => {
       query: q,
       searchMode: threadMode || postMode || 'regex',
       threads: threads.map((t) => ({
-        ...t,
+        ...localizeThread(t, lang),
         author: authorDisplay(t.authorId),
-        category: t.categoryId,
+        category: localizeCategory(t.categoryId, lang),
       })),
       postHits: postHits.map((p) => ({
-        ...p,
+        ...localizePost(p, lang),
         author: authorDisplay(p.authorId),
-        thread: p.threadId,
+        thread: p.threadId ? localizeThread(p.threadId, lang) : p.threadId,
       })),
       page,
       pages: Math.ceil(total / limit),

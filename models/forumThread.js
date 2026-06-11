@@ -18,6 +18,12 @@ const forumThreadSchema = new mongoose.Schema(
     lastPostAt: { type: Date, default: Date.now },
     lastPostUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     moderationStatus: { type: String, enum: ['visible', 'hidden', 'pending'], default: 'visible' },
+    metaTitle: { type: String, trim: true, maxlength: 120 },
+    metaDescription: { type: String, trim: true, maxlength: 300 },
+    languageTranslations: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

@@ -19,7 +19,7 @@ exports.listCategoriesAdmin = async (req, res) => {
 
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, icon, order, metaTitle, metaDescription } = req.body || {};
+    const { name, description, icon, order, metaTitle, metaDescription, languageTranslations } = req.body || {};
     const slug = slugify(req.body.slug || name);
     if (!name?.trim() || !slug) {
       return res.status(400).json({ success: false, message: 'Name required' });
@@ -32,6 +32,7 @@ exports.createCategory = async (req, res) => {
       order: order || 0,
       metaTitle,
       metaDescription,
+      languageTranslations: languageTranslations && typeof languageTranslations === 'object' ? languageTranslations : {},
     });
     return res.status(201).json({ success: true, category });
   } catch (error) {
@@ -100,7 +101,7 @@ exports.updateThreadAdmin = async (req, res) => {
     const threadBefore = await ForumThread.findById(req.params.id).populate('categoryId', 'slug');
     if (!threadBefore) return res.status(404).json({ success: false, message: 'Not found' });
 
-    const allowed = ['status', 'isPinned', 'isFeatured', 'moderationStatus', 'title'];
+    const allowed = ['status', 'isPinned', 'isFeatured', 'moderationStatus', 'title', 'metaTitle', 'metaDescription', 'languageTranslations'];
     const updates = {};
     allowed.forEach((k) => {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -227,6 +228,7 @@ exports.updatePostAdmin = async (req, res) => {
 
     const updates = {};
     if (req.body.moderationStatus) updates.moderationStatus = req.body.moderationStatus;
+    if (req.body.languageTranslations !== undefined) updates.languageTranslations = req.body.languageTranslations;
     if (req.body.isDeleted !== undefined) {
       updates.isDeleted = !!req.body.isDeleted;
       if (updates.isDeleted) updates.content = '[removed by moderator]';

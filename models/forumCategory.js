@@ -13,6 +13,10 @@ const forumCategorySchema = new mongoose.Schema(
     lastActivityAt: { type: Date },
     metaTitle: { type: String, trim: true, maxlength: 120 },
     metaDescription: { type: String, trim: true, maxlength: 300 },
+    languageTranslations: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

@@ -17,6 +17,10 @@ const forumPostSchema = new mongoose.Schema(
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     editedAt: { type: Date },
     moderationStatus: { type: String, enum: ['visible', 'hidden', 'pending'], default: 'visible' },
+    languageTranslations: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

@@ -665,11 +665,8 @@ exports.getCouponsByUserId = async (req, res) => {
       .populate('storeId', 'name location')
       .populate('categoryId', 'name');
 
-    if (!coupons || coupons.length === 0) {
-      return res.status(404).json({ message: 'No coupons found for this user.' });
-    }
-
-    res.status(200).json(coupons);
+    // An empty list is a valid result, not an error
+    res.status(200).json(coupons || []);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching coupons', error: error.message });
   }

@@ -70,6 +70,10 @@ async function resolveConfig() {
   const sendgridApiKey = withSecrets?.sendgridApiKey || envStr('SENDGRID_API_KEY');
   const provider = db.provider || (sendgridApiKey && !smtpHost ? 'sendgrid_api' : 'smtp');
 
+  // SMTP servers (Hostinger etc.) reject From addresses the authenticated
+  // mailbox doesn't own — default From to the SMTP user, not a made-up address.
+  const smtpUserAsFrom = smtpUser.includes('@') ? smtpUser : '';
+
   return {
     enabled: db.enabled !== false && process.env.DISABLE_EMAIL !== 'true',
     sendInDevelopment: db.sendInDevelopment === true || process.env.EMAIL_SEND_IN_DEV === 'true',
@@ -80,7 +84,7 @@ async function resolveConfig() {
     smtpUser,
     smtpPassword,
     sendgridApiKey,
-    fromEmail: db.fromEmail || envStr('EMAIL_FROM') || 'noreply@dealcouponz.com',
+    fromEmail: db.fromEmail || envStr('EMAIL_FROM') || smtpUserAsFrom || 'noreply@dealcouponz.com',
     fromName: db.fromName || envStr('EMAIL_FROM_NAME') || 'DealCouponz',
     replyTo: db.replyTo || envStr('EMAIL_REPLY_TO') || '',
     clientUrl: (db.clientUrl || envStr('CLIENT_URL') || 'http://localhost:3000').replace(/\/$/, ''),
@@ -189,6 +193,9 @@ async function sendMail({ to, subject, html, text, replyTo, force = false, type 
       return { sent: false, reason: 'not_configured' };
     }
 
+    if (config.smtpUser.includes('@') && config.fromEmail.toLowerCase() !== config.smtpUser.toLowerCase()) {
+      console.warn(`[emailService] ⚠ From address (${config.fromEmail}) differs from SMTP user (${config.smtpUser}). Providers like Hostinger reject this with "553 Sender address rejected" unless the mailbox owns the alias.`);
+    }
     console.log(`[emailService] Sending via SMTP ${config.smtpHost}:${config.smtpPort} → to=${to}...`);
     const info = await transport.sendMail(mail);
     console.log(`[emailService] ✅ SENT via SMTP → to=${to} subject="${subject}" messageId=${info.messageId || 'n/a'} response=${info.response || 'n/a'}`);

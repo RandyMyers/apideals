@@ -17,6 +17,16 @@ exports.listCategoriesAdmin = async (req, res) => {
   }
 };
 
+exports.getCategoryAdmin = async (req, res) => {
+  try {
+    const category = await ForumCategory.findById(req.params.id).lean();
+    if (!category) return res.status(404).json({ success: false, message: 'Not found' });
+    return res.json({ success: true, category });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.createCategory = async (req, res) => {
   try {
     const { name, description, icon, order, metaTitle, metaDescription, languageTranslations } = req.body || {};
@@ -63,6 +73,19 @@ exports.deleteCategory = async (req, res) => {
     }
     await ForumCategory.findByIdAndDelete(req.params.id);
     return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getThreadAdmin = async (req, res) => {
+  try {
+    const thread = await ForumThread.findById(req.params.id)
+      .populate('categoryId', 'name slug')
+      .populate('authorId', 'username email')
+      .lean();
+    if (!thread) return res.status(404).json({ success: false, message: 'Not found' });
+    return res.json({ success: true, thread });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -198,7 +221,9 @@ exports.listPostsAdmin = async (req, res) => {
     const limit = Math.min(50, parseInt(req.query.limit, 10) || 20);
     const filter = { isDeleted: false };
     if (req.query.moderationStatus) filter.moderationStatus = req.query.moderationStatus;
-    if (req.query.isFirstPost === 'false') filter.isFirstPost = { $ne: true };
+    if (req.query.threadId) filter.threadId = req.query.threadId;
+    if (req.query.isFirstPost === 'true') filter.isFirstPost = true;
+    else if (req.query.isFirstPost === 'false') filter.isFirstPost = { $ne: true };
 
     const [posts, total] = await Promise.all([
       ForumPost.find(filter)
@@ -229,6 +254,7 @@ exports.updatePostAdmin = async (req, res) => {
     const updates = {};
     if (req.body.moderationStatus) updates.moderationStatus = req.body.moderationStatus;
     if (req.body.languageTranslations !== undefined) updates.languageTranslations = req.body.languageTranslations;
+    if (req.body.content !== undefined) updates.content = req.body.content;
     if (req.body.isDeleted !== undefined) {
       updates.isDeleted = !!req.body.isDeleted;
       if (updates.isDeleted) updates.content = '[removed by moderator]';

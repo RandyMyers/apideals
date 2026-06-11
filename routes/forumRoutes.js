@@ -30,11 +30,13 @@ router.get('/report-captcha', forumController.getReportCaptcha);
 router.post('/report', optionalAuthMiddleware, forumController.reportContent);
 
 router.get('/admin/categories', authMiddleware, adminMiddleware(adminRoles), forumAdminController.listCategoriesAdmin);
+router.get('/admin/categories/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.getCategoryAdmin);
 router.post('/admin/categories', authMiddleware, adminMiddleware(adminRoles), forumAdminController.createCategory);
 router.patch('/admin/categories/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.updateCategory);
 router.delete('/admin/categories/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.deleteCategory);
 
 router.get('/admin/threads', authMiddleware, adminMiddleware(adminRoles), forumAdminController.listThreadsAdmin);
+router.get('/admin/threads/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.getThreadAdmin);
 router.patch('/admin/threads/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.updateThreadAdmin);
 router.get('/admin/posts', authMiddleware, adminMiddleware(adminRoles), forumAdminController.listPostsAdmin);
 router.patch('/admin/posts/:id', authMiddleware, adminMiddleware(adminRoles), forumAdminController.updatePostAdmin);

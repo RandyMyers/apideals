@@ -39,18 +39,18 @@ const generateEmailVerificationToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-async function sendVerificationEmail(email, token, username) {
-  const result = await deliverVerificationEmail({ email, username, token });
+async function sendVerificationEmail(email, token, username, locale) {
+  const result = await deliverVerificationEmail({ email, username, token, locale });
   if (result.sent) {
-    logger.info('Verification email sent', { email, username });
+    logger.info('Verification email sent', { email, username, locale });
   }
   return result;
 }
 
-async function sendPasswordResetEmail(email, token, username, app = 'client') {
-  const result = await deliverPasswordResetEmail({ email, username, token, app });
+async function sendPasswordResetEmail(email, token, username, app = 'client', locale) {
+  const result = await deliverPasswordResetEmail({ email, username, token, app, locale });
   if (result.sent) {
-    logger.info('Password reset email sent', { email, username, app });
+    logger.info('Password reset email sent', { email, username, app, locale });
   }
   return result;
 }
@@ -175,7 +175,8 @@ exports.resendVerification = async (req, res) => {
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
-    await sendVerificationEmail(user.email, emailVerificationToken, user.username);
+    const locale = req.body.lang || req.body.locale;
+    await sendVerificationEmail(user.email, emailVerificationToken, user.username, locale);
 
     return res.json({ message: 'If an account exists, a verification email has been sent.' });
   } catch (error) {
@@ -412,7 +413,8 @@ exports.requestPasswordReset = async (req, res) => {
 
     // Send reset email
     try {
-      await sendPasswordResetEmail(email, resetToken, user.username, app === 'admin' ? 'admin' : 'client');
+      const locale = req.body.lang || req.body.locale;
+      await sendPasswordResetEmail(email, resetToken, user.username, app === 'admin' ? 'admin' : 'client', locale);
     } catch (emailError) {
       logger.warn('Password reset requested but email failed', { 
         userId: user._id, 

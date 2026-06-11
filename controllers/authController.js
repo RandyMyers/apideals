@@ -351,6 +351,7 @@ exports.register = async (req, res) => {
         email: newUser.email,
         username: newUser.username,
         token: emailVerificationToken,
+        locale: req.body.lang || req.body.locale,
       });
     } catch (emailErr) {
       console.error('Verification email failed:', emailErr.message);
@@ -364,6 +365,7 @@ exports.register = async (req, res) => {
       token,
       userId: newUser._id,
       username: newUser.username,
+      email: newUser.email,
       userType: newUser.userType,
       requiresVerification: true,
       isEmailVerified: false,
@@ -528,7 +530,9 @@ exports.login = async (req, res) => {
       token,
       userId: user._id,
       username: user.username,
+      email: user.email,
       userType: user.userType,
+      isEmailVerified: !!user.isEmailVerified,
       subscriptionId: activeSubscription ? activeSubscription._id : null, // Include active subscription ID
     });
   } catch (error) {
@@ -652,7 +656,8 @@ exports.verifyToken = async (req, res) => {
           id: user._id,
           username: user.username,
           email: user.email,
-          userType: user.userType
+          userType: user.userType,
+          isEmailVerified: !!user.isEmailVerified,
         }
       });
     } catch (jwtError) {

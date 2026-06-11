@@ -2,29 +2,25 @@ const express = require('express');
 const router = express.Router();
 const enhancedAuthController = require('../controllers/enhancedAuthController');
 const authMiddleware = require('../middleware/authMiddleware');
+const optionalAuthMiddleware = require('../middleware/optionalAuthMiddleware');
 const { validate } = require('../utils/validation');
 const { userValidation } = require('../utils/validation');
+const { emailAuthRateLimit } = require('../middleware/security');
 
-// Public routes
-router.post('/register', 
-  validate(userValidation.register),
-  enhancedAuthController.register
-);
-
-router.post('/login', 
-  validate(userValidation.login),
-  enhancedAuthController.login
-);
+// Public routes (register/login handled by authController — referral + subscription)
 
 router.post('/verify-email', 
   enhancedAuthController.verifyEmail
 );
 
 router.post('/resend-verification',
+  emailAuthRateLimit,
+  optionalAuthMiddleware,
   enhancedAuthController.resendVerification
 );
 
-router.post('/request-password-reset', 
+router.post('/request-password-reset',
+  emailAuthRateLimit,
   validate(userValidation.resetPassword),
   enhancedAuthController.requestPasswordReset
 );

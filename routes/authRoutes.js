@@ -16,12 +16,6 @@ router.post('/admin/register', authController.registerAdmin);
 
   router.post('/change/password', authController.changePassword); 
 
-// Password Reset Request route
-router.post('/password/reset/request', authController.passwordResetRequest);
-
-// Password Reset route
-router.post('/reset/password', authController.passwordReset);
-
 // Verify token route (no auth middleware needed - it verifies the token itself)
 router.get('/verify', authController.verifyToken);
 

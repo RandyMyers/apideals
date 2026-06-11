@@ -287,6 +287,67 @@ exports.adminUpdateUserPassword = async (req, res) => {
     }
 };
 
+// Admin: resend email verification
+exports.adminResendVerification = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const crypto = require('crypto');
+        const { sendVerificationEmail } = require('../services/emailService');
+
+        const user = await User.findById(id).select('+emailVerificationToken +emailVerificationExpires');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        if (user.isEmailVerified) {
+            return res.json({ message: 'Email is already verified.' });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        user.emailVerificationToken = token;
+        user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await user.save();
+
+        await sendVerificationEmail({ email: user.email, username: user.username, token });
+
+        return res.json({ message: 'Verification email sent.' });
+    } catch (error) {
+        console.error('adminResendVerification:', error);
+        return res.status(500).json({ message: error.message || 'Failed to send verification email' });
+    }
+};
+
+// Admin: mark email verified or unverified
+exports.adminSetEmailVerified = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isEmailVerified } = req.body;
+
+        if (typeof isEmailVerified !== 'boolean') {
+            return res.status(400).json({ message: 'isEmailVerified (boolean) is required' });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.isEmailVerified = isEmailVerified;
+        if (isEmailVerified) {
+            user.emailVerificationToken = undefined;
+            user.emailVerificationExpires = undefined;
+        }
+        await user.save();
+
+        return res.json({
+            message: isEmailVerified ? 'Email marked as verified.' : 'Email marked as unverified.',
+            isEmailVerified: user.isEmailVerified,
+        });
+    } catch (error) {
+        console.error('adminSetEmailVerified:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 // Add credits to a user's wallet
 exports.addCredits = async (req, res) => {
     try {

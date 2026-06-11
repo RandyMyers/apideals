@@ -37,6 +37,9 @@ router.post('/add-credits/:id', authMiddleware, adminMiddleware(['superAdmin', '
 // Route to update user password (admin only)
 router.patch('/admin/update-password/:id', authMiddleware, adminMiddleware(['superAdmin']), userController.adminUpdateUserPassword);
 
+router.post('/admin/resend-verification/:id', authMiddleware, adminMiddleware(['superAdmin', 'customerSupport']), userController.adminResendVerification);
+router.patch('/admin/email-verified/:id', authMiddleware, adminMiddleware(['superAdmin', 'customerSupport']), userController.adminSetEmailVerified);
+
 router.post('/follow/coupon', userController.followCoupon);
 router.post('/unfollow/coupon', userController.unfollowCoupon);
 router.post('/follow/deal', userController.followDeal);

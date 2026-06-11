@@ -7,6 +7,7 @@ const sgMail = require('@sendgrid/mail');
 const EmailSettings = require('../models/emailSettings');
 const { getCachedEmailSettings, invalidateEmailSettingsCache } = require('../utils/emailSettingsCache');
 const { logger } = require('../utils/logger');
+const { buildLocalizedClientUrl } = require('../utils/emailLinkLocale');
 
 let smtpTransporter = null;
 let smtpConfigKey = '';
@@ -195,9 +196,13 @@ function resetEmailHtml({ username, url }) {
   `;
 }
 
-async function sendVerificationEmail({ email, username, token }) {
+async function sendVerificationEmail({ email, username, token, locale }) {
   const config = await resolveConfig();
-  const url = `${config.clientUrl}/verify-email?token=${encodeURIComponent(token)}`;
+  const url = buildLocalizedClientUrl(
+    config.clientUrl,
+    `/verify-email?token=${encodeURIComponent(token)}`,
+    locale
+  );
   return sendMail({
     to: email,
     subject: 'Verify your DealCouponz account',
@@ -205,10 +210,13 @@ async function sendVerificationEmail({ email, username, token }) {
   });
 }
 
-async function sendPasswordResetEmail({ email, username, token, app = 'client' }) {
+async function sendPasswordResetEmail({ email, username, token, app = 'client', locale }) {
   const config = await resolveConfig();
   const base = app === 'admin' ? config.adminUrl : config.clientUrl;
-  const url = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+  const path = `/reset-password?token=${encodeURIComponent(token)}`;
+  const url = app === 'admin'
+    ? `${(base || '').replace(/\/$/, '')}${path}`
+    : buildLocalizedClientUrl(base, path, locale);
   return sendMail({
     to: email,
     subject: 'Reset your DealCouponz password',

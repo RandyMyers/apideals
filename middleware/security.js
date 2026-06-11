@@ -75,6 +75,13 @@ const strictRateLimit = createRateLimit(
   'Too many requests, please slow down'
 );
 
+// Email-triggering auth endpoints (verification resend, password reset)
+const emailAuthRateLimit = createRateLimit(
+  15 * 60 * 1000, // 15 minutes
+  5, // 5 emails per IP per window
+  'Too many email requests, please try again later'
+);
+
 // Higher rate limit for notification endpoints (frequent polling)
 const notificationRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
@@ -196,6 +203,7 @@ module.exports = {
   authRateLimit,
   generalRateLimit,
   strictRateLimit,
+  emailAuthRateLimit,
   notificationRateLimit,
   sanitizeData,
   preventParameterPollution,

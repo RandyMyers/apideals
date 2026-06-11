@@ -20,6 +20,10 @@ router.post('/verify-email',
   enhancedAuthController.verifyEmail
 );
 
+router.post('/resend-verification',
+  enhancedAuthController.resendVerification
+);
+
 router.post('/request-password-reset', 
   validate(userValidation.resetPassword),
   enhancedAuthController.requestPasswordReset

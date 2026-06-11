@@ -5,91 +5,17 @@ const User = require('../models/user');
 const RefreshToken = require('../models/refreshToken');
 const { logger, securityLogger } = require('../utils/logger');
 const { userValidation } = require('../utils/validation');
-const nodemailer = require('nodemailer');
-const sgMail = require('@sendgrid/mail');
+const {
+  sendVerificationEmail: deliverVerificationEmail,
+  sendPasswordResetEmail: deliverPasswordResetEmail,
+  isEmailConfigured,
+} = require('../services/emailService');
 
-// Initialize SendGrid if API key is provided
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-}
-
-// Email configuration - SendGrid SMTP via nodemailer
-// Supports both SendGrid API and SMTP methods
-const createEmailTransporter = () => {
-  // If SendGrid API key is provided and SMTP is not explicitly requested, use API
-  if (process.env.SENDGRID_API_KEY && !process.env.SENDGRID_USE_SMTP) {
-    // Use SendGrid API (more reliable, recommended)
-    return null; // We'll use SendGrid API directly via sendEmail helper
-  } else {
-    // Use SendGrid SMTP via nodemailer
-    if (!process.env.SENDGRID_API_KEY && !process.env.SENDGRID_SMTP_PASSWORD) {
-      logger.warn('SendGrid not configured. Emails will not be sent. Set SENDGRID_API_KEY in .env');
-      return null;
-    }
-    return nodemailer.createTransport({
-      host: process.env.SENDGRID_SMTP_HOST || 'smtp.sendgrid.net',
-      port: parseInt(process.env.SENDGRID_SMTP_PORT || '587'),
-      secure: false, // true for 465, false for other ports (587)
-      auth: {
-        user: process.env.SENDGRID_SMTP_USER || 'apikey', // SendGrid uses 'apikey' as username
-        pass: process.env.SENDGRID_API_KEY || process.env.SENDGRID_SMTP_PASSWORD // Your SendGrid API key
-      },
-      // Connection pool settings for better performance
-      pool: true,
-      maxConnections: 1,
-      maxMessages: 3
-    });
-  }
-};
-
-const emailTransporter = createEmailTransporter();
-
-// Helper function to send email (supports both SendGrid API and SMTP)
-const sendEmail = async (mailOptions) => {
-  // Use SendGrid API if configured and SMTP is not explicitly requested
-  if (process.env.SENDGRID_API_KEY && !process.env.SENDGRID_USE_SMTP && !emailTransporter) {
-    try {
-      await sgMail.send({
-        from: mailOptions.from,
-        to: mailOptions.to,
-        subject: mailOptions.subject,
-        html: mailOptions.html,
-        text: mailOptions.text || mailOptions.html.replace(/<[^>]*>/g, '') // Strip HTML for text version
-      });
-      return true;
-    } catch (error) {
-      logger.error('SendGrid API error', { 
-        error: error.message, 
-        code: error.code,
-        response: error.response?.body 
-      });
-      throw error;
-    }
-  } else {
-    // Use SMTP (nodemailer)
-    if (!emailTransporter) {
-      throw new Error('Email transporter not configured. Please set SENDGRID_API_KEY or SENDGRID_SMTP settings in .env file');
-    }
-    return await emailTransporter.sendMail(mailOptions);
-  }
-};
-
-// Verify email configuration on startup (only in development)
-if (process.env.NODE_ENV !== 'production' && process.env.VERIFY_EMAIL_CONFIG === 'true') {
-  if (emailTransporter) {
-    emailTransporter.verify((error, success) => {
-      if (error) {
-        logger.warn('Email transporter (SMTP) verification failed', { error: error.message });
-        logger.warn('Make sure SENDGRID_API_KEY or SENDGRID_SMTP settings are configured in your .env file');
-      } else {
-        logger.info('Email transporter (SendGrid SMTP) is ready to send emails');
-      }
-    });
-  } else if (process.env.SENDGRID_API_KEY) {
-    logger.info('SendGrid API is configured and ready to send emails');
-  } else {
-    logger.warn('SendGrid not configured. Set SENDGRID_API_KEY in .env file to enable email sending');
-  }
+if (process.env.VERIFY_EMAIL_CONFIG === 'true') {
+  isEmailConfigured().then((ok) => {
+    if (ok) logger.info('[auth] Email service is configured');
+    else logger.warn('[auth] Email not configured — set SMTP in admin or .env');
+  });
 }
 
 // Generate JWT tokens
@@ -113,99 +39,21 @@ const generateEmailVerificationToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-// Send verification email
-const sendVerificationEmail = async (email, token, username) => {
-  const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
-  
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || 'noreply@dealcouponz.com',
-    to: email,
-    subject: 'Verify Your DealCouponz Account',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Welcome to DealCouponz!</h2>
-        <p>Hi ${username},</p>
-        <p>Thank you for registering with DealCouponz. Please verify your email address to complete your registration.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" 
-             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-            Verify Email Address
-          </a>
-        </div>
-        <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
-        <p>This link will expire in 24 hours.</p>
-        <p>If you didn't create an account with DealCouponz, please ignore this email.</p>
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">
-          © 2024 DealCouponz. All rights reserved.
-        </p>
-      </div>
-    `
-  };
-
-  // Disable emails for local/dev if configured
-  if (process.env.DISABLE_EMAIL === 'true' || process.env.NODE_ENV !== 'production') {
-    logger.warn('Email sending disabled; skipping verification email', { email });
-    return;
-  }
-  try {
-    await sendEmail(mailOptions);
+async function sendVerificationEmail(email, token, username) {
+  const result = await deliverVerificationEmail({ email, username, token });
+  if (result.sent) {
     logger.info('Verification email sent', { email, username });
-  } catch (error) {
-    logger.error('Failed to send verification email', { error: error.message, email });
-    // Don't block registration in non-production when email fails
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Failed to send verification email');
-    }
   }
-};
+  return result;
+}
 
-// Send password reset email
-const sendPasswordResetEmail = async (email, token, username) => {
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
-  
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || 'noreply@dealcouponz.com',
-    to: email,
-    subject: 'Reset Your DealCouponz Password',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Password Reset Request</h2>
-        <p>Hi ${username},</p>
-        <p>We received a request to reset your password for your DealCouponz account.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" 
-             style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-            Reset Password
-          </a>
-        </div>
-        <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you didn't request a password reset, please ignore this email.</p>
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">
-          © 2024 DealCouponz. All rights reserved.
-        </p>
-      </div>
-    `
-  };
-
-  if (process.env.DISABLE_EMAIL === 'true' || process.env.NODE_ENV !== 'production') {
-    logger.warn('Email sending disabled; skipping password reset email', { email });
-    return;
+async function sendPasswordResetEmail(email, token, username, app = 'client') {
+  const result = await deliverPasswordResetEmail({ email, username, token, app });
+  if (result.sent) {
+    logger.info('Password reset email sent', { email, username, app });
   }
-  try {
-    await sendEmail(mailOptions);
-    logger.info('Password reset email sent', { email, username });
-  } catch (error) {
-    logger.error('Failed to send password reset email', { error: error.message, email });
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Failed to send password reset email');
-    }
-  }
-};
+  return result;
+}
 
 // Extract device info from request
 const extractDeviceInfo = (req) => {
@@ -303,6 +151,36 @@ exports.register = async (req, res) => {
       error: 'Registration failed',
       message: 'An error occurred during registration'
     });
+  }
+};
+
+// Resend verification email
+exports.resendVerification = async (req, res) => {
+  try {
+    const email = (req.body?.email || req.user?.email || '').toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email }).select('+emailVerificationToken +emailVerificationExpires');
+    if (!user) {
+      return res.json({ message: 'If an account exists, a verification email has been sent.' });
+    }
+    if (user.isEmailVerified) {
+      return res.json({ message: 'Email is already verified.' });
+    }
+
+    const emailVerificationToken = generateEmailVerificationToken();
+    user.emailVerificationToken = emailVerificationToken;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save();
+
+    await sendVerificationEmail(user.email, emailVerificationToken, user.username);
+
+    return res.json({ message: 'If an account exists, a verification email has been sent.' });
+  } catch (error) {
+    logger.error('Resend verification error', { error: error.message });
+    return res.status(500).json({ message: 'Could not resend verification email' });
   }
 };
 
@@ -514,7 +392,7 @@ exports.logout = async (req, res) => {
 // Request password reset
 exports.requestPasswordReset = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, app } = req.body;
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -534,7 +412,7 @@ exports.requestPasswordReset = async (req, res) => {
 
     // Send reset email
     try {
-      await sendPasswordResetEmail(email, resetToken, user.username);
+      await sendPasswordResetEmail(email, resetToken, user.username, app === 'admin' ? 'admin' : 'client');
     } catch (emailError) {
       logger.warn('Password reset requested but email failed', { 
         userId: user._id, 

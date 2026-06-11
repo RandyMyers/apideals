@@ -4,7 +4,9 @@ const SubscriptionPlan = require('../models/subscriptionPlan'); // Adjust the pa
 const bcrypt = require('bcryptjs'); // Use bcryptjs to match User model
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');  // For generating JWT tokens
+const crypto = require('crypto');
 const notificationService = require('../services/notificationService');
+const { sendVerificationEmail } = require('../services/emailService');
 
 dotenv.config();
 
@@ -263,6 +265,9 @@ exports.register = async (req, res) => {
        }
      }
 
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
     // Create a new user
     // Password will be automatically hashed by the User model pre-save hook
     const newUser = new User({
@@ -271,6 +276,9 @@ exports.register = async (req, res) => {
       password: password, // Pass plain password, pre-save hook will hash it
       referralCode,
       referredBy,
+      emailVerificationToken,
+      emailVerificationExpires,
+      isEmailVerified: false,
     });
 
     // Save user to the database
@@ -338,6 +346,16 @@ exports.register = async (req, res) => {
       // Don't fail registration if notification fails
     }
 
+    try {
+      await sendVerificationEmail({
+        email: newUser.email,
+        username: newUser.username,
+        token: emailVerificationToken,
+      });
+    } catch (emailErr) {
+      console.error('Verification email failed:', emailErr.message);
+    }
+
     // Generate JWT token
     const token = generateToken(newUser);
 
@@ -347,6 +365,8 @@ exports.register = async (req, res) => {
       userId: newUser._id,
       username: newUser.username,
       userType: newUser.userType,
+      requiresVerification: true,
+      isEmailVerified: false,
       subscriptionId: freeSubscription._id,
     });
   } catch (error) {

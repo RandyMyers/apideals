@@ -348,6 +348,7 @@ app.use('/api/v1', resolveTenant);
 // Using imported routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/auth', enhancedAuthRoutes); // Enhanced auth routes
+app.use('/api/v1/email-settings', require('./routes/emailSettingsRoutes'));
 app.use('/api/v1/blog', blogRoutes);
 app.use('/api/v1/policies', policiesRoutes);
 app.use('/api/v1/faq', require('./routes/faqRoutes'));

@@ -87,8 +87,8 @@ async function resolveConfig() {
     fromEmail: db.fromEmail || envStr('EMAIL_FROM') || smtpUserAsFrom || 'noreply@dealcouponz.com',
     fromName: db.fromName || envStr('EMAIL_FROM_NAME') || 'DealCouponz',
     replyTo: db.replyTo || envStr('EMAIL_REPLY_TO') || '',
-    clientUrl: (db.clientUrl || envStr('CLIENT_URL') || 'http://localhost:3000').replace(/\/$/, ''),
-    adminUrl: (db.adminUrl || envStr('ADMIN_URL') || envStr('CLIENT_URL') || 'http://localhost:3001').replace(/\/$/, ''),
+    clientUrl: (db.clientUrl || envStr('CLIENT_URL') || 'https://dealcouponz.com').replace(/\/$/, ''),
+    adminUrl: (db.adminUrl || envStr('ADMIN_URL') || 'https://admin.dealcouponz.com').replace(/\/$/, ''),
     verificationExpiryHours: db.verificationExpiryHours || 24,
     resetExpiryHours: db.resetExpiryHours || 1,
   };

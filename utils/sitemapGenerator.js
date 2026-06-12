@@ -12,15 +12,21 @@ const mongoose = require('mongoose');
 /**
  * Add hreflang links to a URL element
  */
-const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl, translatedLocales = null) => {
-  // When translatedLocales is provided, only emit alternates for the default language
-  // and locales that actually have real translations — avoids soft-404 hreflang clusters.
-  const emitLangs = translatedLocales
-    ? languages.filter((lang) => {
-        const code = lang.code || lang;
-        return code === defaultLang || translatedLocales.has(code) || translatedLocales.has(lang.locale);
-      })
-    : languages;
+const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl, translatedLocales) => {
+  // undefined → static/i18n pages: all enabled languages
+  // null → entity without locale content: default language only
+  // Set → entity with translations: default + translated locales
+  let emitLangs;
+  if (translatedLocales === undefined) {
+    emitLangs = languages;
+  } else if (translatedLocales === null) {
+    emitLangs = languages.filter((lang) => (lang.code || lang) === defaultLang);
+  } else {
+    emitLangs = languages.filter((lang) => {
+      const code = lang.code || lang;
+      return code === defaultLang || translatedLocales.has(code) || translatedLocales.has(lang.locale);
+    });
+  }
 
   emitLangs.forEach((lang) => {
     const link = urlElement.ele('xhtml:link');

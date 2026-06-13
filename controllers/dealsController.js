@@ -9,6 +9,8 @@ const Vote = require('../models/vote');
 const CouponUsage = require('../models/couponUsage');
 const cloudinary = require('cloudinary').v2;
 const { isCountryAvailable } = require('../utils/countryUtils');
+const { withSiteScope } = require('../utils/tenantQuery');
+const { buildDealLookupFilter } = require('../utils/slugResolver');
 const notificationService = require('../services/notificationService');
 
 const REFERRAL_DEAL_TYPES = ['referral_credits', 'referral_free_service', 'referral_bonus'];
@@ -647,9 +649,7 @@ exports.getDealById = async (req, res) => {
   const { id } = req.params;
   const { country } = req.query;
   try {
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    const findFilter = isObjectId ? { _id: id } : { slug: id };
-    if (req.siteId) findFilter.siteId = req.siteId;
+    const findFilter = buildDealLookupFilter(id, req.siteId);
     const deal = await Deal.findOne(findFilter)
       .populate('store', 'name website logo rating followers')
       .populate('categoryId', 'name slug')

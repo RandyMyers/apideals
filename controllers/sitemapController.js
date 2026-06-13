@@ -37,12 +37,27 @@ const models = {
   ForumThread,
 };
 
+async function resolveSitemapBaseUrl() {
+  if (process.env.CLIENT_URL) {
+    return process.env.CLIENT_URL.replace(/\/$/, '');
+  }
+  try {
+    const settings = await SEOSettings.getSettings();
+    if (settings?.siteUrl) {
+      return settings.siteUrl.replace(/\/$/, '');
+    }
+  } catch (dbError) {
+    console.warn('Could not load SEO settings for sitemap base URL');
+  }
+  return 'https://dealcouponz.com';
+}
+
 /**
  * Get XML sitemap
  */
 exports.getSitemap = async (req, res) => {
   try {
-    const baseUrl = process.env.CLIENT_URL || req.protocol + '://' + req.get('host');
+    const baseUrl = await resolveSitemapBaseUrl();
     
     // Check if sitemap is enabled
     let sitemapEnabled = true;
@@ -73,8 +88,8 @@ exports.getSitemap = async (req, res) => {
       const settings = await SearchConsoleSettings.getActiveSettings();
       
       if (settings && settings.isAuthenticated() && settings.autoSubmitSitemap) {
-        const siteUrl = process.env.CLIENT_URL || baseUrl;
-        const sitemapUrl = `${baseUrl}/sitemap.xml`;
+        const siteUrl = await resolveSitemapBaseUrl();
+        const sitemapUrl = `${siteUrl}/sitemap.xml`;
         
         // Submit asynchronously (don't block response)
         searchConsoleService.autoSubmitSitemap(siteUrl, sitemapUrl).catch(err => {
@@ -102,7 +117,7 @@ exports.getSitemap = async (req, res) => {
  */
 exports.getSitemapIndex = async (req, res) => {
   try {
-    const baseUrl = process.env.CLIENT_URL || req.protocol + '://' + req.get('host');
+    const baseUrl = await resolveSitemapBaseUrl();
 
     // Get sitemap settings
     let sitemapSettings = {
@@ -155,7 +170,7 @@ exports.getSitemapIndex = async (req, res) => {
  */
 exports.getImageSitemap = async (req, res) => {
   try {
-    const baseUrl = process.env.CLIENT_URL || req.protocol + '://' + req.get('host');
+    const baseUrl = await resolveSitemapBaseUrl();
     
     let maxItems = 10000;
     try {
@@ -217,7 +232,7 @@ exports.getSitemapSlugs = async (req, res) => {
  */
 exports.getNewsSitemap = async (req, res) => {
   try {
-    const baseUrl = process.env.CLIENT_URL || req.protocol + '://' + req.get('host');
+    const baseUrl = await resolveSitemapBaseUrl();
 
     const sitemap = await generateNewsSitemap(models, baseUrl);
 

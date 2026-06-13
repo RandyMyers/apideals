@@ -6,87 +6,11 @@ const mongoose = require('mongoose');
 const cloudinary = require('cloudinary').v2;
 const { generateSlug } = require('../utils/seoUtils');
 const { withSiteScope } = require('../utils/tenantQuery');
-
-function buildPublishedOfferFilter(siteId) {
-  const base = { isPublished: true, isActive: true };
-  if (!siteId) return base;
-  return {
-    ...base,
-    $or: [
-      { siteId },
-      { siteId: { $exists: false } },
-      { siteId: null },
-    ],
-  };
-}
-
-/**
- * Category IDs that have at least one published offer or an active store with published offers.
- */
-async function getCategoryIdsWithPublicContent(siteId) {
-  const offerFilter = buildPublishedOfferFilter(siteId);
-
-  const [couponCategoryIds, dealCategoryIds, couponStoreIds, dealStoreIds] = await Promise.all([
-    Coupon.distinct(
-      'categoryId',
-      withSiteScope(
-        { ...offerFilter, categoryId: { $exists: true, $ne: null } },
-        siteId
-      )
-    ),
-    Deal.distinct(
-      'categoryId',
-      withSiteScope(
-        { ...offerFilter, categoryId: { $exists: true, $ne: null } },
-        siteId
-      )
-    ),
-    Coupon.distinct(
-      'storeId',
-      withSiteScope(
-        { ...offerFilter, storeId: { $exists: true, $ne: null } },
-        siteId
-      )
-    ),
-    Deal.distinct(
-      'store',
-      withSiteScope(
-        { ...offerFilter, store: { $exists: true, $ne: null } },
-        siteId
-      )
-    ),
-  ]);
-
-  const storeIdSet = new Set(
-    [...couponStoreIds, ...dealStoreIds]
-      .filter(Boolean)
-      .map((id) => String(id))
-  );
-
-  let storeCategoryIds = [];
-  if (storeIdSet.size > 0) {
-    const storeObjectIds = [...storeIdSet]
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id));
-    storeCategoryIds = await Store.distinct(
-      'categoryId',
-      withSiteScope(
-        {
-          _id: { $in: storeObjectIds },
-          isActive: true,
-          categoryId: { $exists: true, $ne: null },
-        },
-        siteId
-      )
-    );
-  }
-
-  const ids = new Set();
-  [...couponCategoryIds, ...dealCategoryIds, ...storeCategoryIds]
-    .filter(Boolean)
-    .forEach((id) => ids.add(String(id)));
-  return ids;
-}
+const {
+  getCategoryIdsWithPublicContent,
+  findCategoryBySlug,
+  buildPublishedOfferFilter,
+} = require('../utils/categoryPublicContent');
 
 // Helper: ensure slug uniqueness for a category
 async function uniqueCategorySlug(base, excludeId = null) {
@@ -472,10 +396,7 @@ exports.getCategoryDetail = async (req, res) => {
     const { slug } = req.params;
     const { type = 'all' } = req.query;
 
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(slug);
-    const category = isObjectId
-      ? await Category.findById(slug).lean()
-      : await Category.findOne({ slug }).lean();
+    const category = await findCategoryBySlug(slug);
 
     if (!category) {
       return res.status(404).json({ message: 'Category not found' });

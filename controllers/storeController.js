@@ -692,13 +692,19 @@ exports.getStoreById = async (req, res) => {
 
         const adminView = isAdminPanelUser(req.user);
 
-        if (!adminView && store.isActive === false) {
-            return res.status(404).json({ message: 'Store not found' });
-        }
-
         const offers = await loadStoreOffers(store._id, req.siteId, offerSelect, {
             includeUnpublished: adminView,
         });
+
+        if (!adminView && store.isActive === false) {
+            const hasPublicOffers =
+                (offers.coupons && offers.coupons.length > 0) ||
+                (offers.deals && offers.deals.length > 0);
+            if (!hasPublicOffers) {
+                return res.status(404).json({ message: 'Store not found' });
+            }
+        }
+
         store.coupons = offers.coupons;
         store.deals = offers.deals;
 

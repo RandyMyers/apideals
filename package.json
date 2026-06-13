@@ -39,6 +39,9 @@
     "sync:exchange-rates": "node scripts/syncExchangeRatesOnce.js",
     "audit:stores": "node scripts/auditAllStores.js",
     "audit:stores:verbose": "node scripts/auditAllStores.js --verbose",
+    "audit:stores-seo": "node scripts/auditStoresSeo.js",
+    "audit:stores-seo:json": "node scripts/auditStoresSeo.js --json",
+    "audit:stores-seo:trip": "node scripts/auditStoresSeo.js --store trip",
     "migrate:store-content": "node scripts/migrateStoreContentToPageContent.js --dry-run",
     "migrate:store-content:apply": "node scripts/migrateStoreContentToPageContent.js --apply --only-empty",
     "report:couponfollow-keywords": "node scripts/matchCouponfollowKeywords.js"

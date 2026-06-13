@@ -10,6 +10,7 @@ const Vote = require('../models/vote');
 const CouponUsage = require('../models/couponUsage');
 const cloudinary = require('cloudinary').v2;
 const { isCountryAvailable } = require('../utils/countryUtils');
+const { buildCouponLookupFilter } = require('../utils/slugResolver');
 const notificationService = require('../services/notificationService');
 const { pingIndexNow } = require('../utils/indexNow');
 
@@ -554,9 +555,7 @@ exports.getCouponById = async (req, res) => {
   if (!id) return res.status(400).json({ message: 'Coupon ID or slug is required' });
 
   try {
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    const baseFilter = isObjectId ? { _id: id } : { $or: [{ slug: id }, { seoSlug: id }] };
-    const findFilter = withSiteScope(baseFilter, req.siteId);
+    const findFilter = buildCouponLookupFilter(id, req.siteId);
     const coupon = await Coupon.findOne(findFilter)
       .populate({
         path: 'affiliateId',

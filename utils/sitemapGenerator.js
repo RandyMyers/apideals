@@ -7,6 +7,7 @@ const xmlbuilder = require('xmlbuilder');
 const LanguageSettings = require('../models/languageSettings');
 const { generateLanguageUrl } = require('./languagePathUtils');
 const { loadStoreOfferCountMaps } = require('./storeOfferCounts');
+const { getCategoryIdsWithPublicContent } = require('./categoryPublicContent');
 const mongoose = require('mongoose');
 
 /**
@@ -219,9 +220,19 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
       });
     }
 
-    // Dynamic pages - Categories (no isActive field on Category model — fetch all)
+    // Dynamic pages - Categories (only those with published offers — avoids empty soft-404 URLs in sitemap)
     if (models.Category && include('includeCategories')) {
-      const categories = await models.Category.find({})
+      const categoryIdsWithContent = await getCategoryIdsWithPublicContent(null);
+      const categoryObjectIds = [...categoryIdsWithContent]
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+      const categoryQuery =
+        categoryObjectIds.length > 0
+          ? { _id: { $in: categoryObjectIds } }
+          : { _id: { $in: [] } };
+
+      const categories = await models.Category.find(categoryQuery)
         .select('slug seoSlug updatedAt contentUpdatedAt languageTranslations')
         .limit(Math.min(maxItems, 1000))
         .lean();

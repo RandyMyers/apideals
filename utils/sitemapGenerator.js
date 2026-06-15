@@ -8,13 +8,14 @@ const LanguageSettings = require('../models/languageSettings');
 const { generateLanguageUrl } = require('./languagePathUtils');
 const { loadStoreOfferCountMaps } = require('./storeOfferCounts');
 const { getCategoryIdsWithPublicContent } = require('./categoryPublicContent');
+const { getContentReadyLocales, setContentReadyLocales } = require('./contentReadyLocales');
 const mongoose = require('mongoose');
 
 /**
  * Add hreflang links to a URL element
  */
 const addHreflangLinks = (urlElement, path, languages, defaultLang, baseUrl, translatedLocales) => {
-  // undefined → static/i18n pages: all enabled languages
+  // undefined → content-ready locales only (static/list pages)
   // null → entity without locale content: default language only
   // Set → entity with translations: default + translated locales
   let emitLangs;
@@ -51,6 +52,18 @@ const translatedLocaleSet = (entity) => {
   return keys.length > 0 ? new Set(keys) : null;
 };
 
+const blogTranslatedLocaleSet = (blog) => {
+  const keys = new Set();
+  for (const field of ['titleTranslations', 'contentTranslations', 'excerptTranslations']) {
+    const map = blog && blog[field];
+    if (!map || typeof map !== 'object') continue;
+    Object.keys(map).forEach((k) => {
+      if (map[k] && String(map[k]).trim()) keys.add(k);
+    });
+  }
+  return keys.size > 0 ? keys : null;
+};
+
 // Prefer the most meaningful "last modified" timestamp.
 const pickLastmod = (entity) => {
   const ts = entity.contentUpdatedAt || entity.updatedAt;
@@ -69,9 +82,14 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
   let languages = [];
   let defaultLang = 'en';
   let hreflangEnabled = false;
+  let contentReadyLocales = getContentReadyLocales();
   
   try {
     const langSettings = await LanguageSettings.getSettings();
+    if (langSettings?.contentReadyLocales?.length) {
+      contentReadyLocales = langSettings.contentReadyLocales;
+      setContentReadyLocales(contentReadyLocales);
+    }
     if (langSettings && langSettings.hreflangEnabled) {
       languages = langSettings.enabledLanguages.filter(lang => lang.isActive);
       defaultLang = langSettings.defaultLanguage || 'en';
@@ -80,6 +98,12 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
   } catch (error) {
     console.warn('Could not load language settings for sitemap, continuing without hreflang:', error.message);
   }
+
+  const contentReadySet = new Set(contentReadyLocales);
+  const staticHreflangLocales = languages.filter((lang) => {
+    const code = lang.code || lang;
+    return contentReadySet.has(code) || contentReadySet.has(String(code).split('-')[0]);
+  });
 
   const root = xmlbuilder.create('urlset', {
     version: '1.0',
@@ -119,8 +143,8 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
     url.ele('priority', page.priority);
     
     // Add hreflang links if enabled
-    if (hreflangEnabled && languages.length > 0) {
-      addHreflangLinks(url, page.path, languages, defaultLang, baseUrl);
+    if (hreflangEnabled && staticHreflangLocales.length > 0) {
+      addHreflangLinks(url, page.path, staticHreflangLocales, defaultLang, baseUrl, contentReadySet);
     }
   });
 
@@ -362,7 +386,7 @@ const generateSitemap = async (models, baseUrl = 'https://dealcouponz.com', opti
         url.ele('priority', '0.7');
 
         if (hreflangEnabled && languages.length > 0) {
-          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(blog));
+          addHreflangLinks(url, path, languages, defaultLang, baseUrl, translatedLocaleSet(blog) || contentReadySet);
         }
       });
     }

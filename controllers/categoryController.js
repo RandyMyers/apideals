@@ -59,7 +59,7 @@ exports.createCategory = async (req, res) => {
     const slug = await uniqueCategorySlug(name);
 
     // SEO fields (optional)
-    const { seoSlug, seoTitle, seoDescription, h1, intro } = req.body;
+    const { seoSlug, seoTitle, seoDescription, h1, intro, pageContent } = req.body;
     let seoKeywords = [];
     if (req.body.seoKeywords) {
       try {
@@ -93,6 +93,7 @@ exports.createCategory = async (req, res) => {
       seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
       h1: h1 || undefined,
       intro: intro || undefined,
+      pageContent: pageContent || undefined,
       faqs: faqs.length > 0 ? faqs : undefined,
     });
 
@@ -221,6 +222,7 @@ exports.updateCategory = async (req, res) => {
     if (req.body.seoDescription !== undefined) updateData.seoDescription = req.body.seoDescription;
     if (req.body.h1 !== undefined) updateData.h1 = req.body.h1;
     if (req.body.intro !== undefined) updateData.intro = req.body.intro;
+    if (req.body.pageContent !== undefined) updateData.pageContent = req.body.pageContent;
     if (req.body.seoKeywords !== undefined) {
       try {
         updateData.seoKeywords = typeof req.body.seoKeywords === 'string'

@@ -71,6 +71,12 @@ const languageSettingsSchema = new mongoose.Schema({
     default: 'en',
   },
 
+  /** Locales with seeded dynamic DB content — safe for hreflang / switcher */
+  contentReadyLocales: {
+    type: [String],
+    default: ['en'],
+  },
+
   // Translation settings
   autoTranslate: {
     type: Boolean,

@@ -54,6 +54,8 @@ const CategorySchema = new Schema({
   seoKeywords: [{ type: String, trim: true }],
   h1: { type: String, trim: true },
   intro: { type: String, trim: true },
+  /** Long-form HTML below the offers grid (600–800 word SEO guide, FAQs, tips). */
+  pageContent: { type: String, trim: false },
   faqs: [{
     question: { type: String, required: true, trim: true },
     answer: { type: String, required: true, trim: true },
@@ -80,7 +82,7 @@ const CategorySchema = new Schema({
 
 CategorySchema.pre('save', function (next) {
   this.updatedAt = Date.now();
-  const contentPaths = ['name', 'description', 'h1', 'intro', 'faqs', 'seoTitle', 'seoDescription'];
+  const contentPaths = ['name', 'description', 'h1', 'intro', 'pageContent', 'faqs', 'seoTitle', 'seoDescription'];
   if (this.isNew || contentPaths.some((p) => this.isModified(p))) {
     this.contentUpdatedAt = new Date();
   }

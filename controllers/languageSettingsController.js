@@ -20,6 +20,9 @@ exports.getLanguageSettings = async (req, res) => {
       urlStructure: settings.urlStructure,
       hreflangEnabled: settings.hreflangEnabled,
       xDefaultLanguage: settings.xDefaultLanguage,
+      contentReadyLocales: settings.contentReadyLocales?.length
+        ? settings.contentReadyLocales
+        : ['en'],
     };
 
     res.json({
@@ -51,6 +54,7 @@ exports.updateLanguageSettings = async (req, res) => {
       urlStructure,
       hreflangEnabled,
       xDefaultLanguage,
+      contentReadyLocales,
       autoTranslate,
       translationProvider,
       translationApiKey,
@@ -64,6 +68,9 @@ exports.updateLanguageSettings = async (req, res) => {
     if (urlStructure) settings.urlStructure = urlStructure;
     if (hreflangEnabled !== undefined) settings.hreflangEnabled = hreflangEnabled;
     if (xDefaultLanguage) settings.xDefaultLanguage = xDefaultLanguage;
+    if (Array.isArray(contentReadyLocales) && contentReadyLocales.length) {
+      settings.contentReadyLocales = contentReadyLocales;
+    }
     if (autoTranslate !== undefined) settings.autoTranslate = autoTranslate;
     if (translationProvider) settings.translationProvider = translationProvider;
     if (translationApiKey !== undefined) settings.translationApiKey = translationApiKey;

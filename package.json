@@ -48,7 +48,7 @@
     "seed:store-translations": "node scripts/seedStoreManualTranslations.js",
     "seed:store-translations:apply": "node scripts/seedStoreManualTranslations.js --apply",
     "seed:entity-translations": "node scripts/seedDynamicEntityTranslations.js",
-    "seed:entity-translations:apply": "node scripts/seedDynamicEntityTranslations.js --apply",
+    "seed:entity-translations:apply": "node scripts/seedDynamicEntityTranslations.js --apply"
   },
   "author": "",
   "license": "ISC",

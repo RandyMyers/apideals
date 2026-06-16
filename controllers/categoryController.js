@@ -12,6 +12,17 @@ const {
   buildPublishedOfferFilter,
 } = require('../utils/categoryPublicContent');
 
+function parseJsonField(raw, label) {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn(`[categoryController] Could not parse ${label}:`, e.message);
+    return undefined;
+  }
+}
+
 // Helper: ensure slug uniqueness for a category
 async function uniqueCategorySlug(base, excludeId = null) {
   let slug = generateSlug(base);
@@ -79,6 +90,7 @@ exports.createCategory = async (req, res) => {
         console.warn('[categoryController] Could not parse faqs:', e.message);
       }
     }
+    const languageTranslations = parseJsonField(req.body.languageTranslations, 'languageTranslations');
 
     const newCategory = new Category({
       name: name.trim(),
@@ -95,6 +107,10 @@ exports.createCategory = async (req, res) => {
       intro: intro || undefined,
       pageContent: pageContent || undefined,
       faqs: faqs.length > 0 ? faqs : undefined,
+      languageTranslations:
+        languageTranslations && typeof languageTranslations === 'object'
+          ? languageTranslations
+          : undefined,
     });
 
     await newCategory.save();
@@ -240,7 +256,11 @@ exports.updateCategory = async (req, res) => {
         console.warn('[categoryController] Could not parse faqs:', e.message);
       }
     }
-    updateData.contentUpdatedAt = Date.now();
+    const languageTranslations = parseJsonField(req.body.languageTranslations, 'languageTranslations');
+    if (languageTranslations && typeof languageTranslations === 'object') {
+      updateData.languageTranslations = languageTranslations;
+    }
+    updateData.contentUpdatedAt = new Date();
 
     // Handle new image upload
     if (req.files && req.files.image) {

@@ -1,0 +1,92 @@
+{
+  "da": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "de": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "de-AT": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "en": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "en-AU": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "en-GB": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "es": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "es-MX": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "fi": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "fr": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "ga": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "it": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "ja": {
+    "hasFile": true,
+    "pages": ["about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "ko": {
+    "hasFile": true,
+    "pages": ["about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "nl": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "no": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "pt": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  },
+  "sv": {
+    "hasFile": true,
+    "pages": ["faq", "help", "contact", "feedback", "about", "privacy", "terms"],
+    "hasHome": true
+  }
+}

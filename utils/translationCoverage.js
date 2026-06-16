@@ -49,6 +49,31 @@ function hasBlogTranslation(entity, locale) {
   );
 }
 
+/** Stricter rule for locale redirects / hreflang: require body content or full title+excerpt+meta. */
+function hasBlogTranslationForRedirect(entity, locale) {
+  const content = entity?.contentTranslations?.[locale];
+  if (content && String(content).trim()) return true;
+  const title = entity?.titleTranslations?.[locale];
+  const excerpt = entity?.excerptTranslations?.[locale];
+  const meta = entity?.metaDescriptionTranslations?.[locale];
+  return Boolean(
+    title && String(title).trim()
+    && excerpt && String(excerpt).trim()
+    && meta && String(meta).trim()
+  );
+}
+
+function listBlogTranslationLocales(entity) {
+  if (!entity) return [];
+  const keys = new Set([
+    ...Object.keys(entity.titleTranslations || {}),
+    ...Object.keys(entity.contentTranslations || {}),
+    ...Object.keys(entity.excerptTranslations || {}),
+    ...Object.keys(entity.metaDescriptionTranslations || {}),
+  ]);
+  return [...keys].filter((loc) => hasBlogTranslationForRedirect(entity, loc));
+}
+
 function listEntityTranslationLocales(entity, type = 'store') {
   if (!entity) return [];
   if (type === 'blog') {
@@ -75,5 +100,7 @@ module.exports = {
   hasOfferTranslation,
   hasCategoryTranslation,
   hasBlogTranslation,
+  hasBlogTranslationForRedirect,
+  listBlogTranslationLocales,
   listEntityTranslationLocales,
 };

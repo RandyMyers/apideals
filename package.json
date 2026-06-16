@@ -45,6 +45,7 @@
     "migrate:store-content": "node scripts/migrateStoreContentToPageContent.js --dry-run",
     "migrate:store-content:apply": "node scripts/migrateStoreContentToPageContent.js --apply --only-empty",
     "audit:translations": "node scripts/auditTranslationCoverage.js",
+    "audit:missing-translations": "node scripts/auditMissingTranslations.js",
     "seed:store-translations": "node scripts/seedStoreManualTranslations.js",
     "seed:store-translations:apply": "node scripts/seedStoreManualTranslations.js --apply",
     "seed:entity-translations": "node scripts/seedDynamicEntityTranslations.js",

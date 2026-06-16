@@ -8,6 +8,10 @@ const { withSiteScope } = require('./tenantQuery');
 
 const PUBLISHED_OFFER = { isPublished: true, isActive: true };
 
+/** Listing route segments — must not be treated as entity detail slugs. */
+const RESERVED_STORE_SLUGS = new Set(['all']);
+const RESERVED_CATEGORY_SLUGS = new Set(['all']);
+
 function langPrefixFromPath(pathname = '') {
   const segments = String(pathname).toLowerCase().split('/').filter(Boolean);
   if (segments.length > 0 && URL_CODES.has(segments[0])) {
@@ -25,13 +29,17 @@ function withLangPrefix(originalPath, targetPath) {
 function parseDetailPath(path) {
   const normalized = stripLanguagePrefix(path).replace(/\/+$/, '') || '/';
   const store = normalized.match(/^\/stores\/([^/]+)$/i);
-  if (store) return { type: 'store', slug: store[1], listPath: '/stores' };
+  if (store && !RESERVED_STORE_SLUGS.has(String(store[1]).toLowerCase())) {
+    return { type: 'store', slug: store[1], listPath: '/stores/all' };
+  }
   const coupon = normalized.match(/^\/coupon\/([^/]+)$/i);
   if (coupon) return { type: 'coupon', slug: coupon[1], listPath: '/coupons/all' };
   const deal = normalized.match(/^\/deal\/([^/]+)$/i);
   if (deal) return { type: 'deal', slug: deal[1], listPath: '/deals/all' };
   const category = normalized.match(/^\/categories\/([^/]+)$/i);
-  if (category) return { type: 'category', slug: category[1], listPath: '/categories/all' };
+  if (category && !RESERVED_CATEGORY_SLUGS.has(String(category[1]).toLowerCase())) {
+    return { type: 'category', slug: category[1], listPath: '/categories/all' };
+  }
   return null;
 }
 

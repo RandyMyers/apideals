@@ -49,6 +49,18 @@ async function lookupRedirect(path) {
 exports.resolveRedirect = async (req, res) => {
   try {
     const raw = req.query.path || req.path || '';
+    const neutral = stripLanguagePrefix(String(raw)).replace(/\/+$/, '') || '/';
+    const listingPaths = new Set([
+      '/stores',
+      '/stores/all',
+      '/coupons/all',
+      '/deals/all',
+      '/categories/all',
+    ]);
+    if (listingPaths.has(neutral)) {
+      return res.json({ found: false });
+    }
+
     const candidates = [
       raw,
       stripLanguagePrefix(raw),

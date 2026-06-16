@@ -415,6 +415,7 @@ app.use('/api/v1/exchange-rates', require('./routes/exchangeRateRoutes'));
 app.use('/api/v1/api-keys', apiKeyRoutes); // API Keys (admin only - create/list/revoke)
 app.use('/api/v1', require('./routes/catalogRoutes')); // Agent catalog feed (public, /api/v1/catalog.json)
 app.use('/api/v1', require('./routes/urlRedirectRoutes')); // URL Redirect routes (admin endpoints)
+app.use('/api/v1', require('./routes/localeRedirectRoutes')); // Locale redirect-check (public)
 
 // URL Redirect Middleware - Check for redirects before serving React app
 // This must be AFTER API routes but BEFORE the React app catch-all

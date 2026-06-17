@@ -33,6 +33,7 @@ const {
   preventParameterPollution, 
   compressResponse, 
   corsOptions, 
+  applyCorsHeaders,
   requestSizeLimit,
   adminIPWhitelist 
 } = require('./middleware/security');
@@ -252,10 +253,11 @@ async function withDbConnection(operation, retries = 2) {
 if (isServerless) {
   logger.info('Serverless mode — MongoDB will connect on first request');
 } else {
-  // Traditional server: connect eagerly at startup
+  // Traditional server: connect eagerly at startup — do not exit if DB is temporarily down
   connectToDatabase().catch((error) => {
-    logger.error('Failed to connect to MongoDB at startup', { error: error.message });
-    process.exit(1);
+    logger.error('Failed to connect to MongoDB at startup — server stays up; /health OK, API returns 503', {
+      error: error.message,
+    });
   });
 }
 
@@ -265,6 +267,7 @@ app.set('trust proxy', 1);
 // CORS must run before middleware that can end the response (e.g. 413 body limit),
 // otherwise browsers report a misleading "CORS" error with no Allow-Origin header.
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Security middleware (order matters!)
 app.use(securityHeaders);
@@ -324,6 +327,10 @@ app.use('/api/v1', generalRateLimit);
 
 // ─── DB connection middleware (serverless: connect before every API request) ──
 app.use(async (req, res, next) => {
+  // Preflight must not hit DB or rate limits — cors handles OPTIONS above
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
   // Skip the health-check — it must respond even when DB is down
   if (req.path === '/health' || req.path === '/robots.txt' || req.path.startsWith('/sitemap')) {
     return next();
@@ -333,6 +340,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (error) {
     logger.error('DB connection middleware error', { error: error.message });
+    applyCorsHeaders(req, res);
     return res.status(503).json({
       error: 'Database Unavailable',
       message: 'Service temporarily unavailable. Please try again shortly.',
@@ -437,6 +445,7 @@ app.use(errorLogger);
 
 // 404 handler
 app.use('*', (req, res) => {
+  applyCorsHeaders(req, res);
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.originalUrl} not found`,
@@ -446,6 +455,7 @@ app.use('*', (req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
+  applyCorsHeaders(req, res);
   logger.error('Unhandled error', {
     error: err.message,
     stack: err.stack,

@@ -27,11 +27,74 @@ const securityHeaders = helmet({
   }
 });
 
+// ─── CORS helpers ─────────────────────────────────────────────────────────────
+const CORS_ALLOWED_HEADERS = [
+  'Origin',
+  'X-Requested-With',
+  'Content-Type',
+  'Accept',
+  'Authorization',
+  'Cache-Control',
+  'Pragma',
+];
+
+const STATIC_CORS_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'https://dealcouponz.com',
+  'https://www.dealcouponz.com',
+  'https://admin.dealcouponz.com',
+  'https://honeydew-hamster-965094.hostingersite.com',
+  'https://joyful-kitsune-4ff266.netlify.app',
+];
+
+const CORS_ORIGIN_PATTERNS = [
+  /^https:\/\/[\w-]+\.netlify\.app$/,
+  /^https:\/\/[\w-]+\.hostingersite\.com$/,
+  /^https:\/\/([\w-]+\.)?dealcouponz\.com$/,
+];
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+
+  if (process.env.NODE_ENV !== 'production') {
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return true;
+    }
+  }
+
+  const envOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const envUrls = [process.env.CLIENT_URL, process.env.ADMIN_URL].filter(Boolean);
+
+  const allowedOrigins = [...STATIC_CORS_ORIGINS, ...envOrigins, ...envUrls];
+
+  if (allowedOrigins.includes(origin)) return true;
+  return CORS_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
+}
+
+/** Ensure error/early-exit responses still carry CORS headers (browser otherwise reports "CORS error"). */
+function applyCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (!origin || !isAllowedCorsOrigin(origin)) return;
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS.join(','));
+  res.setHeader('Vary', 'Origin');
+}
+
 // Rate limiting middleware
 const createRateLimit = (windowMs, max, message) => {
   return rateLimit({
     windowMs,
     max,
+    skip: (req) => req.method === 'OPTIONS',
     message: {
       error: 'Too many requests',
       message,
@@ -40,6 +103,7 @@ const createRateLimit = (windowMs, max, message) => {
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {
+      applyCorsHeaders(req, res);
       res.status(429).json({
         error: 'Too many requests',
         message,
@@ -112,54 +176,20 @@ const compressResponse = compression({
   }
 });
 
-// CORS configuration
+// CORS configuration — never pass Error to callback (strips CORS headers on preflight)
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    // In development, allow all localhost ports
-    if (process.env.NODE_ENV !== 'production') {
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-        return callback(null, true);
-      }
-    }
-    
-    const envOrigins = (process.env.CORS_ORIGINS || '')
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean);
-
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'https://dealcouponz.com',
-      'https://www.dealcouponz.com',
-      'https://admin.dealcouponz.com',
-      'https://honeydew-hamster-965094.hostingersite.com',
-      'https://joyful-kitsune-4ff266.netlify.app',
-      ...envOrigins,
-    ];
-    
-    if (allowedOrigins.includes(origin)) {
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false);
     }
   },
   credentials: true,
+  optionsSuccessStatus: 204,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'Cache-Control',
-    'Pragma'
-  ],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count']
+  allowedHeaders: CORS_ALLOWED_HEADERS,
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 
 // Request size limiter
@@ -169,6 +199,7 @@ const requestSizeLimit = (req, res, next) => {
   const maxSize = 25 * 1024 * 1024; // 25MB
 
   if (contentLength > maxSize) {
+    applyCorsHeaders(req, res);
     return res.status(413).json({
       error: 'Request entity too large',
       message: 'Request size exceeds limit. Try uploading gallery images one at a time or use smaller files.',
@@ -191,6 +222,7 @@ const adminIPWhitelist = (req, res, next) => {
   if (adminIPs.includes(clientIP)) {
     next();
   } else {
+    applyCorsHeaders(req, res);
     res.status(403).json({
       error: 'Access denied',
       message: 'Admin access restricted to whitelisted IPs'
@@ -209,6 +241,8 @@ module.exports = {
   preventParameterPollution,
   compressResponse,
   corsOptions,
+  applyCorsHeaders,
+  isAllowedCorsOrigin,
   requestSizeLimit,
   adminIPWhitelist
 };

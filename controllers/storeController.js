@@ -16,6 +16,11 @@ const {
     loadStoreOfferCountMaps,
     attachOfferCountsToStores,
 } = require('../utils/storeOfferCounts');
+const {
+    canManageAffiliates,
+    stripAffiliateFromStore,
+    stripAffiliateFromStores,
+} = require('../utils/adminPermissions');
 
 /** Offers are linked on Coupon/Deal docs (storeId / store), not only Store.coupons/deals arrays. */
 function buildPublishedOfferFilter(siteId) {
@@ -437,8 +442,13 @@ exports.getAllStores = async (req, res) => {
             res.set('Cache-Control', 'no-store');
         }
 
+        const responseStores =
+            isAdminRequest && req.user && !canManageAffiliates(req.user.userType)
+                ? stripAffiliateFromStores(stores)
+                : stores;
+
         res.status(200).json({
-            stores,
+            stores: responseStores,
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),
@@ -720,7 +730,11 @@ exports.getStoreById = async (req, res) => {
             });
         }
 
-        res.status(200).json(store);
+        res.status(200).json(
+            adminView && req.user && !canManageAffiliates(req.user.userType)
+                ? stripAffiliateFromStore(store)
+                : store
+        );
     } catch (error) {
         console.error('Error fetching store:', error);
         res.status(500).json({
@@ -1075,13 +1089,14 @@ exports.updateStore = async (req, res) => {
             console.log('[storeController] categoryId:', updates.categoryId);
         }
         // Handle affiliate - store model uses 'affiliate' (singular, single field)
-        if (req.body.affiliateId && req.body.affiliateId !== '') {
-            updates.affiliate = req.body.affiliateId;
-            console.log('[storeController] Setting affiliate:', updates.affiliate);
-        } else if (req.body.affiliateId === '') {
-            // Allow clearing affiliate - set to null
-            updates.affiliate = null;
-            console.log('[storeController] Clearing affiliate');
+        if (canManageAffiliates(req.user?.userType)) {
+            if (req.body.affiliateId && req.body.affiliateId !== '') {
+                updates.affiliate = req.body.affiliateId;
+                console.log('[storeController] Setting affiliate:', updates.affiliate);
+            } else if (req.body.affiliateId === '') {
+                updates.affiliate = null;
+                console.log('[storeController] Clearing affiliate');
+            }
         }
 
         console.log('[storeController] Final updates object:', updates);

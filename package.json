@@ -26,6 +26,7 @@
     "check:expedia": "node scripts/checkExpediaStore.js",
     "seed:expedia-seo": "node scripts/seedExpediaStoreSeoContent.js",
     "check:hostinger": "node scripts/checkHostingerStore.js",
+    "check:blogs": "node scripts/checkBlogs.js",
     "seed:hostinger-seo": "node scripts/seedHostingerStoreSeoContent.js",
     "db:perf-indexes": "node scripts/ensurePerformanceIndexes.js",
     "verify:store-landings": "node scripts/verifyAndFixStoreLandingPages.js",

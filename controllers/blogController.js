@@ -275,7 +275,10 @@ const convertMapFieldsToObjects = (blog) => {
 // @access  Public
 exports.getBlogBySlug = async (req, res) => {
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug }).populate('author', 'username email');
+    const slugParam = decodeURIComponent(String(req.params.slug || '')).trim();
+    const { buildEntityLookupFilter } = require('../utils/slugResolver');
+    const filter = buildEntityLookupFilter(slugParam, null, ['slug']);
+    const blog = await Blog.findOne({ ...filter, isPublished: true }).populate('author', 'username email');
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });
     }

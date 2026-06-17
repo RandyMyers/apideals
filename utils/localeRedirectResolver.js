@@ -24,7 +24,7 @@ const {
 } = require('./uiLocaleCoverage');
 const {
   classifyNeutralPath,
-} = require('../scripts/lib/auditTranslationHelpers');
+} = require('./neutralPathClassifier');
 
 const URL_CODE_TO_LANG = {};
 for (const [lang, urlCode] of Object.entries(URL_CODE_BY_LANG)) {

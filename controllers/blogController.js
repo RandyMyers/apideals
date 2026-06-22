@@ -203,6 +203,13 @@ exports.createBlog = async (req, res) => {
     // Save to database
     const newBlog = await blog.save();
 
+    if (newBlog.isPublished) {
+      try {
+        const { pingIndexNow } = require('../utils/indexNow');
+        pingIndexNow(`/blog/${newBlog.seoSlug || newBlog.slug || newBlog._id}`);
+      } catch (e) { /* non-blocking */ }
+    }
+
     res.status(201).json(newBlog);
   } catch (error) {
     console.error('Error creating blog:', error);
@@ -463,6 +470,14 @@ exports.updateBlog = async (req, res) => {
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });
     }
+
+    if (blog.isPublished) {
+      try {
+        const { pingIndexNow } = require('../utils/indexNow');
+        pingIndexNow(`/blog/${blog.seoSlug || blog.slug || blog._id}`);
+      } catch (e) { /* non-blocking */ }
+    }
+
     res.status(200).json(blog);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update blog', error: error.message });

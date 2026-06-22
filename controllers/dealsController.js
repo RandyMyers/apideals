@@ -358,6 +358,13 @@ exports.createDeal = async (req, res) => {
         // Don't fail creation if notification fails
       }
 
+      if (newDeal.isPublished && newDeal.isActive) {
+        try {
+          const { pingIndexNow } = require('../utils/indexNow');
+          pingIndexNow(`/deal/${newDeal.seoSlug || newDeal.slug || newDeal._id}`);
+        } catch (e) { /* non-blocking */ }
+      }
+
       return res.status(201).json({ message: 'Deal created successfully', deal: newDeal });
     }
 
@@ -461,6 +468,13 @@ exports.createDeal = async (req, res) => {
     } catch (notifError) {
       console.error('Error sending admin notification for deal creation:', notifError);
       // Don't fail deal creation if notification fails
+    }
+
+    if (newDeal.isPublished && newDeal.isActive) {
+      try {
+        const { pingIndexNow } = require('../utils/indexNow');
+        pingIndexNow(`/deal/${newDeal.seoSlug || newDeal.slug || newDeal._id}`);
+      } catch (e) { /* non-blocking */ }
     }
 
     res.status(201).json({ message: 'Deal created successfully', deal: newDeal });

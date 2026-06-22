@@ -206,6 +206,13 @@ exports.createStore = async (req, res) => {
               console.error('Error sending admin notification for store creation:', notifError);
             }
 
+            try {
+              if (adminStore.isActive !== false) {
+                const { pingIndexNow } = require('../utils/indexNow');
+                pingIndexNow(`/stores/${adminStore.seoSlug || adminStore.slug || adminStore._id}`);
+              }
+            } catch (e) { /* non-blocking */ }
+
             return res.status(201).json({ message: 'Store created successfully by admin', store: adminStore });
         }
 
@@ -273,6 +280,13 @@ exports.createStore = async (req, res) => {
         // Increment store count for the user's subscription
         userSubscription.storeCount = (userSubscription.storeCount || 0) + 1;
         await userSubscription.save();
+
+        try {
+            if (store.isActive !== false) {
+                const { pingIndexNow } = require('../utils/indexNow');
+                pingIndexNow(`/stores/${store.seoSlug || store.slug || store._id}`);
+            }
+        } catch (e) { /* non-blocking */ }
 
         res.status(201).json({
             message: 'Store created successfully',

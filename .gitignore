@@ -20,7 +20,8 @@ pids/
 *.pid
 
 # Local / one-off maintenance & seed scripts (run via npm from this machine only)
-scripts/
+scripts/*
+!scripts/submitIndexNowBulk.js
 
 # User uploads & temp files
 uploads/

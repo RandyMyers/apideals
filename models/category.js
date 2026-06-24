@@ -52,6 +52,7 @@ const CategorySchema = new Schema({
   seoTitle: { type: String, trim: true },
   seoDescription: { type: String, trim: true },
   seoKeywords: [{ type: String, trim: true }],
+  seoPrimaryKeyword: { type: String, trim: true },
   h1: { type: String, trim: true },
   intro: { type: String, trim: true },
   /** Long-form HTML below the offers grid (600–800 word SEO guide, FAQs, tips). */

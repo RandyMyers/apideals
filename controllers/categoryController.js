@@ -70,7 +70,7 @@ exports.createCategory = async (req, res) => {
     const slug = await uniqueCategorySlug(name);
 
     // SEO fields (optional)
-    const { seoSlug, seoTitle, seoDescription, h1, intro, pageContent } = req.body;
+    const { seoSlug, seoTitle, seoDescription, seoPrimaryKeyword, h1, intro, pageContent } = req.body;
     let seoKeywords = [];
     if (req.body.seoKeywords) {
       try {
@@ -103,6 +103,7 @@ exports.createCategory = async (req, res) => {
       seoTitle: seoTitle || undefined,
       seoDescription: seoDescription || undefined,
       seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
+      seoPrimaryKeyword: seoPrimaryKeyword?.trim() || undefined,
       h1: h1 || undefined,
       intro: intro || undefined,
       pageContent: pageContent || undefined,
@@ -247,6 +248,9 @@ exports.updateCategory = async (req, res) => {
       } catch (e) {
         updateData.seoKeywords = String(req.body.seoKeywords).split(',').map((s) => s.trim()).filter(Boolean);
       }
+    }
+    if (req.body.seoPrimaryKeyword !== undefined) {
+      updateData.seoPrimaryKeyword = String(req.body.seoPrimaryKeyword || '').trim();
     }
     if (req.body.faqs !== undefined) {
       try {

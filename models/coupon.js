@@ -410,6 +410,10 @@ const CouponSchema = new Schema({
     type: String,
     trim: true,
   }],
+  focusKeyword: {
+    type: String,
+    trim: true,
+  },
   canonicalUrl: {
     type: String,
     required: false,

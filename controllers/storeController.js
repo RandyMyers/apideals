@@ -1043,7 +1043,7 @@ exports.updateStore = async (req, res) => {
         }
 
         // Handle string fields (only update if provided)
-        const stringFields = ['name', 'description', 'aboutSummary', 'pageContent', 'url', 'apiKey', 'secretKey', 'storeType', 'seoSlug', 'logoAlt', 'logo'];
+        const stringFields = ['name', 'description', 'aboutSummary', 'pageContent', 'pageEmbedHtml', 'url', 'apiKey', 'secretKey', 'storeType', 'seoSlug', 'logoAlt', 'logo'];
         stringFields.forEach(field => {
             if (req.body[field] !== undefined) {
                 updates[field] = req.body[field];

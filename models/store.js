@@ -56,7 +56,7 @@ const StoreSchema = new Schema({
    * Per-locale store content overrides (optional).
    * Shape example:
    * {
-   *   "es-MX": { seo, description, pageContent, aboutSummary, savingTips, faqs, editorial, logoAlt, name }
+   * 'es-MX': { seo, description, pageContent, pageEmbedHtml, aboutSummary, savingTips, faqs, editorial, logoAlt, name }
    * }
    */
   languageTranslations: {
@@ -124,6 +124,11 @@ const StoreSchema = new Schema({
 
   /** Main store page body below offers — rich HTML (blog-style) */
   pageContent: {
+    type: String,
+  },
+
+  /** Affiliate widgets / embed HTML rendered above pageContent */
+  pageEmbedHtml: {
     type: String,
   },
 

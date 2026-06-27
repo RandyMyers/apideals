@@ -10,6 +10,7 @@ const {
   parseKeywords,
 } = require('../utils/seoUtils');
 const { applyCorsHeaders } = require('../middleware/security');
+const { BLOG_TRANSLATION_LOCALES } = require('../constants/blogLocales');
 
 function parseTranslationObject(translation, fieldName) {
   if (!translation) return null;
@@ -32,13 +33,53 @@ function mapTranslationsToObject(val) {
   return {};
 }
 
+function sanitizeLocaleStringMap(val) {
+  const clean = {};
+  const source = mapTranslationsToObject(val);
+  for (const code of BLOG_TRANSLATION_LOCALES) {
+    const value = source[code];
+    if (typeof value === 'string' && value.trim()) clean[code] = value;
+  }
+  return clean;
+}
+
 function mergeTranslationField(updates, existingBlog, bodyField, updateKey) {
   const parsed = parseTranslationObject(bodyField, updateKey);
   if (!parsed || typeof parsed !== 'object') return;
   updates[updateKey] = {
-    ...mapTranslationsToObject(existingBlog?.[updateKey]),
-    ...parsed,
+    ...sanitizeLocaleStringMap(existingBlog?.[updateKey]),
+    ...sanitizeLocaleStringMap(parsed),
   };
+}
+
+const BLOG_SCALAR_FIELDS = [
+  'title',
+  'slug',
+  'content',
+  'excerpt',
+  'metaTitle',
+  'metaDescription',
+  'focusKeyword',
+  'featuredImageAlt',
+  'canonicalURL',
+  'ogTitle',
+  'ogDescription',
+  'ogImage',
+  'ogUrl',
+  'twitterCard',
+  'twitterTitle',
+  'twitterDescription',
+  'twitterImage',
+];
+
+function pickScalarUpdates(body) {
+  const updates = {};
+  for (const field of BLOG_SCALAR_FIELDS) {
+    if (body[field] !== undefined && body[field] !== null && body[field] !== '') {
+      updates[field] = body[field];
+    }
+  }
+  return updates;
 }
 
 // @desc    Create a new blog post with image upload
@@ -336,22 +377,23 @@ exports.updateBlog = async (req, res) => {
       return res.status(404).json({ message: 'Blog not found' });
     }
 
-    const updates = { ...req.body };
+    const updates = pickScalarUpdates(req.body);
 
-    if (updates.isPublished !== undefined) {
-      updates.isPublished = updates.isPublished === true || updates.isPublished === 'true';
+    if (req.body.isPublished !== undefined) {
+      updates.isPublished = req.body.isPublished === true || req.body.isPublished === 'true';
     }
 
-    if (typeof updates.articleSchema === 'string') {
+    if (typeof req.body.articleSchema === 'string') {
       try {
-        updates.articleSchema = JSON.parse(updates.articleSchema);
+        updates.articleSchema = JSON.parse(req.body.articleSchema);
       } catch (e) {
         console.warn('Could not parse articleSchema on update');
-        delete updates.articleSchema;
       }
+    } else if (req.body.articleSchema && typeof req.body.articleSchema === 'object') {
+      updates.articleSchema = req.body.articleSchema;
     }
 
-    if (req.files && req.files.featuredImage && req.files.featuredImage.tempFilePath) {
+    if (req.files?.featuredImage?.tempFilePath) {
       const image = req.files.featuredImage;
       const uploadedImage = await cloudinary.uploader.upload(image.tempFilePath, {
         folder: 'blogs',
@@ -360,6 +402,8 @@ exports.updateBlog = async (req, res) => {
         unique_filename: false,
       });
       updates.featuredImage = uploadedImage.secure_url;
+    } else if (req.body.featuredImage && typeof req.body.featuredImage === 'string') {
+      updates.featuredImage = req.body.featuredImage;
     }
 
     mergeTranslationField(updates, existingBlog, req.body.titleTranslations, 'titleTranslations');
@@ -384,20 +428,20 @@ exports.updateBlog = async (req, res) => {
       };
     }
 
+    if (req.body.keywords !== undefined) {
+      updates.keywords = parseKeywords(req.body.keywords);
+    }
+
+    if (req.body.tags !== undefined) {
+      updates.tags = parseKeywords(req.body.tags);
+    }
+
     if (updates.content) {
       updates.readingTime = calculateReadingTime(updates.content);
     }
 
     if (updates.title && !updates.slug) {
       updates.slug = generateSlug(updates.title);
-    }
-
-    if (updates.keywords !== undefined) {
-      updates.keywords = parseKeywords(updates.keywords);
-    }
-
-    if (updates.tags !== undefined) {
-      updates.tags = parseKeywords(updates.tags);
     }
 
     if (updates.title && !updates.metaTitle) {
@@ -441,10 +485,16 @@ exports.updateBlog = async (req, res) => {
 
     updates.updatedAt = Date.now();
 
-    const blog = await Blog.findByIdAndUpdate(req.params.id, updates, { new: true });
+    const blog = await Blog.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });
     }
+
+    res.status(200).json(blog);
 
     if (blog.isPublished) {
       try {
@@ -452,8 +502,6 @@ exports.updateBlog = async (req, res) => {
         pingIndexNow(`/blog/${blog.seoSlug || blog.slug || blog._id}`);
       } catch (e) { /* non-blocking */ }
     }
-
-    res.status(200).json(blog);
   } catch (error) {
     console.error('Failed to update blog:', error);
     applyCorsHeaders(req, res);

@@ -1,4 +1,8 @@
 const mongoose = require('mongoose');
+const { buildStringLocaleSchema } = require('../constants/blogLocales');
+
+const localeStrings = buildStringLocaleSchema({ trim: true });
+const localeContent = buildStringLocaleSchema({ trim: false });
 
 const blogSchema = new mongoose.Schema(
   {
@@ -7,17 +11,7 @@ const blogSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    // Translation fields for title
-    titleTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    titleTranslations: localeStrings,
     slug: {
       type: String,
       required: true,
@@ -28,69 +22,28 @@ const blogSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    // Translation fields for content
-    contentTranslations: {
-      ga: { type: String }, // Irish
-      de: { type: String }, // German
-      es: { type: String }, // Spanish
-      it: { type: String }, // Italian
-      no: { type: String }, // Norwegian
-      fi: { type: String }, // Finnish
-      da: { type: String }, // Danish
-      sv: { type: String }, // Swedish
-    },
+    contentTranslations: localeContent,
     excerpt: {
       type: String,
       trim: true,
     },
-    // Translation fields for excerpt
-    excerptTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    excerptTranslations: localeStrings,
     metaTitle: {
       type: String,
       required: false,
       trim: true,
     },
-    // Translation fields for meta title
-    metaTitleTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    metaTitleTranslations: localeStrings,
     metaDescription: {
       type: String,
       required: false,
       trim: true,
     },
-    // Translation fields for meta description
-    metaDescriptionTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    metaDescriptionTranslations: localeStrings,
     keywords: {
       type: [String],
       default: [],
     },
-    // Translation fields for keywords (object with arrays per language)
     keywordsTranslations: {
       type: Map,
       of: [String],
@@ -101,28 +54,11 @@ const blogSchema = new mongoose.Schema(
       required: false,
       trim: true,
     },
-    // Translation fields for focus keyword
-    focusKeywordTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    focusKeywordTranslations: localeStrings,
     tags: {
       type: [String],
       default: [],
     },
-    // Translation fields for tags (object with arrays per language)
-    tagsTranslations: {
-      type: Map,
-      of: [String],
-      default: {},
-    },
-    // Translation fields for tags (object with arrays per language)
     tagsTranslations: {
       type: Map,
       of: [String],
@@ -143,39 +79,18 @@ const blogSchema = new mongoose.Schema(
       required: false,
       trim: true,
     },
-    // Open Graph fields
     ogTitle: {
       type: String,
       required: false,
       trim: true,
     },
-    // Translation fields for OG title
-    ogTitleTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    ogTitleTranslations: localeStrings,
     ogDescription: {
       type: String,
       required: false,
       trim: true,
     },
-    // Translation fields for OG description
-    ogDescriptionTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    ogDescriptionTranslations: localeStrings,
     ogImage: {
       type: String,
       required: false,
@@ -186,7 +101,6 @@ const blogSchema = new mongoose.Schema(
       required: false,
       trim: true,
     },
-    // Twitter Card fields
     twitterCard: {
       type: String,
       enum: ['summary', 'summary_large_image', 'app', 'player'],
@@ -197,39 +111,18 @@ const blogSchema = new mongoose.Schema(
       required: false,
       trim: true,
     },
-    // Translation fields for Twitter title
-    twitterTitleTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    twitterTitleTranslations: localeStrings,
     twitterDescription: {
       type: String,
       required: false,
       trim: true,
     },
-    // Translation fields for Twitter description
-    twitterDescriptionTranslations: {
-      ga: { type: String, trim: true }, // Irish
-      de: { type: String, trim: true }, // German
-      es: { type: String, trim: true }, // Spanish
-      it: { type: String, trim: true }, // Italian
-      no: { type: String, trim: true }, // Norwegian
-      fi: { type: String, trim: true }, // Finnish
-      da: { type: String, trim: true }, // Danish
-      sv: { type: String, trim: true }, // Swedish
-    },
+    twitterDescriptionTranslations: localeStrings,
     twitterImage: {
       type: String,
       required: false,
       trim: true,
     },
-    // Schema.org structured data
     articleSchema: {
       publisher: {
         type: String,
@@ -241,7 +134,6 @@ const blogSchema = new mongoose.Schema(
         trim: true,
       },
     },
-    // Reading time (calculated in minutes)
     readingTime: {
       type: Number,
       default: 1,

@@ -11,6 +11,7 @@ const {
 } = require('../utils/seoUtils');
 const { applyCorsHeaders } = require('../middleware/security');
 const { BLOG_TRANSLATION_LOCALES } = require('../constants/blogLocales');
+const { ApiError, sendApiError } = require('../utils/apiResponse');
 
 function parseTranslationObject(translation, fieldName) {
   if (!translation) return null;
@@ -43,22 +44,36 @@ function sanitizeLocaleStringMap(val) {
   return clean;
 }
 
-function applyTranslationPatches(updates, bodyField, updateKey) {
+function applyTranslationUpdates(updates, existingBlog, bodyField, updateKey) {
   const parsed = parseTranslationObject(bodyField, updateKey);
   if (!parsed || typeof parsed !== 'object') return;
-  for (const [code, value] of Object.entries(sanitizeLocaleStringMap(parsed))) {
-    updates[`${updateKey}.${code}`] = value;
-  }
+  const incoming = sanitizeLocaleStringMap(parsed);
+  if (!Object.keys(incoming).length) return;
+  updates[updateKey] = {
+    ...sanitizeLocaleStringMap(existingBlog?.[updateKey]),
+    ...incoming,
+  };
 }
 
-function applyKeywordsTranslationPatches(updates, bodyField, existingBlog) {
+function applyKeywordsTranslationUpdates(updates, bodyField, existingBlog) {
   const parsed = parseTranslationObject(bodyField, 'keywordsTranslations');
   if (!parsed || typeof parsed !== 'object') return;
+  const existing = mapTranslationsToObject(existingBlog?.keywordsTranslations);
+  const merged = { ...existing };
   for (const [code, value] of Object.entries(parsed)) {
     if (!BLOG_TRANSLATION_LOCALES.includes(code)) continue;
-    if (Array.isArray(value) && value.length) {
-      updates[`keywordsTranslations.${code}`] = value;
-    }
+    if (Array.isArray(value) && value.length) merged[code] = value;
+  }
+  if (Object.keys(merged).length) updates.keywordsTranslations = merged;
+}
+
+function estimateBodyBytes(req) {
+  const len = parseInt(req.get('content-length') || '0', 10);
+  if (len) return len;
+  try {
+    return Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8');
+  } catch {
+    return 0;
   }
 }
 
@@ -381,10 +396,51 @@ exports.getBlogBySlug = async (req, res) => {
 // @route   PUT /api/blogs/:id
 // @access  Private
 exports.updateBlog = async (req, res) => {
+  const started = Date.now();
+  const blogId = req.params.id;
+  const bodyBytes = estimateBodyBytes(req);
+  const contentType = req.get('content-type') || 'unknown';
+  const clientTag = req.get('x-admin-client') || 'unknown';
+
+  console.info('[blogController.updateBlog] start', {
+    blogId,
+    bodyBytes,
+    contentType,
+    clientTag,
+  });
+
   try {
-    const existingBlog = await Blog.findById(req.params.id);
+    if (bodyBytes > 8 * 1024 * 1024) {
+      return sendApiError(req, res, {
+        status: 413,
+        code: 'BLOG_PAYLOAD_TOO_LARGE',
+        message: `Blog update payload is ${Math.round(bodyBytes / 1024)} KB. Maximum is 8192 KB.`,
+        phase: 'validate',
+        details: { bodyBytes, contentType },
+      });
+    }
+
+    let existingBlog;
+    try {
+      existingBlog = await Blog.findById(blogId);
+    } catch (dbErr) {
+      console.error('[blogController.updateBlog] load failed', dbErr);
+      return sendApiError(req, res, {
+        status: 500,
+        code: 'BLOG_LOAD_FAILED',
+        message: 'Could not load the blog from the database.',
+        phase: 'load',
+        details: { error: dbErr.message },
+      });
+    }
+
     if (!existingBlog) {
-      return res.status(404).json({ message: 'Blog not found' });
+      return sendApiError(req, res, {
+        status: 404,
+        code: 'BLOG_NOT_FOUND',
+        message: 'Blog not found.',
+        phase: 'load',
+      });
     }
 
     const updates = pickScalarUpdates(req.body);
@@ -404,30 +460,41 @@ exports.updateBlog = async (req, res) => {
     }
 
     if (req.files?.featuredImage?.tempFilePath) {
-      const image = req.files.featuredImage;
-      const uploadedImage = await cloudinary.uploader.upload(image.tempFilePath, {
-        folder: 'blogs',
-        resource_type: 'image',
-        use_filename: true,
-        unique_filename: false,
-      });
-      updates.featuredImage = uploadedImage.secure_url;
+      try {
+        const image = req.files.featuredImage;
+        const uploadedImage = await cloudinary.uploader.upload(image.tempFilePath, {
+          folder: 'blogs',
+          resource_type: 'image',
+          use_filename: true,
+          unique_filename: false,
+        });
+        updates.featuredImage = uploadedImage.secure_url;
+      } catch (uploadErr) {
+        console.error('[blogController.updateBlog] image upload failed', uploadErr);
+        return sendApiError(req, res, {
+          status: 500,
+          code: 'BLOG_IMAGE_UPLOAD_FAILED',
+          message: 'Featured image upload to Cloudinary failed.',
+          phase: 'image_upload',
+          details: { error: uploadErr.message },
+        });
+      }
     } else if (req.body.featuredImage && typeof req.body.featuredImage === 'string') {
       updates.featuredImage = req.body.featuredImage;
     }
 
-    applyTranslationPatches(updates, req.body.titleTranslations, 'titleTranslations');
-    applyTranslationPatches(updates, req.body.contentTranslations, 'contentTranslations');
-    applyTranslationPatches(updates, req.body.excerptTranslations, 'excerptTranslations');
-    applyTranslationPatches(updates, req.body.metaTitleTranslations, 'metaTitleTranslations');
-    applyTranslationPatches(updates, req.body.metaDescriptionTranslations, 'metaDescriptionTranslations');
-    applyTranslationPatches(updates, req.body.focusKeywordTranslations, 'focusKeywordTranslations');
-    applyTranslationPatches(updates, req.body.ogTitleTranslations, 'ogTitleTranslations');
-    applyTranslationPatches(updates, req.body.ogDescriptionTranslations, 'ogDescriptionTranslations');
-    applyTranslationPatches(updates, req.body.twitterTitleTranslations, 'twitterTitleTranslations');
-    applyTranslationPatches(updates, req.body.twitterDescriptionTranslations, 'twitterDescriptionTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.titleTranslations, 'titleTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.contentTranslations, 'contentTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.excerptTranslations, 'excerptTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.metaTitleTranslations, 'metaTitleTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.metaDescriptionTranslations, 'metaDescriptionTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.focusKeywordTranslations, 'focusKeywordTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.ogTitleTranslations, 'ogTitleTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.ogDescriptionTranslations, 'ogDescriptionTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.twitterTitleTranslations, 'twitterTitleTranslations');
+    applyTranslationUpdates(updates, existingBlog, req.body.twitterDescriptionTranslations, 'twitterDescriptionTranslations');
 
-    applyKeywordsTranslationPatches(updates, req.body.keywordsTranslations, existingBlog);
+    applyKeywordsTranslationUpdates(updates, req.body.keywordsTranslations, existingBlog);
 
     if (req.body.keywords !== undefined) {
       updates.keywords = parseKeywords(req.body.keywords);
@@ -486,16 +553,45 @@ exports.updateBlog = async (req, res) => {
 
     updates.updatedAt = Date.now();
 
-    const blog = await Blog.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: false }
-    );
-    if (!blog) {
-      return res.status(404).json({ message: 'Blog not found' });
+    let blog;
+    try {
+      blog = await Blog.findByIdAndUpdate(
+        blogId,
+        { $set: updates },
+        { new: true, runValidators: false }
+      );
+    } catch (dbErr) {
+      console.error('[blogController.updateBlog] save failed', dbErr);
+      return sendApiError(req, res, {
+        status: 500,
+        code: 'BLOG_SAVE_FAILED',
+        message: dbErr.message || 'Database rejected the blog update.',
+        phase: 'save',
+        details: {
+          error: dbErr.message,
+          name: dbErr.name,
+          fields: Object.keys(updates),
+        },
+      });
     }
 
+    if (!blog) {
+      return sendApiError(req, res, {
+        status: 404,
+        code: 'BLOG_NOT_FOUND',
+        message: 'Blog not found after update.',
+        phase: 'save',
+      });
+    }
+
+    applyCorsHeaders(req, res);
     res.status(200).json(blog);
+
+    console.info('[blogController.updateBlog] success', {
+      blogId,
+      ms: Date.now() - started,
+      fields: Object.keys(updates).length,
+    });
 
     if (blog.isPublished) {
       try {
@@ -504,9 +600,23 @@ exports.updateBlog = async (req, res) => {
       } catch (e) { /* non-blocking */ }
     }
   } catch (error) {
-    console.error('Failed to update blog:', error);
-    applyCorsHeaders(req, res);
-    res.status(500).json({ message: 'Failed to update blog', error: error.message });
+    console.error('[blogController.updateBlog] unhandled', error);
+    if (error instanceof ApiError) {
+      return sendApiError(req, res, {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        phase: error.phase,
+        details: error.details,
+      });
+    }
+    return sendApiError(req, res, {
+      status: 500,
+      code: 'BLOG_UPDATE_FAILED',
+      message: error.message || 'Blog update failed.',
+      phase: 'unknown',
+      details: { error: error.message },
+    });
   }
 };
 

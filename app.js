@@ -433,11 +433,18 @@ app.use(redirectMiddleware);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  applyCorsHeaders(req, res);
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || '1.0.0',
+    apiBuild: process.env.API_BUILD_ID || '6270713-afdd84b',
+    blogUpdate: {
+      jsonPayload: true,
+      structuredErrors: true,
+      skipUnchangedTranslations: 'admin-json-v2',
+    },
   });
 });
 
@@ -466,6 +473,19 @@ app.use((err, req, res, next) => {
     correlationId: req.correlationId
   });
 
+  if (err instanceof require('./utils/apiResponse').ApiError) {
+    return res.status(err.status || 500).json({
+      success: false,
+      error: true,
+      code: err.code,
+      message: err.message,
+      phase: err.phase,
+      details: err.details,
+      requestId: req.correlationId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // Send system alert for critical errors (500+ status codes)
   if (!err.status || err.status >= 500) {
     systemAlertService.sendCriticalErrorAlert(err, {
@@ -479,11 +499,13 @@ app.use((err, req, res, next) => {
   }
 
   res.status(err.status || 500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message,
+    success: false,
+    error: true,
+    code: err.code || 'INTERNAL_ERROR',
+    message: process.env.NODE_ENV === 'production' ? (err.message || 'Something went wrong') : err.message,
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+    requestId: req.correlationId,
     timestamp: new Date().toISOString(),
-    correlationId: req.correlationId
   });
 });
 

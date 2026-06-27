@@ -9,7 +9,37 @@ const {
   generateOgUrl,
   parseKeywords,
 } = require('../utils/seoUtils');
+const { applyCorsHeaders } = require('../middleware/security');
 
+function parseTranslationObject(translation, fieldName) {
+  if (!translation) return null;
+  if (typeof translation === 'object' && !Array.isArray(translation)) return translation;
+  if (typeof translation === 'string') {
+    try {
+      return JSON.parse(translation);
+    } catch (e) {
+      console.warn(`Could not parse ${fieldName}:`, e.message);
+      return null;
+    }
+  }
+  return null;
+}
+
+function mapTranslationsToObject(val) {
+  if (!val) return {};
+  if (val instanceof Map) return Object.fromEntries(val);
+  if (typeof val === 'object') return val;
+  return {};
+}
+
+function mergeTranslationField(updates, existingBlog, bodyField, updateKey) {
+  const parsed = parseTranslationObject(bodyField, updateKey);
+  if (!parsed || typeof parsed !== 'object') return;
+  updates[updateKey] = {
+    ...mapTranslationsToObject(existingBlog?.[updateKey]),
+    ...parsed,
+  };
+}
 
 // @desc    Create a new blog post with image upload
 // @route   POST /api/blogs
@@ -301,140 +331,86 @@ exports.getBlogBySlug = async (req, res) => {
 // @access  Private
 exports.updateBlog = async (req, res) => {
   try {
+    const existingBlog = await Blog.findById(req.params.id);
+    if (!existingBlog) {
+      return res.status(404).json({ message: 'Blog not found' });
+    }
+
     const updates = { ...req.body };
-    
-    // Handle translation fields - merge with existing translations if provided
-    if (req.body.titleTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.titleTranslations = {
-        ...(existingBlog?.titleTranslations || {}),
-        ...req.body.titleTranslations,
-      };
-    }
-    
-    if (req.body.contentTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.contentTranslations = {
-        ...(existingBlog?.contentTranslations || {}),
-        ...req.body.contentTranslations,
-      };
-    }
-    
-    if (req.body.excerptTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.excerptTranslations = {
-        ...(existingBlog?.excerptTranslations || {}),
-        ...req.body.excerptTranslations,
-      };
+
+    if (updates.isPublished !== undefined) {
+      updates.isPublished = updates.isPublished === true || updates.isPublished === 'true';
     }
 
-    // Handle SEO translation fields
-    if (req.body.metaTitleTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.metaTitleTranslations = {
-        ...(existingBlog?.metaTitleTranslations || {}),
-        ...req.body.metaTitleTranslations,
-      };
+    if (typeof updates.articleSchema === 'string') {
+      try {
+        updates.articleSchema = JSON.parse(updates.articleSchema);
+      } catch (e) {
+        console.warn('Could not parse articleSchema on update');
+        delete updates.articleSchema;
+      }
     }
 
-    if (req.body.metaDescriptionTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.metaDescriptionTranslations = {
-        ...(existingBlog?.metaDescriptionTranslations || {}),
-        ...req.body.metaDescriptionTranslations,
-      };
+    if (req.files && req.files.featuredImage && req.files.featuredImage.tempFilePath) {
+      const image = req.files.featuredImage;
+      const uploadedImage = await cloudinary.uploader.upload(image.tempFilePath, {
+        folder: 'blogs',
+        resource_type: 'image',
+        use_filename: true,
+        unique_filename: false,
+      });
+      updates.featuredImage = uploadedImage.secure_url;
     }
 
-    if (req.body.keywordsTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      // Convert Map to object if needed
-      const existingKeywordsTranslations = existingBlog?.keywordsTranslations 
-        ? (existingBlog.keywordsTranslations instanceof Map 
-            ? Object.fromEntries(existingBlog.keywordsTranslations) 
-            : existingBlog.keywordsTranslations)
-        : {};
+    mergeTranslationField(updates, existingBlog, req.body.titleTranslations, 'titleTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.contentTranslations, 'contentTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.excerptTranslations, 'excerptTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.metaTitleTranslations, 'metaTitleTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.metaDescriptionTranslations, 'metaDescriptionTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.focusKeywordTranslations, 'focusKeywordTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.ogTitleTranslations, 'ogTitleTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.ogDescriptionTranslations, 'ogDescriptionTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.twitterTitleTranslations, 'twitterTitleTranslations');
+    mergeTranslationField(updates, existingBlog, req.body.twitterDescriptionTranslations, 'twitterDescriptionTranslations');
+
+    const parsedKeywordsTranslations = parseTranslationObject(
+      req.body.keywordsTranslations,
+      'keywordsTranslations'
+    );
+    if (parsedKeywordsTranslations) {
       updates.keywordsTranslations = {
-        ...existingKeywordsTranslations,
-        ...req.body.keywordsTranslations,
+        ...mapTranslationsToObject(existingBlog.keywordsTranslations),
+        ...parsedKeywordsTranslations,
       };
     }
 
-    if (req.body.focusKeywordTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.focusKeywordTranslations = {
-        ...(existingBlog?.focusKeywordTranslations || {}),
-        ...req.body.focusKeywordTranslations,
-      };
-    }
-
-    if (req.body.ogTitleTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.ogTitleTranslations = {
-        ...(existingBlog?.ogTitleTranslations || {}),
-        ...req.body.ogTitleTranslations,
-      };
-    }
-
-    if (req.body.ogDescriptionTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.ogDescriptionTranslations = {
-        ...(existingBlog?.ogDescriptionTranslations || {}),
-        ...req.body.ogDescriptionTranslations,
-      };
-    }
-
-    if (req.body.twitterTitleTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.twitterTitleTranslations = {
-        ...(existingBlog?.twitterTitleTranslations || {}),
-        ...req.body.twitterTitleTranslations,
-      };
-    }
-
-    if (req.body.twitterDescriptionTranslations) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.twitterDescriptionTranslations = {
-        ...(existingBlog?.twitterDescriptionTranslations || {}),
-        ...req.body.twitterDescriptionTranslations,
-      };
-    }
-
-    // If content is being updated, recalculate reading time
     if (updates.content) {
       updates.readingTime = calculateReadingTime(updates.content);
     }
 
-    // If slug is being updated or generated, regenerate OG URL
     if (updates.title && !updates.slug) {
       updates.slug = generateSlug(updates.title);
     }
 
-    // Parse keywords if provided
     if (updates.keywords !== undefined) {
       updates.keywords = parseKeywords(updates.keywords);
     }
 
-    // Parse tags if provided
     if (updates.tags !== undefined) {
       updates.tags = parseKeywords(updates.tags);
     }
 
-    // Auto-generate meta fields if title/excerpt changed
     if (updates.title && !updates.metaTitle) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.metaTitle = generateMetaTitle(updates.title, existingBlog?.metaTitle);
+      updates.metaTitle = generateMetaTitle(updates.title, existingBlog.metaTitle);
     }
 
     if (updates.excerpt && !updates.metaDescription) {
-      const existingBlog = await Blog.findById(req.params.id);
-      updates.metaDescription = generateMetaDescription(updates.excerpt, existingBlog?.metaDescription);
+      updates.metaDescription = generateMetaDescription(updates.excerpt, existingBlog.metaDescription);
     }
 
-    // Get base URL from environment or request
     const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
-    const blogSlug = updates.slug || (await Blog.findById(req.params.id))?.slug;
+    const blogSlug = updates.slug || existingBlog.slug;
 
-    // Auto-populate OG fields if not provided
     if (!updates.ogUrl && blogSlug) {
       updates.ogUrl = generateOgUrl(blogSlug, baseUrl, updates.ogUrl);
     }
@@ -451,7 +427,6 @@ exports.updateBlog = async (req, res) => {
       updates.ogImage = updates.featuredImage;
     }
 
-    // Auto-populate Twitter fields if not provided
     if (!updates.twitterTitle) {
       updates.twitterTitle = updates.ogTitle || updates.metaTitle || updates.title;
     }
@@ -464,7 +439,7 @@ exports.updateBlog = async (req, res) => {
       updates.twitterImage = updates.ogImage || updates.featuredImage;
     }
 
-    updates.updatedAt = Date.now(); // Update the updatedAt timestamp
+    updates.updatedAt = Date.now();
 
     const blog = await Blog.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (!blog) {
@@ -480,6 +455,8 @@ exports.updateBlog = async (req, res) => {
 
     res.status(200).json(blog);
   } catch (error) {
+    console.error('Failed to update blog:', error);
+    applyCorsHeaders(req, res);
     res.status(500).json({ message: 'Failed to update blog', error: error.message });
   }
 };

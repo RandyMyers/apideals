@@ -397,14 +397,11 @@ exports.updateBlog = async (req, res) => {
   const blogId = req.params.id;
   const bodyBytes = estimateBodyBytes(req);
   const contentType = req.get('content-type') || 'unknown';
-  const clientTag = req.get('x-admin-client') || 'unknown';
+  const logPhase = (phase, extra = {}) => {
+    console.log(`[blogController.updateBlog] ${phase}`, { blogId, ms: Date.now() - started, ...extra });
+  };
 
-  console.info('[blogController.updateBlog] start', {
-    blogId,
-    bodyBytes,
-    contentType,
-    clientTag,
-  });
+  logPhase('start', { bodyBytes, contentType, bodyKeys: Object.keys(req.body || {}) });
 
   try {
     if (bodyBytes > 8 * 1024 * 1024) {
@@ -419,7 +416,9 @@ exports.updateBlog = async (req, res) => {
 
     let existingBlog;
     try {
-      existingBlog = await Blog.findById(blogId);
+      logPhase('db-load-start');
+      existingBlog = await Blog.findById(blogId).lean();
+      logPhase('db-load-done', { found: !!existingBlog });
     } catch (dbErr) {
       console.error('[blogController.updateBlog] load failed', dbErr);
       return sendApiError(req, res, {
@@ -549,14 +548,16 @@ exports.updateBlog = async (req, res) => {
     }
 
     updates.updatedAt = Date.now();
+    logPhase('save-start', { fieldCount: Object.keys(updates).length });
 
     let blog;
     try {
       blog = await Blog.findByIdAndUpdate(
         blogId,
         { $set: updates },
-        { new: true, runValidators: false }
+        { new: true, runValidators: false, lean: true }
       );
+      logPhase('save-done', { saved: !!blog });
     } catch (dbErr) {
       console.error('[blogController.updateBlog] save failed', dbErr);
       return sendApiError(req, res, {
@@ -591,11 +592,7 @@ exports.updateBlog = async (req, res) => {
       updatedAt: blog.updatedAt,
     });
 
-    console.info('[blogController.updateBlog] success', {
-      blogId,
-      ms: Date.now() - started,
-      fields: Object.keys(updates).length,
-    });
+    logPhase('response-sent', { slug: blog.slug });
 
     if (blog.isPublished) {
       setImmediate(() => {

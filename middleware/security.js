@@ -36,6 +36,7 @@ const CORS_ALLOWED_HEADERS = [
   'Authorization',
   'Cache-Control',
   'Pragma',
+  'X-Admin-Client',
 ];
 
 const STATIC_CORS_ORIGINS = [

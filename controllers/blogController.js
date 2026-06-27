@@ -48,23 +48,20 @@ function applyTranslationUpdates(updates, existingBlog, bodyField, updateKey) {
   const parsed = parseTranslationObject(bodyField, updateKey);
   if (!parsed || typeof parsed !== 'object') return;
   const incoming = sanitizeLocaleStringMap(parsed);
-  if (!Object.keys(incoming).length) return;
-  updates[updateKey] = {
-    ...sanitizeLocaleStringMap(existingBlog?.[updateKey]),
-    ...incoming,
-  };
+  for (const [code, value] of Object.entries(incoming)) {
+    updates[`${updateKey}.${code}`] = value;
+  }
 }
 
-function applyKeywordsTranslationUpdates(updates, bodyField, existingBlog) {
+function applyKeywordsTranslationUpdates(updates, bodyField) {
   const parsed = parseTranslationObject(bodyField, 'keywordsTranslations');
   if (!parsed || typeof parsed !== 'object') return;
-  const existing = mapTranslationsToObject(existingBlog?.keywordsTranslations);
-  const merged = { ...existing };
   for (const [code, value] of Object.entries(parsed)) {
     if (!BLOG_TRANSLATION_LOCALES.includes(code)) continue;
-    if (Array.isArray(value) && value.length) merged[code] = value;
+    if (Array.isArray(value) && value.length) {
+      updates[`keywordsTranslations.${code}`] = value;
+    }
   }
-  if (Object.keys(merged).length) updates.keywordsTranslations = merged;
 }
 
 function estimateBodyBytes(req) {
@@ -494,7 +491,7 @@ exports.updateBlog = async (req, res) => {
     applyTranslationUpdates(updates, existingBlog, req.body.twitterTitleTranslations, 'twitterTitleTranslations');
     applyTranslationUpdates(updates, existingBlog, req.body.twitterDescriptionTranslations, 'twitterDescriptionTranslations');
 
-    applyKeywordsTranslationUpdates(updates, req.body.keywordsTranslations, existingBlog);
+    applyKeywordsTranslationUpdates(updates, req.body.keywordsTranslations);
 
     if (req.body.keywords !== undefined) {
       updates.keywords = parseKeywords(req.body.keywords);
@@ -585,7 +582,14 @@ exports.updateBlog = async (req, res) => {
     }
 
     applyCorsHeaders(req, res);
-    res.status(200).json(blog);
+    res.status(200).json({
+      success: true,
+      _id: blog._id,
+      slug: blog.slug,
+      title: blog.title,
+      isPublished: blog.isPublished,
+      updatedAt: blog.updatedAt,
+    });
 
     console.info('[blogController.updateBlog] success', {
       blogId,
@@ -594,10 +598,12 @@ exports.updateBlog = async (req, res) => {
     });
 
     if (blog.isPublished) {
-      try {
-        const { pingIndexNow } = require('../utils/indexNow');
-        pingIndexNow(`/blog/${blog.seoSlug || blog.slug || blog._id}`);
-      } catch (e) { /* non-blocking */ }
+      setImmediate(() => {
+        try {
+          const { pingIndexNow } = require('../utils/indexNow');
+          pingIndexNow(`/blog/${blog.seoSlug || blog.slug || blog._id}`);
+        } catch (e) { /* non-blocking */ }
+      });
     }
   } catch (error) {
     console.error('[blogController.updateBlog] unhandled', error);

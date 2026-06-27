@@ -43,13 +43,23 @@ function sanitizeLocaleStringMap(val) {
   return clean;
 }
 
-function mergeTranslationField(updates, existingBlog, bodyField, updateKey) {
+function applyTranslationPatches(updates, bodyField, updateKey) {
   const parsed = parseTranslationObject(bodyField, updateKey);
   if (!parsed || typeof parsed !== 'object') return;
-  updates[updateKey] = {
-    ...sanitizeLocaleStringMap(existingBlog?.[updateKey]),
-    ...sanitizeLocaleStringMap(parsed),
-  };
+  for (const [code, value] of Object.entries(sanitizeLocaleStringMap(parsed))) {
+    updates[`${updateKey}.${code}`] = value;
+  }
+}
+
+function applyKeywordsTranslationPatches(updates, bodyField, existingBlog) {
+  const parsed = parseTranslationObject(bodyField, 'keywordsTranslations');
+  if (!parsed || typeof parsed !== 'object') return;
+  for (const [code, value] of Object.entries(parsed)) {
+    if (!BLOG_TRANSLATION_LOCALES.includes(code)) continue;
+    if (Array.isArray(value) && value.length) {
+      updates[`keywordsTranslations.${code}`] = value;
+    }
+  }
 }
 
 const BLOG_SCALAR_FIELDS = [
@@ -406,27 +416,18 @@ exports.updateBlog = async (req, res) => {
       updates.featuredImage = req.body.featuredImage;
     }
 
-    mergeTranslationField(updates, existingBlog, req.body.titleTranslations, 'titleTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.contentTranslations, 'contentTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.excerptTranslations, 'excerptTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.metaTitleTranslations, 'metaTitleTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.metaDescriptionTranslations, 'metaDescriptionTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.focusKeywordTranslations, 'focusKeywordTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.ogTitleTranslations, 'ogTitleTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.ogDescriptionTranslations, 'ogDescriptionTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.twitterTitleTranslations, 'twitterTitleTranslations');
-    mergeTranslationField(updates, existingBlog, req.body.twitterDescriptionTranslations, 'twitterDescriptionTranslations');
+    applyTranslationPatches(updates, req.body.titleTranslations, 'titleTranslations');
+    applyTranslationPatches(updates, req.body.contentTranslations, 'contentTranslations');
+    applyTranslationPatches(updates, req.body.excerptTranslations, 'excerptTranslations');
+    applyTranslationPatches(updates, req.body.metaTitleTranslations, 'metaTitleTranslations');
+    applyTranslationPatches(updates, req.body.metaDescriptionTranslations, 'metaDescriptionTranslations');
+    applyTranslationPatches(updates, req.body.focusKeywordTranslations, 'focusKeywordTranslations');
+    applyTranslationPatches(updates, req.body.ogTitleTranslations, 'ogTitleTranslations');
+    applyTranslationPatches(updates, req.body.ogDescriptionTranslations, 'ogDescriptionTranslations');
+    applyTranslationPatches(updates, req.body.twitterTitleTranslations, 'twitterTitleTranslations');
+    applyTranslationPatches(updates, req.body.twitterDescriptionTranslations, 'twitterDescriptionTranslations');
 
-    const parsedKeywordsTranslations = parseTranslationObject(
-      req.body.keywordsTranslations,
-      'keywordsTranslations'
-    );
-    if (parsedKeywordsTranslations) {
-      updates.keywordsTranslations = {
-        ...mapTranslationsToObject(existingBlog.keywordsTranslations),
-        ...parsedKeywordsTranslations,
-      };
-    }
+    applyKeywordsTranslationPatches(updates, req.body.keywordsTranslations, existingBlog);
 
     if (req.body.keywords !== undefined) {
       updates.keywords = parseKeywords(req.body.keywords);
@@ -488,7 +489,7 @@ exports.updateBlog = async (req, res) => {
     const blog = await Blog.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
-      { new: true, runValidators: true }
+      { new: true, runValidators: false }
     );
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found' });

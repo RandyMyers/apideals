@@ -157,6 +157,35 @@ exports.getCategories = async (req, res) => {
     const couponCountMap = new Map(couponAgg.map((r) => [String(r._id), r.count]));
     const dealCountMap = new Map(dealAgg.map((r) => [String(r._id), r.count]));
 
+    const offerFilter = buildPublishedOfferFilter(req.siteId);
+    const [couponStoreIds, dealStoreIds] = await Promise.all([
+      Coupon.distinct('storeId', withSiteScope({ ...offerFilter, storeId: { $exists: true, $ne: null } }, req.siteId)),
+      Deal.distinct('store', withSiteScope({ ...offerFilter, store: { $exists: true, $ne: null } }, req.siteId)),
+    ]);
+    const storeIdSet = new Set(
+      [...couponStoreIds, ...dealStoreIds].filter(Boolean).map((id) => String(id))
+    );
+    let storeCountMap = new Map();
+    if (storeIdSet.size > 0) {
+      const storeObjectIds = [...storeIdSet]
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+      const storeCounts = await Store.aggregate([
+        {
+          $match: withSiteScope(
+            {
+              _id: { $in: storeObjectIds },
+              isActive: true,
+              categoryId: { $in: categoryIds },
+            },
+            req.siteId
+          ),
+        },
+        { $group: { _id: '$categoryId', storeCount: { $sum: 1 } } },
+      ]);
+      storeCountMap = new Map(storeCounts.map((r) => [String(r._id), r.storeCount]));
+    }
+
     const includeEmpty = req.query.includeEmpty === 'true' || req.query.includeEmpty === '1';
     const categoryIdsWithContent = includeEmpty
       ? null
@@ -167,10 +196,12 @@ exports.getCategories = async (req, res) => {
         const id = String(cat._id);
         const couponCount = couponCountMap.get(id) || 0;
         const dealCount = dealCountMap.get(id) || 0;
+        const storeCount = storeCountMap.get(id) || 0;
         return {
           ...cat,
           couponCount,
           dealCount,
+          storeCount,
           offerCount: couponCount + dealCount,
         };
       })
@@ -411,9 +442,7 @@ exports.getPopularCategories = async (req, res) => {
 /**
  * GET /category/detail/:slug
  * Returns the category, stores assigned to this category, and active coupons & deals
- * whose **categoryId** matches this category (not merely “all offers from stores in this category”).
- * WooCommerce sync sets each deal/coupon categoryId from the admin flow; listing by categoryId
- * keeps category pages aligned with those assignments.
+ * whose categoryId matches this category or whose store is assigned to this category.
  *
  * Accepts either a slug or a MongoDB ObjectId.
  */
@@ -430,15 +459,27 @@ exports.getCategoryDetail = async (req, res) => {
 
     const categoryId = category._id;
 
-    // List by each document’s categoryId (not “all offers from stores tagged with this category”).
-    // siteId is not required here — same as before; store list above already scopes tenants when needed.
-    const offerBase = { categoryId, isActive: true, isPublished: true };
+    const storeFilter = {
+      categoryId,
+      isActive: true,
+    };
+    if (req.siteId) storeFilter.siteId = req.siteId;
+
+    const categoryStores = await Store.find(storeFilter)
+      .select('_id name logo slug website url')
+      .lean();
+    const categoryStoreIds = categoryStores.map((s) => s._id);
+
+    const offerBase = { isActive: true, isPublished: true };
 
     let coupons = [];
     let deals = [];
 
     if (type === 'all' || type === 'coupons') {
-      coupons = await Coupon.find(offerBase)
+      const couponFilter = categoryStoreIds.length > 0
+        ? { ...offerBase, $or: [{ categoryId }, { storeId: { $in: categoryStoreIds } }] }
+        : { ...offerBase, categoryId };
+      coupons = await Coupon.find(couponFilter)
         .select('_id title code slug discountValue discountType expirationDate storeId successRate verifiedAt imageUrl')
         .populate('storeId', 'name logo slug website isActive')
         .sort({ createdAt: -1 })
@@ -451,7 +492,10 @@ exports.getCategoryDetail = async (req, res) => {
     }
 
     if (type === 'all' || type === 'deals') {
-      deals = await Deal.find(offerBase)
+      const dealFilter = categoryStoreIds.length > 0
+        ? { ...offerBase, $or: [{ categoryId }, { store: { $in: categoryStoreIds } }] }
+        : { ...offerBase, categoryId };
+      deals = await Deal.find(dealFilter)
         .select('_id title name slug discountValue discountType originalPrice discountedPrice endDate store imageUrl')
         .populate('store', 'name logo slug website isActive')
         .sort({ createdAt: -1 })
@@ -473,16 +517,22 @@ exports.getCategoryDetail = async (req, res) => {
       if (sid) storeIdsFromOffers.add(String(sid));
     }
 
-    let stores = [];
+    let stores = [...categoryStores];
     if (storeIdsFromOffers.size > 0) {
       const storeFilter = {
         _id: { $in: [...storeIdsFromOffers] },
         isActive: true,
       };
       if (req.siteId) storeFilter.siteId = req.siteId;
-      stores = await Store.find(storeFilter)
+      const storesFromOffers = await Store.find(storeFilter)
         .select('_id name logo slug website url')
         .lean();
+      const existingIds = new Set(stores.map((s) => String(s._id)));
+      for (const s of storesFromOffers) {
+        if (!existingIds.has(String(s._id))) {
+          stores.push(s);
+        }
+      }
     }
 
     const storeMap = {};

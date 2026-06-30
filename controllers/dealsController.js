@@ -299,6 +299,24 @@ exports.createDeal = async (req, res) => {
       }
     }
 
+    if (!dealData.affiliate || dealData.affiliate === '') {
+      delete dealData.affiliate;
+    }
+    if (dealData.imageGallery !== undefined) {
+      if (typeof dealData.imageGallery === 'string') {
+        try {
+          const parsed = JSON.parse(dealData.imageGallery);
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            delete dealData.imageGallery;
+          }
+        } catch {
+          delete dealData.imageGallery;
+        }
+      } else if (!Array.isArray(dealData.imageGallery) || dealData.imageGallery.length === 0) {
+        delete dealData.imageGallery;
+      }
+    }
+
     // Allow superAdmin and couponManager to bypass subscription limits
     if (userType === 'superAdmin' || userType === 'couponManager') {
       const { 

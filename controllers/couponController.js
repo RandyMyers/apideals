@@ -120,7 +120,9 @@ exports.createCoupon = async (req, res) => {
           ? JSON.parse(otherCouponData.highlights)
           : (Array.isArray(otherCouponData.highlights) ? otherCouponData.highlights : []);
       } catch (e) {
-        console.warn('Could not parse highlights, using empty array');
+        highlights = typeof otherCouponData.highlights === 'string'
+          ? otherCouponData.highlights.split('\n').map((s) => s.trim()).filter(Boolean)
+          : [];
       }
     }
 
@@ -131,7 +133,9 @@ exports.createCoupon = async (req, res) => {
           ? JSON.parse(otherCouponData.tags)
           : (Array.isArray(otherCouponData.tags) ? otherCouponData.tags : []);
       } catch (e) {
-        console.warn('Could not parse tags, using empty array');
+        tags = typeof otherCouponData.tags === 'string'
+          ? otherCouponData.tags.split(',').map((s) => s.trim()).filter(Boolean)
+          : [];
       }
     }
 
@@ -142,7 +146,9 @@ exports.createCoupon = async (req, res) => {
           ? JSON.parse(otherCouponData.seoKeywords)
           : (Array.isArray(otherCouponData.seoKeywords) ? otherCouponData.seoKeywords : []);
       } catch (e) {
-        console.warn('Could not parse seoKeywords, using empty array');
+        seoKeywords = typeof otherCouponData.seoKeywords === 'string'
+          ? otherCouponData.seoKeywords.split(',').map((s) => s.trim()).filter(Boolean)
+          : [];
       }
     }
 
@@ -167,6 +173,25 @@ exports.createCoupon = async (req, res) => {
         otherCouponData[key] = otherCouponData[key] === true || otherCouponData[key] === 'true';
       }
     });
+
+    // Strip empty optional ObjectId / embedded fields that break Mongoose casting
+    if (!otherCouponData.affiliateId || otherCouponData.affiliateId === '') {
+      delete otherCouponData.affiliateId;
+    }
+    if (otherCouponData.imageGallery !== undefined) {
+      if (typeof otherCouponData.imageGallery === 'string') {
+        try {
+          const parsed = JSON.parse(otherCouponData.imageGallery);
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            delete otherCouponData.imageGallery;
+          }
+        } catch {
+          delete otherCouponData.imageGallery;
+        }
+      } else if (!Array.isArray(otherCouponData.imageGallery) || otherCouponData.imageGallery.length === 0) {
+        delete otherCouponData.imageGallery;
+      }
+    }
 
     // Allow superAdmin and couponManager to bypass subscription limits
     if (userType === 'superAdmin' || userType === 'couponManager') {

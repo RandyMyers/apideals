@@ -1,10 +1,10 @@
 const Store = require('../models/store');
 const Coupon = require('../models/coupon');
 const Deal = require('../models/deal');
-const Category = require('../models/category');
 const { buildStoreLookupFilter } = require('./storeResolver');
 const { stripLanguagePrefix, URL_CODES } = require('./languagePathUtils');
 const { withSiteScope } = require('./tenantQuery');
+const { findCategoryBySlug } = require('./categoryPublicContent');
 
 const PUBLISHED_OFFER = { isPublished: true, isActive: true };
 
@@ -53,7 +53,7 @@ async function storeHasPublishedOffers(storeId, siteId) {
   return couponCount + dealCount > 0;
 }
 
-async function categoryHasPublishedOffers(categoryId, siteId) {
+async function categoryHasDirectPublishedOffers(categoryId, siteId) {
   const couponMatch = withSiteScope({ categoryId, ...PUBLISHED_OFFER }, siteId);
   const dealMatch = withSiteScope({ categoryId, ...PUBLISHED_OFFER }, siteId);
   const [couponCount, dealCount] = await Promise.all([
@@ -61,6 +61,24 @@ async function categoryHasPublishedOffers(categoryId, siteId) {
     Deal.countDocuments(dealMatch),
   ]);
   return couponCount + dealCount > 0;
+}
+
+async function categoryHasPublishedOffers(categoryId, siteId) {
+  if (await categoryHasDirectPublishedOffers(categoryId, siteId)) {
+    return true;
+  }
+
+  const storeFilter = withSiteScope(
+    { categoryId, isActive: true },
+    siteId
+  );
+  const stores = await Store.find(storeFilter).select('_id').lean();
+  for (const store of stores) {
+    if (await storeHasPublishedOffers(store._id, siteId)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function slugOrIdFilter(slug) {
@@ -113,7 +131,7 @@ async function resolveUnpublishedEntityRedirect(path, siteId = null) {
   }
 
   if (type === 'category') {
-    const cat = await Category.findOne(slugOrIdFilter(slug)).select('_id').lean();
+    const cat = await findCategoryBySlug(slug);
     if (!cat) {
       return { newPath: withLangPrefix(path, listPath), redirectType: 301 };
     }

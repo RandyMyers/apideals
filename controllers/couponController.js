@@ -27,6 +27,8 @@ exports.createCoupon = async (req, res) => {
       ...otherCouponData 
     } = req.body;
 
+    console.log(req.body);
+
     userId = userId || (req.user?._id ? req.user._id.toString() : req.user?.id);
     storeId = storeId || req.apiKeyStoreId;
     categoryId = categoryId || req.apiKeyCategoryId;

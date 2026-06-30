@@ -439,7 +439,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0',
-    apiBuild: process.env.API_BUILD_ID || '6270713-afdd84b',
+    apiBuild: process.env.API_BUILD_ID || '002475f',
     blogUpdate: {
       jsonPayload: true,
       structuredErrors: true,

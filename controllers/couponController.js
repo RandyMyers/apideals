@@ -31,7 +31,7 @@ exports.createCoupon = async (req, res) => {
 
     userId = userId || (req.user?._id ? req.user._id.toString() : req.user?.id);
     storeId = storeId || req.apiKeyStoreId;
-    categoryId = categoryId || req.apiKeyCategoryId;
+    categoryId = categoryId || req.body.category || req.apiKeyCategoryId;
 
     // Normalize productUrl: empty/placeholder ("...", "N/A") causes duplicate key errors when many coupons share them
     const isEmptyProductUrl = (v) => !v || (typeof v === 'string' && (v === '' || v === '...' || v === 'N/A' || v.trim() === ''));

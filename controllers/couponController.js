@@ -13,6 +13,36 @@ const { isCountryAvailable } = require('../utils/countryUtils');
 const { buildCouponLookupFilter } = require('../utils/slugResolver');
 const notificationService = require('../services/notificationService');
 const { pingIndexNow } = require('../utils/indexNow');
+const {
+  isInternalProductUrl,
+  normalizeStoreForApi,
+  attachVisitUrlToOffer,
+} = require('../utils/offerUrlUtils');
+
+const STORE_PUBLIC_SELECT = 'name slug logo url rating followers isActive';
+const ADMIN_ROLES = new Set(['superAdmin', 'couponManager', 'marketingManager', 'contentEditor']);
+
+function isAdminRequest(req) {
+  const role = req.user?.userType;
+  return role && ADMIN_ROLES.has(role);
+}
+
+function formatCouponForResponse(coupon, { admin = false } = {}) {
+  if (!coupon) return coupon;
+  const store = normalizeStoreForApi(coupon.storeId || coupon.store);
+  const base = {
+    ...coupon,
+    store: store || null,
+    category: coupon.categoryId || coupon.category || null,
+  };
+  if (admin) {
+    return {
+      ...base,
+      productUrl: isInternalProductUrl(base.productUrl) ? '' : (base.productUrl || ''),
+    };
+  }
+  return attachVisitUrlToOffer(base, store);
+}
 
 exports.createCoupon = async (req, res) => {
   try {
@@ -405,7 +435,7 @@ exports.bulkUpsert = async (req, res) => {
 
 // Public list fields for store-scoped coupon queries
 const COUPON_LIST_SELECT =
-  '_id title code slug discountValue discountType endDate storeId successRate verifiedAt imageUrl entityType entityLocation entityTags createdAt description availableCountries isWorldwide';
+  '_id title code slug discountValue discountType endDate storeId successRate verifiedAt imageUrl productUrl entityType entityLocation entityTags createdAt description availableCountries isWorldwide';
 
 // GET /coupons/by-store/:storeId?limit=&country=&exclude=
 exports.getCouponsByStore = async (req, res) => {
@@ -434,7 +464,7 @@ exports.getCouponsByStore = async (req, res) => {
 
     let coupons = await Coupon.find(query)
       .select(COUPON_LIST_SELECT)
-      .populate('storeId', 'name slug logo website isActive')
+      .populate('storeId', STORE_PUBLIC_SELECT)
       .sort({ createdAt: -1 })
       .limit(maxLimit)
       .lean();
@@ -450,7 +480,35 @@ exports.getCouponsByStore = async (req, res) => {
 
     const mapped = coupons.map((coupon) => {
       const isExpired = coupon.endDate && new Date(coupon.endDate) < now;
-      return { ...coupon, isExpired: !!isExpired };
+      coupon.isExpired = isExpired;
+
+      let imageGallery = coupon.imageGallery || [];
+      if (!Array.isArray(imageGallery)) {
+        imageGallery = [];
+      }
+
+      if (imageGallery.length === 0 && coupon.imageUrl) {
+        imageGallery = [{
+          url: coupon.imageUrl,
+          alt: coupon.title || coupon.code || 'Coupon image',
+          order: 0,
+        }];
+      }
+
+      let status = 'active';
+      if (coupon.endDate) {
+        const endDate = new Date(coupon.endDate);
+        if (endDate < now) {
+          status = 'expired';
+        }
+      }
+
+      return formatCouponForResponse({
+        ...coupon,
+        imageGallery,
+        imageUrl: coupon.imageUrl || (imageGallery.length > 0 ? imageGallery[0].url : null),
+        status,
+      });
     });
 
     return res.status(200).json({ coupons: mapped, count: mapped.length });
@@ -492,7 +550,7 @@ exports.getAllCoupons = async (req, res) => {
         .select(`${COUPON_LIST_SELECT} imageUrl imageGallery`)
         .populate({
           path: 'storeId',
-          select: 'name website logo slug',
+          select: STORE_PUBLIC_SELECT,
           strictPopulate: false,
         })
         .populate({
@@ -547,14 +605,12 @@ exports.getAllCoupons = async (req, res) => {
         }
       }
       
-      return {
+      return formatCouponForResponse({
         ...coupon,
-        store: coupon.storeId || null, // Map storeId to store for frontend compatibility
-        category: coupon.categoryId || null,
-        imageGallery: imageGallery, // Ensure imageGallery is always an array
-        imageUrl: coupon.imageUrl || (imageGallery.length > 0 ? imageGallery[0].url : null), // Ensure imageUrl exists
-        status: status // Add status field (active/expired)
-      };
+        imageGallery: imageGallery,
+        imageUrl: coupon.imageUrl || (imageGallery.length > 0 ? imageGallery[0].url : null),
+        status: status,
+      });
     });
 
     const totalPages = Math.ceil(totalBeforeCountry / limit) || 1;
@@ -591,7 +647,7 @@ exports.getCouponById = async (req, res) => {
       })
       .populate({
         path: 'storeId',
-        select: 'name website logo rating followers',
+        select: STORE_PUBLIC_SELECT,
         strictPopulate: false
       })
       .populate({
@@ -630,7 +686,7 @@ exports.getCouponById = async (req, res) => {
       return res.status(404).json({ message: 'Coupon not found' });
     }
 
-    if (coupon.isPublished !== true || coupon.isActive === false) {
+    if (!isAdminRequest(req) && (coupon.isPublished !== true || coupon.isActive === false)) {
       return res.status(404).json({ message: 'Coupon not found' });
     }
 
@@ -671,7 +727,7 @@ exports.getCouponById = async (req, res) => {
       });
     }
 
-    res.status(200).json(coupon);
+    res.status(200).json(formatCouponForResponse(coupon, { admin: isAdminRequest(req) }));
   } catch (error) {
     console.error('Error fetching coupon by ID:', error);
     res.status(500).json({ 

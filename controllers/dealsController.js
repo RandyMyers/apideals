@@ -12,6 +12,32 @@ const { isCountryAvailable } = require('../utils/countryUtils');
 const { withSiteScope } = require('../utils/tenantQuery');
 const { buildDealLookupFilter } = require('../utils/slugResolver');
 const notificationService = require('../services/notificationService');
+const {
+  isInternalProductUrl,
+  normalizeStoreForApi,
+  attachVisitUrlToOffer,
+} = require('../utils/offerUrlUtils');
+
+const STORE_PUBLIC_SELECT = 'name slug logo url rating followers isActive';
+const ADMIN_ROLES = new Set(['superAdmin', 'couponManager', 'marketingManager', 'contentEditor']);
+
+function isAdminRequest(req) {
+  const role = req.user?.userType;
+  return role && ADMIN_ROLES.has(role);
+}
+
+function formatDealForResponse(deal, { admin = false } = {}) {
+  if (!deal) return deal;
+  const store = normalizeStoreForApi(deal.store);
+  const base = { ...deal, store: store || null };
+  if (admin) {
+    return {
+      ...base,
+      productUrl: isInternalProductUrl(base.productUrl) ? '' : (base.productUrl || ''),
+    };
+  }
+  return attachVisitUrlToOffer(base, store);
+}
 
 const REFERRAL_DEAL_TYPES = ['referral_credits', 'referral_free_service', 'referral_bonus'];
 
@@ -528,7 +554,7 @@ exports.bulkUpsert = async (req, res) => {
 
 // Get all deals (public - only active deals)
 const DEAL_LIST_SELECT =
-  '_id title name slug discountValue discountType originalPrice discountedPrice endDate store imageUrl entityType entityLocation entityTags createdAt description dealType availableCountries isWorldwide currency priceUnit';
+  '_id title name slug discountValue discountType originalPrice discountedPrice endDate store imageUrl productUrl entityType entityLocation entityTags createdAt description dealType availableCountries isWorldwide currency priceUnit';
 
 // GET /deals/by-store/:storeId?limit=&country=&exclude=
 exports.getDealsByStore = async (req, res) => {
@@ -555,7 +581,7 @@ exports.getDealsByStore = async (req, res) => {
 
     let deals = await Deal.find(query)
       .select(DEAL_LIST_SELECT)
-      .populate('store', 'name slug logo website isActive')
+      .populate('store', STORE_PUBLIC_SELECT)
       .sort({ createdAt: -1 })
       .limit(maxLimit)
       .lean();
@@ -567,7 +593,8 @@ exports.getDealsByStore = async (req, res) => {
     }
     deals = deals.filter((d) => (d.store && typeof d.store === 'object' ? d.store.isActive !== false : true));
 
-    return res.status(200).json({ deals, count: deals.length });
+    const mapped = deals.map((deal) => formatDealForResponse(deal));
+    return res.status(200).json({ deals: mapped, count: mapped.length });
   } catch (error) {
     console.error('Error fetching deals by store:', error);
     return res.status(500).json({ message: 'Error fetching deals', error: error.message });
@@ -602,7 +629,7 @@ exports.getAllDeals = async (req, res) => {
       Deal.countDocuments(query),
       Deal.find(query)
         .select(DEAL_LIST_SELECT)
-        .populate('store', 'name website logo slug')
+        .populate('store', STORE_PUBLIC_SELECT)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -617,6 +644,8 @@ exports.getAllDeals = async (req, res) => {
         isCountryAvailable(country, deal.availableCountries || [], deal.isWorldwide !== false)
       );
     }
+
+    deals = deals.map((deal) => formatDealForResponse(deal));
 
     const totalPages = Math.ceil(totalBeforeCountry / limit) || 1;
     res.status(200).json({
@@ -661,12 +690,12 @@ exports.getAllDealsAdmin = async (req, res) => {
     }
 
     const deals = await Deal.find(query)
-      .populate('store', 'name website logo')
+      .populate('store', STORE_PUBLIC_SELECT)
       .populate('categoryId', 'name slug')
       .sort({ createdAt: -1 })
       .lean();
 
-    res.status(200).json(deals);
+    res.status(200).json(deals.map((deal) => formatDealForResponse(deal, { admin: true })));
   } catch (error) {
     console.error('Error fetching admin deals:', error);
     res.status(500).json({
@@ -683,7 +712,7 @@ exports.getDealById = async (req, res) => {
   try {
     const findFilter = buildDealLookupFilter(id, req.siteId);
     const deal = await Deal.findOne(findFilter)
-      .populate('store', 'name website logo rating followers')
+      .populate('store', STORE_PUBLIC_SELECT)
       .populate('categoryId', 'name slug')
       .populate('affiliate', 'name')
       .populate('userId', 'username')
@@ -713,7 +742,7 @@ exports.getDealById = async (req, res) => {
       return res.status(404).json({ message: 'Deal not found' });
     }
 
-    if (deal.isPublished !== true || deal.isActive === false) {
+    if (!isAdminRequest(req) && (deal.isPublished !== true || deal.isActive === false)) {
       return res.status(404).json({ message: 'Deal not found' });
     }
 
@@ -749,7 +778,7 @@ exports.getDealById = async (req, res) => {
       });
     }
 
-    res.status(200).json(deal);
+    res.status(200).json(formatDealForResponse(deal, { admin: isAdminRequest(req) }));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching deal', error: error.message });
   }
